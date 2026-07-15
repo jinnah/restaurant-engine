@@ -23,7 +23,9 @@ services:
       POSTGRES_PASSWORD: restaurant_dev_only
       POSTGRES_DB: restaurant_engine
     ports:
-      - '5433:5432'
+      # Bound exclusively to localhost: the dev database must never be
+      # reachable from other machines on the network.
+      - '127.0.0.1:5433:5432'
     volumes:
       - restaurant-engine-pgdata:/var/lib/postgresql/data
     healthcheck:
