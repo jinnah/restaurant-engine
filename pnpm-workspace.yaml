@@ -1,0 +1,5 @@
+# Workspace globs. Both are intentionally empty during Milestone 0;
+# apps/ and packages/ gain their first members in Milestone 1.
+packages:
+  - apps/*
+  - packages/*

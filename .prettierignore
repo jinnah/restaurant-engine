@@ -1,0 +1,7 @@
+# Architect-owned governing documents: amended only through approved,
+# reviewed edits — never auto-reformatted by tooling.
+00_RESTAURANT_ENGINE_BLUEPRINT.md
+CLAUDE_PROJECT_PROMPT.md
+
+# Tool-owned files.
+pnpm-lock.yaml
