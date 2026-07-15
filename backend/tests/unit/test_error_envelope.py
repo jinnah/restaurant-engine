@@ -20,13 +20,25 @@ def test_envelope_serializes_to_contract_shape() -> None:
                 {"field": "body.name", "code": "missing", "message": "Field required"}
             ],
             "correlation_id": "abc-123",
+            "details": None,
         }
     }
 
 
-def test_field_errors_default_to_empty_list() -> None:
+def test_field_errors_default_to_empty_list_and_details_to_none() -> None:
     detail = ErrorDetail(code=ErrorCode.NOT_FOUND, message="Not Found", correlation_id=None)
     assert detail.field_errors == []
+    assert detail.details is None
+
+
+def test_details_carry_structured_context() -> None:
+    detail = ErrorDetail(
+        code=ErrorCode.DEPENDENCY_UNAVAILABLE,
+        message="Service dependencies are unavailable.",
+        correlation_id=None,
+        details={"checks": {"database": "down"}},
+    )
+    assert detail.model_dump(mode="json")["details"] == {"checks": {"database": "down"}}
 
 
 def test_error_codes_are_snake_case_strings() -> None:

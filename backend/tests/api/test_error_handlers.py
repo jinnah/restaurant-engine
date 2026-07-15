@@ -39,6 +39,7 @@ def test_unknown_route_returns_not_found_envelope(client: TestClient) -> None:
             "message": "Not Found",
             "field_errors": [],
             "correlation_id": "corr-404",
+            "details": None,
         }
     }
 

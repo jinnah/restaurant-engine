@@ -25,16 +25,23 @@ unhandled exceptions — uses one envelope (`app/core/errors.py`):
     "field_errors": [
       { "field": "body.name", "code": "missing", "message": "Field required" }
     ],
-    "correlation_id": "..."
+    "correlation_id": "...",
+    "details": null
   }
 }
 ```
 
 - `code` comes from an **append-only snake_case registry** seeded with
-  `validation_error`, `not_found`, `method_not_allowed`, `http_error`, and
-  `internal_error`. Codes are never renamed or reused.
+  `validation_error`, `not_found`, `method_not_allowed`, `http_error`,
+  `internal_error`, and `dependency_unavailable`. Codes are never renamed or
+  reused.
 - `field_errors` is an empty list when not applicable; `field` is the
   dot-joined request location (for example `body.name`, `path.item_id`).
+- `details` is an optional structured-context object (null when absent) for
+  codes that carry machine-readable information. First use: `/health/ready`
+  returns 503 with `dependency_unavailable` and
+  `details.checks` (for example `{"checks": {"database": "down"}}`) — the
+  not-ready state is an error and uses this envelope, not a bespoke body.
 - Unhandled exceptions return an opaque message and are logged with the
   stack trace; internals never reach the response.
 
