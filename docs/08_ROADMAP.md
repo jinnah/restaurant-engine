@@ -18,14 +18,25 @@ initial architecture-contract commit.
 
 ## Status
 
-| Milestone                                 | State           |
-| ----------------------------------------- | --------------- |
-| M0 — Architecture and repository contract | **In progress** |
-| M1 – M8                                   | Not started     |
+| Milestone                                 | State                     |
+| ----------------------------------------- | ------------------------- |
+| M0 — Architecture and repository contract | **Complete** (2026-07-14) |
+| M1 — Platform foundation                  | **In progress**           |
+| M2 – M8                                   | Not started               |
 
-The previously open Python-version decision is resolved: Python 3.12 was
-installed and is pinned (`>=3.12,<3.13`) in `backend/pyproject.toml`, with
-tool dependencies locked in `backend/uv.lock`.
+## Milestone 1 delivery decision (2026-07-14)
+
+Approved subdivision into three independently reviewable sub-milestones:
+
+| Sub-milestone                               | Scope                                                                                                                                                                                               | State                     |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| **M1A** — Backend and PostgreSQL foundation | FastAPI factory, settings, correlation IDs, structured logging, error envelope (ADR-008), sync SQLAlchemy core (ADR-007), compose database, Alembic baseline, health probes, backend tests + CI job | **Complete** (2026-07-15) |
+| **M1B** — Frontend application shells       | Next.js storefront shell, React/Vite control-center shell, neutral placeholder pages, frontend lint/typecheck/test/build                                                                            | Not started               |
+| **M1C** — API contract and CI integration   | Deterministic OpenAPI export, generated TypeScript client + facade, drift check, integrated CI matrix, one-command stack + clean-clone verification                                                 | Not started               |
+
+M1A ∥ M1B are independent; M1C depends on both. CI gained the backend job
+with M1A (untested application code must not merge); the integrated matrix
+lands with M1C.
 
 ## Milestone 0 — Architecture and repository contract
 

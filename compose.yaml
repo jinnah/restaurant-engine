@@ -1,0 +1,38 @@
+# Development infrastructure for Restaurant Engine (Milestone 1A).
+#
+# Contains ONLY the PostgreSQL development database. The API runs natively
+# during development (`uv run uvicorn app.main:create_app --factory` inside
+# backend/) for the fastest reload loop; see docs/05_DEVELOPMENT_WORKFLOW.md.
+# Full-stack and production compose topologies arrive in later milestones.
+#
+# Host port 5433 is used deliberately: a native PostgreSQL service occupies
+# 5432 on the primary development machine.
+#
+# Credentials below are development-only values for a database that is never
+# exposed beyond localhost. Production secrets are provisioned per
+# docs/07_DEPLOYMENT_RUNBOOK.md and are never committed.
+
+name: restaurant-engine
+
+services:
+  db:
+    image: postgres:17.10
+    container_name: restaurant-engine-db
+    environment:
+      POSTGRES_USER: restaurant_dev
+      POSTGRES_PASSWORD: restaurant_dev_only
+      POSTGRES_DB: restaurant_engine
+    ports:
+      # Bound exclusively to localhost: the dev database must never be
+      # reachable from other machines on the network.
+      - '127.0.0.1:5433:5432'
+    volumes:
+      - restaurant-engine-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U restaurant_dev -d restaurant_engine']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  restaurant-engine-pgdata:

@@ -1,6 +1,6 @@
-# CI for Milestone 0: checks limited to the files that actually exist —
-# documentation formatting, configuration consistency, and repository hygiene.
-# Application build/test jobs are added in Milestone 1 with the code they check.
+# CI runs exactly the documented commands (ADR-006): the local gate and the
+# CI gate are the same list. The backend job arrived with Milestone 1A; the
+# integrated matrix (frontend builds, generated-client drift) lands in M1C.
 name: CI
 
 on:
@@ -47,3 +47,48 @@ jobs:
             echo "An environment file is committed; remove it."
             exit 1
           fi
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      # Same pinned image as compose.yaml; mapped to 5433 to match the
+      # documented development URL, so tests run identically local and CI.
+      postgres:
+        image: postgres:17.10
+        env:
+          POSTGRES_USER: restaurant_dev
+          POSTGRES_PASSWORD: restaurant_dev_only
+          POSTGRES_DB: restaurant_engine
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U restaurant_dev -d restaurant_engine"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv (pinned)
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: '0.11.23'
+
+      - name: Install locked dependencies
+        run: uv sync --frozen
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: mypy (strict)
+        run: uv run mypy app tests
+
+      - name: pytest (unit, API, and PostgreSQL integration)
+        run: uv run pytest

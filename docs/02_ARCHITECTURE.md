@@ -102,8 +102,12 @@ restaurant-engine/
 ```
 
 This tree is a direction, not permission to create empty folders. A directory
-appears when its first real contents do. During Milestone 0 only `docs/`,
-`backend/pyproject.toml` (tooling contract), and root configuration exist.
+appears when its first real contents do. As of Milestone 1A, `backend/app/`
+contains `core/` (settings, logging, correlation, errors, database), `api/`
+(composition root, health probes), and `main.py` (application factory), plus
+`migrations/` and `tests/`; `backend/app/domains/` appears with the first
+domain in Milestone 2, and `apps/`/`packages/` gain their first members in
+Milestone 1B/1C.
 
 ### Backend domain module template
 

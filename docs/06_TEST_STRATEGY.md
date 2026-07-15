@@ -2,13 +2,23 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (Milestone 0)
+## Current state (Milestone 1A)
 
-**No tests exist yet, and none are faked.** Milestone 0 contains no
-application code, so there is nothing to test beyond documentation and
-configuration checks (`pnpm format:check`, `pnpm lint`, CI hygiene checks).
-The first real tests arrive in Milestone 1 with the first runnable code, and
-every milestone after that adds the layers below for the behavior it ships.
+The backend foundation ships with real tests in `backend/tests/`:
+
+- **unit/** — settings validation, error-envelope contract, constraint
+  naming convention (no I/O);
+- **api/** — health probes, correlation-ID behavior, error handlers, request
+  logging, via the FastAPI test client (no database required);
+- **integration/** — readiness against real PostgreSQL and
+  `alembic upgrade head` from an empty scratch database. These carry the
+  `integration` marker (applied automatically by directory) and **fail with
+  a clear message — never skip — when the database is down**, so the suite
+  cannot go green while silently not testing the database.
+
+Run with `uv run pytest` (see docs/05 for marker selection). CI runs the
+identical commands against the same pinned PostgreSQL image. Frontend and
+end-to-end layers arrive with their surfaces (M1B onward).
 
 ## Test layers
 

@@ -1,19 +1,26 @@
 # Restaurant Engine backend — Python project and tooling contract (ADR-006).
 #
-# Milestone 0: this file defines the Python version, dependency policy, and
-# lint/type/test configuration baselines only. There is intentionally no
-# application code yet; runtime dependencies (FastAPI, SQLAlchemy, Alembic,
-# Pydantic) arrive in Milestone 1 with the code that uses them.
+# All dependencies are pinned to exact versions (ADR-006); upgrades happen
+# through small, dedicated pull requests.
 
 [project]
 name = "restaurant-engine-backend"
 version = "0.0.0"
 description = "Restaurant Engine API — multi-tenant restaurant platform backend"
 requires-python = ">=3.12,<3.13"
-dependencies = []
+dependencies = [
+    "alembic==1.18.5",
+    "fastapi==0.139.0",
+    "psycopg[binary]==3.3.4",
+    "pydantic-settings==2.14.2",
+    "sqlalchemy==2.0.51",
+    "structlog==26.1.0",
+    "uvicorn[standard]==0.51.0",
+]
 
 [dependency-groups]
 dev = [
+    "httpx==0.28.1",
     "mypy==2.3.0",
     "pytest==9.1.1",
     "ruff==0.15.21",
@@ -57,10 +64,17 @@ strict = true
 warn_unreachable = true
 show_error_codes = true
 pretty = true
+# tests/ is checked as well as app/ but is not an installed package.
+mypy_path = "."
+explicit_package_bases = true
 
 # --- pytest -----------------------------------------------------------------
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = "-q --strict-markers --strict-config"
 xfail_strict = true
+markers = [
+    "integration: exercises the real PostgreSQL database (docker compose up -d db)",
+]

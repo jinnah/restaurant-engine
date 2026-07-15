@@ -45,11 +45,15 @@ America/New_York defaults — without baking market specifics into core logic.
 
 ## Current state
 
-The project is in **Milestone 0 — Architecture and Repository Contract**.
-The repository deliberately contains documentation, configuration, and
-tooling contracts only. There is no application code, no database, and no
-runnable service yet; those begin in Milestone 1. If you find application
-code in the repository during Milestone 0, that is a defect — report it.
+Milestone 0 (architecture and repository contract) is **complete**. The
+project is in **Milestone 1 — Platform foundation**, delivered as three
+reviewable sub-milestones (see [08_ROADMAP.md](08_ROADMAP.md)): **M1A**
+backend and PostgreSQL foundation, **M1B** frontend application shells,
+**M1C** API contract and CI integration. The backend skeleton is runnable
+(`docker compose up -d db`, then `uv run uvicorn app.main:create_app
+--factory` inside `backend/`); it deliberately contains no product-domain
+behavior — no tenants, authentication, menus, or orders — until their
+milestones.
 
 ## Rules for AI coding agents
 
