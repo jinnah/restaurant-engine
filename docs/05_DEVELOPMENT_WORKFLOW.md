@@ -44,6 +44,19 @@ backend tools through uv, for example `uv run ruff check .`.
 All repository scripts must work on both Windows PowerShell and Linux.
 Platform-specific commands are documented explicitly when unavoidable.
 
+## Development database
+
+PostgreSQL runs in Docker Compose (`compose.yaml` at the repository root).
+It listens on host port **5433** because an unrelated native PostgreSQL
+service occupies 5432 on the primary development machine.
+
+```powershell
+docker compose up -d db      # start (first run pulls the pinned image)
+docker compose stop db       # stop; data persists in the named volume
+```
+
+Connection values live in `.env.example`; copy to `.env` for local use.
+
 ## Command contract
 
 Commands are defined at the repository root and run with `pnpm <script>`.
