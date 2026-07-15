@@ -65,11 +65,18 @@ Fake-success placeholders are prohibited.
 
 ### Repository-wide (from the root)
 
-| Command             | Purpose                                                |
-| ------------------- | ------------------------------------------------------ |
-| `pnpm format:check` | Prettier verification of docs and configuration        |
-| `pnpm format`       | Apply Prettier formatting                              |
-| `pnpm lint`         | ESLint over the JavaScript/TypeScript files that exist |
+| Command             | Purpose                                                 |
+| ------------------- | ------------------------------------------------------- |
+| `pnpm format:check` | Prettier verification of docs, configuration, and code  |
+| `pnpm format`       | Apply Prettier formatting                               |
+| `pnpm lint`         | Root ESLint flat config over the whole workspace        |
+| `pnpm typecheck`    | Strict TypeScript (`tsc --noEmit`) in every app         |
+| `pnpm test`         | Frontend unit tests (Vitest) in every app               |
+| `pnpm build`        | Production builds of both applications (needs zero env) |
+
+The `typecheck`/`test`/`build` scripts shell out through `corepack pnpm -r`
+so the pinned pnpm resolves even where Corepack was never globally enabled
+(the Windows elevation gotcha above).
 
 ### Backend (run inside `backend/`, from Milestone 1A)
 
@@ -88,16 +95,30 @@ Integration tests **fail with a clear message** (never skip) when the
 database is down — start it with `docker compose up -d db` first. The API
 serves `/health/live`, `/health/ready`, and (non-production) `/docs`.
 
-### Reserved canonical names (first consumers arrive in Milestone 1B/1C)
+### Frontend development (from Milestone 1B)
 
-| Command                | Future purpose                             |
-| ---------------------- | ------------------------------------------ |
-| `pnpm typecheck`       | Strict TypeScript across all apps/packages |
-| `pnpm test`            | Frontend unit tests (Vitest)               |
-| `pnpm build`           | Production builds of both applications     |
-| `pnpm generate:client` | Regenerate the OpenAPI TypeScript client   |
+| Command                                                   | Purpose                                   |
+| --------------------------------------------------------- | ----------------------------------------- |
+| `pnpm --filter @restaurant-engine/storefront dev`         | Next.js dev server (port 3000)            |
+| `pnpm --filter @restaurant-engine/control-center dev`     | Vite dev server (port 5173)               |
+| `pnpm --filter @restaurant-engine/storefront start`       | Serve the storefront production build     |
+| `pnpm --filter @restaurant-engine/control-center preview` | Serve the control-center production build |
 
-Adding one of these scripts requires its real consumer in the same change.
+Environment-variable conventions (no frontend variables exist yet): values
+exposed to browser code use the framework prefixes `NEXT_PUBLIC_*`
+(storefront) and `VITE_*` (control center); every new variable gets a safe
+placeholder in `.env.example` in the same change that consumes it. The M1B
+shells build with **zero** environment variables. Dev-server URLs print as
+`localhost`; note the database's 127.0.0.1 rule above applies only to
+PostgreSQL connections.
+
+### Reserved canonical names (first consumer arrives in Milestone 1C)
+
+| Command                | Future purpose                           |
+| ---------------------- | ---------------------------------------- |
+| `pnpm generate:client` | Regenerate the OpenAPI TypeScript client |
+
+Adding this script requires its real consumer in the same change.
 
 ## Git workflow
 

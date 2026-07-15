@@ -2,7 +2,21 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (Milestone 1A)
+## Current state (Milestone 1B)
+
+Frontend tests live in each app (`apps/*/tests/`), run with **Vitest +
+Testing Library + jsdom** via `pnpm test` from the root:
+
+- **storefront** — placeholder page and not-found page render with the right
+  headings/links; layout/page/not-found metadata declare the expected
+  document titles (async server-component rendering is deliberately not
+  simulated; shell pages are synchronous components).
+- **control-center** — the exported route table is exercised through a real
+  memory router: `/` renders the layout landmarks and home page with the
+  right `document.title`; an unknown path renders the not-found page.
+
+Production builds are part of the gate (`pnpm build`, zero environment
+variables). Playwright/e2e remains deferred until the first real journey.
 
 The backend foundation ships with real tests in `backend/tests/`:
 
