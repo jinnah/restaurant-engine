@@ -13,8 +13,10 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 from app.core.settings import AppEnv, Settings
 from app.main import create_app
 
+# 127.0.0.1, not localhost: the compose database binds only the IPv4
+# loopback, and a dead ::1 attempt would add seconds to every connection.
 TEST_DATABASE_URL = (
-    "postgresql+psycopg://restaurant_dev:restaurant_dev_only@localhost:5433/restaurant_engine_test"
+    "postgresql+psycopg://restaurant_dev:restaurant_dev_only@127.0.0.1:5433/restaurant_engine_test"
 )
 
 

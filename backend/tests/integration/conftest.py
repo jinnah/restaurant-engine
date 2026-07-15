@@ -38,7 +38,7 @@ def test_database_url() -> str:
                 connection.execute(text(f'CREATE DATABASE "{url.database}"'))
     except OperationalError as exc:
         pytest.fail(
-            "PostgreSQL is not reachable on localhost:5433. "
+            "PostgreSQL is not reachable on 127.0.0.1:5433. "
             "Start it with `docker compose up -d db` from the repository root. "
             f"Underlying error: {type(exc).__name__}",
             pytrace=False,
