@@ -51,6 +51,21 @@ class Settings(BaseSettings):
             return value.upper()
         return value
 
+    @field_validator("database_url")
+    @classmethod
+    def _require_sync_psycopg_scheme(cls, value: PostgresDsn) -> PostgresDsn:
+        # ADR-007: the backend runs synchronous SQLAlchemy on psycopg 3.
+        # Rejecting every other scheme (plain postgresql, asyncpg, psycopg2)
+        # at startup prevents a misconfigured process from booting on the
+        # wrong driver.
+        if value.scheme != "postgresql+psycopg":
+            msg = (
+                "DATABASE_URL must use the 'postgresql+psycopg' scheme "
+                f"(ADR-007 sync psycopg 3 driver); got '{value.scheme}'"
+            )
+            raise ValueError(msg)
+        return value
+
     @property
     def is_production(self) -> bool:
         return self.app_env is AppEnv.PRODUCTION

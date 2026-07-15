@@ -26,6 +26,29 @@ class TestRequiredConfiguration:
             build(app_env="test", database_url="not-a-database-url")
 
 
+class TestDatabaseUrlScheme:
+    """ADR-007: only the synchronous psycopg 3 scheme is bootable."""
+
+    def test_sync_psycopg_scheme_is_accepted(self) -> None:
+        settings = build(database_url="postgresql+psycopg://u:p@localhost:5433/db")
+        assert settings.database_url_str.startswith("postgresql+psycopg://")
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "postgresql://u:p@localhost:5433/db",  # plain (driver-ambiguous)
+            "postgres://u:p@localhost:5433/db",  # legacy plain
+            "postgresql+asyncpg://u:p@localhost:5433/db",  # async driver
+            "postgresql+psycopg2://u:p@localhost:5433/db",  # legacy driver
+            "mysql://u:p@localhost:3306/db",  # unrelated database
+            "https://example.com/db",  # unrelated scheme
+        ],
+    )
+    def test_other_schemes_are_rejected(self, url: str) -> None:
+        with pytest.raises(ValidationError):
+            build(database_url=url)
+
+
 class TestAppEnv:
     def test_defaults_to_development(self) -> None:
         assert build(database_url=VALID_URL).app_env is AppEnv.DEVELOPMENT
