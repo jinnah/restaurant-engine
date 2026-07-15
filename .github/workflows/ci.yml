@@ -1,0 +1,49 @@
+# CI for Milestone 0: checks limited to the files that actually exist —
+# documentation formatting, configuration consistency, and repository hygiene.
+# Application build/test jobs are added in Milestone 1 with the code they check.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  repository-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Enable Corepack (pinned pnpm)
+        run: corepack enable
+
+      - name: Install workspace tooling
+        run: pnpm install --frozen-lockfile
+
+      - name: Prettier check
+        run: pnpm format:check
+
+      - name: ESLint
+        run: pnpm lint
+
+      - name: Verify LF normalization
+        run: |
+          bad="$(git ls-files --eol | grep -E '^i/(crlf|mixed)' || true)"
+          if [ -n "$bad" ]; then
+            echo "Files stored with non-LF line endings:"
+            echo "$bad"
+            exit 1
+          fi
+
+      - name: Verify no committed environment files
+        run: |
+          if git ls-files | grep -E '(^|/)\.env(\..+)?$' | grep -v '\.env\.example$'; then
+            echo "An environment file is committed; remove it."
+            exit 1
+          fi

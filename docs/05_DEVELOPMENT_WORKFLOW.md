@@ -26,9 +26,15 @@ policy. Upgrades happen intentionally through small, dedicated pull requests
 ### Windows (PowerShell)
 
 ```powershell
-corepack enable                    # activates the pinned pnpm
+corepack enable                    # activates the pinned pnpm globally;
+                                   # needs an elevated shell once when Node
+                                   # is installed under C:\Program Files
 pnpm install                       # workspace dev tooling
 ```
+
+Without elevation, prefix commands with `corepack` instead — for example
+`corepack pnpm install`, `corepack pnpm format:check`. Both forms use the
+exact pnpm version pinned in `package.json`.
 
 ### Linux / macOS
 
