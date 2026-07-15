@@ -8,6 +8,7 @@ connects lazily, so building the app is safe without one.
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
 from app.core.settings import AppEnv, Settings
 from app.main import create_app
@@ -17,15 +18,35 @@ TEST_DATABASE_URL = (
 )
 
 
+class ExplicitSettings(Settings):
+    """Settings built from explicit values only.
+
+    pydantic-settings applies environment and dotenv sources on every
+    construction path (including ``model_validate``), so tests disable all
+    implicit sources to stay deterministic on any developer machine.
+    """
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (init_settings,)
+
+
 def make_settings(**overrides: object) -> Settings:
-    """Explicit test settings, isolated from the process environment."""
+    """Explicit test settings, isolated from env vars and .env files."""
     values: dict[str, object] = {
         "app_env": AppEnv.TEST,
         "database_url": TEST_DATABASE_URL,
         "log_level": "WARNING",
     }
     values.update(overrides)
-    return Settings.model_validate(values)
+    return ExplicitSettings.model_validate(values)
 
 
 @pytest.fixture

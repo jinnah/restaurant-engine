@@ -1,16 +1,18 @@
-"""Settings validation behavior."""
+"""Settings validation behavior (via ExplicitSettings: implicit sources
+disabled, see tests/conftest.py)."""
 
 import pytest
 from pydantic import ValidationError
 
 from app.core.settings import AppEnv, Settings
+from tests.conftest import ExplicitSettings
 
 VALID_URL = "postgresql+psycopg://user:pw@localhost:5433/db"
 
 
 def build(**values: object) -> Settings:
-    """Construct settings from explicit values only (no env, no .env file)."""
-    return Settings.model_validate(values)
+    """Construct settings from explicit values only."""
+    return ExplicitSettings.model_validate(values)
 
 
 class TestRequiredConfiguration:

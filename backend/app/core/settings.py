@@ -7,10 +7,16 @@ consumed here must have a safe placeholder in the repository-root
 """
 
 from enum import StrEnum
+from pathlib import Path
 from typing import Literal
 
 from pydantic import PostgresDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# The canonical .env lives at the repository root (docs/05), next to
+# .env.example. Anchored on this file's location so backend commands work
+# from any working directory.
+_ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
 
 
 class AppEnv(StrEnum):
@@ -29,7 +35,7 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_ENV_FILE,
         env_file_encoding="utf-8",
         extra="ignore",
     )
