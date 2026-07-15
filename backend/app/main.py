@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from app.api.health import health_router
 from app.api.router import api_v1_router
 from app.core.correlation import CorrelationIdMiddleware
+from app.core.errors import register_error_handlers
 from app.core.logging import RequestLoggingMiddleware, configure_logging
 from app.core.settings import Settings, load_settings
 
@@ -35,6 +36,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # the request log event is emitted.
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(CorrelationIdMiddleware)
+
+    register_error_handlers(app)
 
     app.include_router(health_router)
     app.include_router(api_v1_router, prefix="/api/v1")

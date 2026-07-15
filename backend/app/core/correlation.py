@@ -47,10 +47,14 @@ class CorrelationIdMiddleware:
         request_id = _resolve_request_id(Headers(scope=scope).get(REQUEST_ID_HEADER))
         token = _request_id_var.set(request_id)
         structlog.contextvars.bind_contextvars(request_id=request_id)
+        # Also kept in scope state: the contextvar is reset before the
+        # outermost server-error handler builds a 500 response, but the scope
+        # survives (see app.core.errors).
+        scope.setdefault("state", {})["request_id"] = request_id
 
         async def send_with_request_id(message: Message) -> None:
             if message["type"] == "http.response.start":
-                MutableHeaders(scope=message).append(REQUEST_ID_HEADER, request_id)
+                MutableHeaders(scope=message)[REQUEST_ID_HEADER] = request_id
             await send(message)
 
         try:

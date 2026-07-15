@@ -1,0 +1,132 @@
+"""Consistent error envelope for every error response (blueprint §10.4).
+
+One shape for all errors — HTTP errors, request validation failures, and
+unhandled exceptions:
+
+    {
+      "error": {
+        "code": "validation_error",
+        "message": "Request validation failed.",
+        "field_errors": [
+          {"field": "body.name", "code": "missing", "message": "Field required"}
+        ],
+        "correlation_id": "..."
+      }
+    }
+
+``code`` values come from the registry below and only grow; unhandled
+exceptions never leak internals into ``message``.
+"""
+
+from enum import StrEnum
+
+import structlog
+from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from app.core.correlation import REQUEST_ID_HEADER, get_request_id
+
+_logger = structlog.get_logger("app.errors")
+
+
+class ErrorCode(StrEnum):
+    """Machine-readable error code registry (append-only)."""
+
+    VALIDATION_ERROR = "validation_error"
+    NOT_FOUND = "not_found"
+    METHOD_NOT_ALLOWED = "method_not_allowed"
+    HTTP_ERROR = "http_error"
+    INTERNAL_ERROR = "internal_error"
+
+
+_STATUS_CODES: dict[int, ErrorCode] = {
+    status.HTTP_404_NOT_FOUND: ErrorCode.NOT_FOUND,
+    status.HTTP_405_METHOD_NOT_ALLOWED: ErrorCode.METHOD_NOT_ALLOWED,
+}
+
+
+class FieldError(BaseModel):
+    field: str
+    code: str
+    message: str
+
+
+class ErrorDetail(BaseModel):
+    code: ErrorCode
+    message: str
+    field_errors: list[FieldError] = []
+    correlation_id: str | None
+
+
+class ErrorEnvelope(BaseModel):
+    error: ErrorDetail
+
+
+def _error_response(
+    request: Request,
+    status_code: int,
+    code: ErrorCode,
+    message: str,
+    field_errors: list[FieldError] | None = None,
+) -> JSONResponse:
+    # The contextvar covers the normal path; the scope-state fallback covers
+    # unhandled exceptions, where the correlation middleware has already
+    # unwound by the time the outermost error handler runs.
+    correlation_id = get_request_id() or getattr(request.state, "request_id", None)
+    envelope = ErrorEnvelope(
+        error=ErrorDetail(
+            code=code,
+            message=message,
+            field_errors=field_errors or [],
+            correlation_id=correlation_id,
+        )
+    )
+    headers = {REQUEST_ID_HEADER: correlation_id} if correlation_id else None
+    return JSONResponse(
+        status_code=status_code, content=envelope.model_dump(mode="json"), headers=headers
+    )
+
+
+async def _handle_http_exception(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, StarletteHTTPException)  # noqa: S101 - handler registration contract
+    code = _STATUS_CODES.get(exc.status_code, ErrorCode.HTTP_ERROR)
+    message = exc.detail if isinstance(exc.detail, str) else "HTTP error."
+    return _error_response(request, exc.status_code, code, message)
+
+
+async def _handle_validation_error(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, RequestValidationError)  # noqa: S101 - handler registration contract
+    field_errors = [
+        FieldError(
+            field=".".join(str(part) for part in error["loc"]),
+            code=str(error["type"]),
+            message=str(error["msg"]),
+        )
+        for error in exc.errors()
+    ]
+    return _error_response(
+        request,
+        status.HTTP_422_UNPROCESSABLE_CONTENT,
+        ErrorCode.VALIDATION_ERROR,
+        "Request validation failed.",
+        field_errors,
+    )
+
+
+async def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+    _logger.exception("unhandled_exception", exc_info=exc)
+    return _error_response(
+        request,
+        status.HTTP_500_INTERNAL_SERVER_ERROR,
+        ErrorCode.INTERNAL_ERROR,
+        "An internal error occurred.",
+    )
+
+
+def register_error_handlers(app: FastAPI) -> None:
+    app.add_exception_handler(StarletteHTTPException, _handle_http_exception)
+    app.add_exception_handler(RequestValidationError, _handle_validation_error)
+    app.add_exception_handler(Exception, _handle_unexpected_error)
