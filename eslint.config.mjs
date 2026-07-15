@@ -6,7 +6,6 @@
 import js from '@eslint/js';
 import next from '@next/eslint-plugin-next';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
-import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
@@ -35,10 +34,12 @@ export default tseslint.config(
     files: ['**/*.{ts,tsx}'],
     extends: [tseslint.configs.recommended],
   },
+  // NOTE: eslint-plugin-react is deliberately absent — 7.37.x crashes under
+  // ESLint 10 (rule-listener construction). Its value is marginal under
+  // strict TypeScript; add it back when a release supports ESLint 10.
   {
     files: ['apps/**/*.{ts,tsx}'],
     plugins: {
-      react,
       'react-hooks': reactHooks,
       'jsx-a11y': jsxA11y,
     },
@@ -47,12 +48,7 @@ export default tseslint.config(
         ...globals.browser,
       },
     },
-    settings: {
-      react: { version: 'detect' },
-    },
     rules: {
-      ...react.configs.flat.recommended.rules,
-      ...react.configs.flat['jsx-runtime'].rules,
       ...reactHooks.configs.recommended.rules,
       ...jsxA11y.flatConfigs.recommended.rules,
     },
