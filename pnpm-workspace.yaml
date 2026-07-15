@@ -1,5 +1,11 @@
-# Workspace globs. Both are intentionally empty during Milestone 0;
-# apps/ and packages/ gain their first members in Milestone 1.
+# Workspace globs; apps/ gained its first members in Milestone 1B,
+# packages/ gains its first member (the generated API client) in M1C.
 packages:
   - apps/*
   - packages/*
+
+# Dependency build scripts are blocked by default; every allowance is a
+# deliberate, reviewed decision.
+allowBuilds:
+  # Next.js image optimizer — its script links prebuilt libvips binaries.
+  sharp: true

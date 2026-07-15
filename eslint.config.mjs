@@ -61,6 +61,8 @@ export default tseslint.config(
     rules: {
       ...next.configs.recommended.rules,
       ...next.configs['core-web-vitals'].rules,
+      // App Router only — there is no pages/ directory to scan.
+      '@next/next/no-html-link-for-pages': 'off',
     },
   },
 );
