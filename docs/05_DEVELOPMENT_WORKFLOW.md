@@ -63,7 +63,7 @@ Commands are defined at the repository root and run with `pnpm <script>`.
 **A script exists only when it genuinely runs against files that exist.**
 Fake-success placeholders are prohibited.
 
-### Executable now (Milestone 0)
+### Repository-wide (from the root)
 
 | Command             | Purpose                                                |
 | ------------------- | ------------------------------------------------------ |
@@ -71,20 +71,33 @@ Fake-success placeholders are prohibited.
 | `pnpm format`       | Apply Prettier formatting                              |
 | `pnpm lint`         | ESLint over the JavaScript/TypeScript files that exist |
 
-### Reserved canonical names (first consumers arrive in Milestone 1+)
+### Backend (run inside `backend/`, from Milestone 1A)
 
-| Command                                                   | Future purpose                                 |
-| --------------------------------------------------------- | ---------------------------------------------- |
-| `pnpm typecheck`                                          | Strict TypeScript across all apps/packages     |
-| `pnpm test`                                               | Frontend unit tests (Vitest)                   |
-| `pnpm build`                                              | Production builds of both applications         |
-| `pnpm generate:client`                                    | Regenerate the OpenAPI TypeScript client       |
-| `uv run ruff check` / `uv run pytest` / `uv run mypy app` | Backend lint, tests, types (inside `backend/`) |
+| Command                                        | Purpose                                                    |
+| ---------------------------------------------- | ---------------------------------------------------------- |
+| `uv run uvicorn app.main:create_app --factory` | Run the API (add `--reload` for development)               |
+| `uv run pytest`                                | Full backend suite (needs the compose database)            |
+| `uv run pytest -m "not integration"`           | Unit and API tests only — no database required             |
+| `uv run pytest -m integration`                 | PostgreSQL-backed tests only                               |
+| `uv run ruff check .` / `uv run ruff format .` | Lint / format Python                                       |
+| `uv run mypy app tests`                        | Strict type check                                          |
+| `uv run alembic upgrade head`                  | Apply migrations to the database in `DATABASE_URL`         |
+| `uv run alembic revision -m "..."`             | Create a migration (ruff hooks format it; review the diff) |
+
+Integration tests **fail with a clear message** (never skip) when the
+database is down — start it with `docker compose up -d db` first. The API
+serves `/health/live`, `/health/ready`, and (non-production) `/docs`.
+
+### Reserved canonical names (first consumers arrive in Milestone 1B/1C)
+
+| Command                | Future purpose                             |
+| ---------------------- | ------------------------------------------ |
+| `pnpm typecheck`       | Strict TypeScript across all apps/packages |
+| `pnpm test`            | Frontend unit tests (Vitest)               |
+| `pnpm build`           | Production builds of both applications     |
+| `pnpm generate:client` | Regenerate the OpenAPI TypeScript client   |
 
 Adding one of these scripts requires its real consumer in the same change.
-The backend toolchain (Ruff, mypy, pytest) is already installed, configured,
-and locked (`backend/pyproject.toml`, `backend/uv.lock`); its commands gain
-real targets with the first Python files in Milestone 1.
 
 ## Git workflow
 
