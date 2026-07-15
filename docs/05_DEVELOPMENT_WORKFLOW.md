@@ -6,20 +6,14 @@ Exact versions are locked in configuration files; this table states the
 policy. Upgrades happen intentionally through small, dedicated pull requests
 — never by coding against floating `latest`.
 
-| Tool                | Policy                                            | Locked where                                         |
-| ------------------- | ------------------------------------------------- | ---------------------------------------------------- |
-| Node.js             | 24.x                                              | `package.json` `engines`                             |
-| pnpm                | Exact version via Corepack                        | `package.json` `packageManager`                      |
-| Python              | Exact minor version, pending final pin (see note) | `backend/pyproject.toml` `requires-python`           |
-| uv                  | Python dependency resolution and lockfile         | `backend/uv.lock` (arrives with the Python contract) |
-| npm dependencies    | Exact versions, no ranges                         | `package.json` + `pnpm-lock.yaml`                    |
-| Python dependencies | Exact versions                                    | `backend/pyproject.toml` + `backend/uv.lock`         |
-
-> **Note (Milestone 0):** the Python minor-version pin is an open decision —
-> Python 3.12 is preferred but was not installed on the primary development
-> machine at contract time. `backend/pyproject.toml` and `backend/uv.lock`
-> land as soon as the pin is decided; the decision is tracked in
-> [08_ROADMAP.md](08_ROADMAP.md).
+| Tool                | Policy                                    | Locked where                                 |
+| ------------------- | ----------------------------------------- | -------------------------------------------- |
+| Node.js             | 24.x                                      | `package.json` `engines`                     |
+| pnpm                | Exact version via Corepack                | `package.json` `packageManager`              |
+| Python              | 3.12.x (`>=3.12,<3.13`)                   | `backend/pyproject.toml` `requires-python`   |
+| uv                  | Python dependency resolution and lockfile | `backend/uv.lock`                            |
+| npm dependencies    | Exact versions, no ranges                 | `package.json` + `pnpm-lock.yaml`            |
+| Python dependencies | Exact versions                            | `backend/pyproject.toml` + `backend/uv.lock` |
 
 ## Toolchain setup
 
@@ -43,8 +37,9 @@ corepack enable
 pnpm install
 ```
 
-Python setup (uv) is documented here when the Python contract lands:
-`uv sync` inside `backend/`.
+Python setup (both platforms): run `uv sync` inside `backend/` — it creates
+`backend/.venv` on Python 3.12 with the exact locked tool versions. Run
+backend tools through uv, for example `uv run ruff check .`.
 
 All repository scripts must work on both Windows PowerShell and Linux.
 Platform-specific commands are documented explicitly when unavoidable.
@@ -74,6 +69,9 @@ Fake-success placeholders are prohibited.
 | `uv run ruff check` / `uv run pytest` / `uv run mypy app` | Backend lint, tests, types (inside `backend/`) |
 
 Adding one of these scripts requires its real consumer in the same change.
+The backend toolchain (Ruff, mypy, pytest) is already installed, configured,
+and locked (`backend/pyproject.toml`, `backend/uv.lock`); its commands gain
+real targets with the first Python files in Milestone 1.
 
 ## Git workflow
 

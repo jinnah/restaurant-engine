@@ -23,9 +23,9 @@ initial architecture-contract commit.
 | M0 — Architecture and repository contract | **In progress** |
 | M1 – M8                                   | Not started     |
 
-Open Milestone 0 item: the Python minor-version pin (3.12 preferred, not yet
-installed on the primary machine); `backend/pyproject.toml` + `backend/uv.lock`
-land when it is decided.
+The previously open Python-version decision is resolved: Python 3.12 was
+installed and is pinned (`>=3.12,<3.13`) in `backend/pyproject.toml`, with
+tool dependencies locked in `backend/uv.lock`.
 
 ## Milestone 0 — Architecture and repository contract
 

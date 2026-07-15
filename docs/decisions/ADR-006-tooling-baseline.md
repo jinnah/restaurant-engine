@@ -17,9 +17,8 @@ first-class concerns, not afterthoughts.
 - **Node.js 24.x**, with **pnpm pinned exactly** via Corepack's
   `packageManager` field — no global pnpm installs.
 - **Python** managed with **uv**: exact dependency versions in
-  `backend/pyproject.toml`, locked in `backend/uv.lock`. (The Python minor
-  version is pinned in `requires-python`; 3.12 preferred — final pin tracked
-  in docs/08_ROADMAP.md.)
+  `backend/pyproject.toml`, locked in `backend/uv.lock`. The Python minor
+  version is pinned to 3.12 (`requires-python = ">=3.12,<3.13"`).
 - **Formatting/linting:** Prettier and ESLint (flat config) for
   JavaScript/TypeScript and repository documents; Ruff for Python lint and
   format; mypy for Python types; strict TypeScript via a shared

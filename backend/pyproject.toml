@@ -1,0 +1,66 @@
+# Restaurant Engine backend — Python project and tooling contract (ADR-006).
+#
+# Milestone 0: this file defines the Python version, dependency policy, and
+# lint/type/test configuration baselines only. There is intentionally no
+# application code yet; runtime dependencies (FastAPI, SQLAlchemy, Alembic,
+# Pydantic) arrive in Milestone 1 with the code that uses them.
+
+[project]
+name = "restaurant-engine-backend"
+version = "0.0.0"
+description = "Restaurant Engine API — multi-tenant restaurant platform backend"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "mypy==2.3.0",
+    "pytest==9.1.1",
+    "ruff==0.15.21",
+]
+
+[tool.uv]
+# No installable package exists during Milestone 0; manage the environment
+# and lockfile without building the project itself.
+package = false
+
+# --- Ruff: lint + format baseline -----------------------------------------
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors
+  "W",   # pycodestyle warnings
+  "F",   # pyflakes
+  "I",   # import sorting
+  "B",   # bugbear
+  "UP",  # pyupgrade
+  "N",   # pep8-naming
+  "S",   # bandit security rules
+  "C4",  # comprehensions
+  "T20", # no stray print statements
+  "RUF", # ruff-native rules
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests may use assert and hard-coded example values.
+"tests/**" = ["S101", "S105", "S106"]
+
+# --- mypy: strict typing baseline ------------------------------------------
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+show_error_codes = true
+pretty = true
+
+# --- pytest -----------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers --strict-config"
+xfail_strict = true
