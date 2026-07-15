@@ -64,6 +64,9 @@ strict = true
 warn_unreachable = true
 show_error_codes = true
 pretty = true
+# tests/ is checked as well as app/ but is not an installed package.
+mypy_path = "."
+explicit_package_bases = true
 
 # --- pytest -----------------------------------------------------------------
 
