@@ -1,0 +1,16 @@
+# Repository line-ending policy: all text files are stored and checked out
+# with LF, regardless of platform or local core.autocrlf settings.
+* text=auto eol=lf
+
+# Binary files are never normalized.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.avif binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+*.zip binary
