@@ -75,3 +75,6 @@ testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q --strict-markers --strict-config"
 xfail_strict = true
+markers = [
+    "integration: exercises the real PostgreSQL database (docker compose up -d db)",
+]

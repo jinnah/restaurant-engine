@@ -5,14 +5,24 @@ Run in development with:
     uv run uvicorn app.main:create_app --factory --reload
 """
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from app.api.health import health_router
 from app.api.router import api_v1_router
 from app.core.correlation import CorrelationIdMiddleware
+from app.core.database import create_database_engine, create_session_factory
 from app.core.errors import register_error_handlers
 from app.core.logging import RequestLoggingMiddleware, configure_logging
 from app.core.settings import Settings, load_settings
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    yield
+    app.state.engine.dispose()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -29,8 +39,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version="0.0.0",
         docs_url=None if settings.is_production else "/docs",
         redoc_url=None,
+        lifespan=_lifespan,
     )
     app.state.settings = settings
+
+    # The engine connects lazily; creating it requires no running database.
+    engine = create_database_engine(settings)
+    app.state.engine = engine
+    app.state.session_factory = create_session_factory(engine)
 
     # Outermost middleware runs first: the correlation ID must exist before
     # the request log event is emitted.
