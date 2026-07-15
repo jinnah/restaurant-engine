@@ -18,15 +18,15 @@ data — never hard-coded into core domain logic.
 
 ## Users
 
-| User | Primary jobs | Surface |
-| --- | --- | --- |
-| Guest customer | Browse, customize, order, track | Storefront |
-| Returning customer | Reorder, history, details | Storefront (later phase) |
-| Restaurant staff | Advance orders, mark items unavailable | Restaurant workspace |
-| Restaurant manager | Menu, hours, content, staff | Restaurant workspace |
-| Restaurant owner | Publish storefront, configure operations | Restaurant workspace |
-| Platform operator | Onboard, suspend, support, entitlements | Control center |
-| Platform support user | Constrained, auditable diagnosis | Control center (later phase) |
+| User                  | Primary jobs                             | Surface                      |
+| --------------------- | ---------------------------------------- | ---------------------------- |
+| Guest customer        | Browse, customize, order, track          | Storefront                   |
+| Returning customer    | Reorder, history, details                | Storefront (later phase)     |
+| Restaurant staff      | Advance orders, mark items unavailable   | Restaurant workspace         |
+| Restaurant manager    | Menu, hours, content, staff              | Restaurant workspace         |
+| Restaurant owner      | Publish storefront, configure operations | Restaurant workspace         |
+| Platform operator     | Onboard, suspend, support, entitlements  | Control center               |
+| Platform support user | Constrained, auditable diagnosis         | Control center (later phase) |
 
 ## First commercial release
 

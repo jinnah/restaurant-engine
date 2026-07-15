@@ -31,17 +31,17 @@ America/New_York defaults — without baking market specifics into core logic.
 
 ## Reading order
 
-| Read | To learn |
-| --- | --- |
-| [01_PRODUCT_SCOPE.md](01_PRODUCT_SCOPE.md) | Users, first-release boundary, explicit deferrals |
-| [02_ARCHITECTURE.md](02_ARCHITECTURE.md) | System shape, repository design, locked decisions |
-| [03_DOMAIN_RULES.md](03_DOMAIN_RULES.md) | Domain boundaries and the business rules each owns |
-| [04_SECURITY_AND_TENANCY.md](04_SECURITY_AND_TENANCY.md) | The multi-tenancy contract and security baseline |
-| [05_DEVELOPMENT_WORKFLOW.md](05_DEVELOPMENT_WORKFLOW.md) | Toolchain, commands, branching, contribution rules |
-| [06_TEST_STRATEGY.md](06_TEST_STRATEGY.md) | Test layers, database policy, quality gates |
-| [07_DEPLOYMENT_RUNBOOK.md](07_DEPLOYMENT_RUNBOOK.md) | Future-facing deployment skeleton (not yet operational) |
-| [08_ROADMAP.md](08_ROADMAP.md) | Milestones, current status, exit criteria |
-| [decisions/](decisions/) | Architecture decision records |
+| Read                                                     | To learn                                                |
+| -------------------------------------------------------- | ------------------------------------------------------- |
+| [01_PRODUCT_SCOPE.md](01_PRODUCT_SCOPE.md)               | Users, first-release boundary, explicit deferrals       |
+| [02_ARCHITECTURE.md](02_ARCHITECTURE.md)                 | System shape, repository design, locked decisions       |
+| [03_DOMAIN_RULES.md](03_DOMAIN_RULES.md)                 | Domain boundaries and the business rules each owns      |
+| [04_SECURITY_AND_TENANCY.md](04_SECURITY_AND_TENANCY.md) | The multi-tenancy contract and security baseline        |
+| [05_DEVELOPMENT_WORKFLOW.md](05_DEVELOPMENT_WORKFLOW.md) | Toolchain, commands, branching, contribution rules      |
+| [06_TEST_STRATEGY.md](06_TEST_STRATEGY.md)               | Test layers, database policy, quality gates             |
+| [07_DEPLOYMENT_RUNBOOK.md](07_DEPLOYMENT_RUNBOOK.md)     | Future-facing deployment skeleton (not yet operational) |
+| [08_ROADMAP.md](08_ROADMAP.md)                           | Milestones, current status, exit criteria               |
+| [decisions/](decisions/)                                 | Architecture decision records                           |
 
 ## Current state
 

@@ -15,10 +15,10 @@ See [docs/08_ROADMAP.md](docs/08_ROADMAP.md).
 
 ## Governing documents
 
-| Document | Role |
-| --- | --- |
+| Document                                                               | Role                                                           |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------- |
 | [00_RESTAURANT_ENGINE_BLUEPRINT.md](00_RESTAURANT_ENGINE_BLUEPRINT.md) | Architecture and delivery blueprint — the authoritative design |
-| [CLAUDE_PROJECT_PROMPT.md](CLAUDE_PROJECT_PROMPT.md) | Working agreement for AI-assisted implementation |
+| [CLAUDE_PROJECT_PROMPT.md](CLAUDE_PROJECT_PROMPT.md)                   | Working agreement for AI-assisted implementation               |
 
 When the handbook and the blueprint disagree, the blueprint wins; raise the
 conflict rather than working around it.

@@ -9,16 +9,16 @@ during Milestone 0.**
 
 ## Domain map
 
-| Domain | Owns |
-| --- | --- |
-| Identity | Users, credentials, sessions, memberships, roles, password reset |
-| Tenants | Restaurants, status, slug, locale/currency/timezone defaults, entitlements, design assignment, domains, onboarding |
-| Catalog | Categories, items, modifier groups/options, availability, pricing, sorting, featured status, dietary attributes, public menu projections |
-| Storefront | Design variants, section registry, section content, draft/published versions, publication history, public projection |
-| Media | Upload validation, metadata, tenant storage keys, variants, deletion policy |
-| Hours | Weekly schedules, exceptions, pickup windows, preparation time, throttling, next-valid-pickup-time |
-| Orders | Checkout validation, numbering, snapshots, totals, status transitions, projections |
-| Audit | Append-only security and business events |
+| Domain     | Owns                                                                                                                                     |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity   | Users, credentials, sessions, memberships, roles, password reset                                                                         |
+| Tenants    | Restaurants, status, slug, locale/currency/timezone defaults, entitlements, design assignment, domains, onboarding                       |
+| Catalog    | Categories, items, modifier groups/options, availability, pricing, sorting, featured status, dietary attributes, public menu projections |
+| Storefront | Design variants, section registry, section content, draft/published versions, publication history, public projection                     |
+| Media      | Upload validation, metadata, tenant storage keys, variants, deletion policy                                                              |
+| Hours      | Weekly schedules, exceptions, pickup windows, preparation time, throttling, next-valid-pickup-time                                       |
+| Orders     | Checkout validation, numbering, snapshots, totals, status transitions, projections                                                       |
+| Audit      | Append-only security and business events                                                                                                 |
 
 ## Identity and access
 

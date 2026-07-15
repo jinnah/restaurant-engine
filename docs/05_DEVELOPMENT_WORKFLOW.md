@@ -6,14 +6,14 @@ Exact versions are locked in configuration files; this table states the
 policy. Upgrades happen intentionally through small, dedicated pull requests
 — never by coding against floating `latest`.
 
-| Tool | Policy | Locked where |
-| --- | --- | --- |
-| Node.js | 24.x | `package.json` `engines` |
-| pnpm | Exact version via Corepack | `package.json` `packageManager` |
-| Python | Exact minor version, pending final pin (see note) | `backend/pyproject.toml` `requires-python` |
-| uv | Python dependency resolution and lockfile | `backend/uv.lock` (arrives with the Python contract) |
-| npm dependencies | Exact versions, no ranges | `package.json` + `pnpm-lock.yaml` |
-| Python dependencies | Exact versions | `backend/pyproject.toml` + `backend/uv.lock` |
+| Tool                | Policy                                            | Locked where                                         |
+| ------------------- | ------------------------------------------------- | ---------------------------------------------------- |
+| Node.js             | 24.x                                              | `package.json` `engines`                             |
+| pnpm                | Exact version via Corepack                        | `package.json` `packageManager`                      |
+| Python              | Exact minor version, pending final pin (see note) | `backend/pyproject.toml` `requires-python`           |
+| uv                  | Python dependency resolution and lockfile         | `backend/uv.lock` (arrives with the Python contract) |
+| npm dependencies    | Exact versions, no ranges                         | `package.json` + `pnpm-lock.yaml`                    |
+| Python dependencies | Exact versions                                    | `backend/pyproject.toml` + `backend/uv.lock`         |
 
 > **Note (Milestone 0):** the Python minor-version pin is an open decision —
 > Python 3.12 is preferred but was not installed on the primary development
@@ -51,20 +51,20 @@ Fake-success placeholders are prohibited.
 
 ### Executable now (Milestone 0)
 
-| Command | Purpose |
-| --- | --- |
-| `pnpm format:check` | Prettier verification of docs and configuration |
-| `pnpm format` | Apply Prettier formatting |
-| `pnpm lint` | ESLint over the JavaScript/TypeScript files that exist |
+| Command             | Purpose                                                |
+| ------------------- | ------------------------------------------------------ |
+| `pnpm format:check` | Prettier verification of docs and configuration        |
+| `pnpm format`       | Apply Prettier formatting                              |
+| `pnpm lint`         | ESLint over the JavaScript/TypeScript files that exist |
 
 ### Reserved canonical names (first consumers arrive in Milestone 1+)
 
-| Command | Future purpose |
-| --- | --- |
-| `pnpm typecheck` | Strict TypeScript across all apps/packages |
-| `pnpm test` | Frontend unit tests (Vitest) |
-| `pnpm build` | Production builds of both applications |
-| `pnpm generate:client` | Regenerate the OpenAPI TypeScript client |
+| Command                                                   | Future purpose                                 |
+| --------------------------------------------------------- | ---------------------------------------------- |
+| `pnpm typecheck`                                          | Strict TypeScript across all apps/packages     |
+| `pnpm test`                                               | Frontend unit tests (Vitest)                   |
+| `pnpm build`                                              | Production builds of both applications         |
+| `pnpm generate:client`                                    | Regenerate the OpenAPI TypeScript client       |
 | `uv run ruff check` / `uv run pytest` / `uv run mypy app` | Backend lint, tests, types (inside `backend/`) |
 
 Adding one of these scripts requires its real consumer in the same change.

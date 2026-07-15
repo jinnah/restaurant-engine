@@ -12,15 +12,15 @@ every milestone after that adds the layers below for the behavior it ships.
 
 ## Test layers
 
-| Layer | Purpose | Examples |
-| --- | --- | --- |
-| Domain unit | Fast business-rule feedback | Modifier selection, status transitions, pickup time |
-| Service integration | Transaction and persistence behavior | Publish state machine, order snapshot, reorder |
-| API | Auth, schemas, errors, permissions | Login, menu commands, platform suspend |
-| Security/tenancy | Permanent isolation contracts | Cross-tenant IDs, uploads, cache, membership |
-| Frontend component | Important interaction behavior | Modifier form, publish warning, order ticket |
-| End-to-end | Critical journeys across deployments | Onboard → publish; order → accept → ready |
-| Operational | Restore and deployment confidence | Migration on production-like DB, backup restore |
+| Layer               | Purpose                              | Examples                                            |
+| ------------------- | ------------------------------------ | --------------------------------------------------- |
+| Domain unit         | Fast business-rule feedback          | Modifier selection, status transitions, pickup time |
+| Service integration | Transaction and persistence behavior | Publish state machine, order snapshot, reorder      |
+| API                 | Auth, schemas, errors, permissions   | Login, menu commands, platform suspend              |
+| Security/tenancy    | Permanent isolation contracts        | Cross-tenant IDs, uploads, cache, membership        |
+| Frontend component  | Important interaction behavior       | Modifier form, publish warning, order ticket        |
+| End-to-end          | Critical journeys across deployments | Onboard → publish; order → accept → ready           |
+| Operational         | Restore and deployment confidence    | Migration on production-like DB, backup restore     |
 
 ## Database policy (ADR-005)
 

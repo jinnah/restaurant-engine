@@ -18,10 +18,10 @@ initial architecture-contract commit.
 
 ## Status
 
-| Milestone | State |
-| --- | --- |
+| Milestone                                 | State           |
+| ----------------------------------------- | --------------- |
 | M0 — Architecture and repository contract | **In progress** |
-| M1 – M8 | Not started |
+| M1 – M8                                   | Not started     |
 
 Open Milestone 0 item: the Python minor-version pin (3.12 preferred, not yet
 installed on the primary machine); `backend/pyproject.toml` + `backend/uv.lock`
