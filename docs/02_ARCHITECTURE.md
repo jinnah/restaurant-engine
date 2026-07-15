@@ -102,12 +102,20 @@ restaurant-engine/
 ```
 
 This tree is a direction, not permission to create empty folders. A directory
-appears when its first real contents do. As of Milestone 1A, `backend/app/`
-contains `core/` (settings, logging, correlation, errors, database), `api/`
-(composition root, health probes), and `main.py` (application factory), plus
-`migrations/` and `tests/`; `backend/app/domains/` appears with the first
-domain in Milestone 2, and `apps/`/`packages/` gain their first members in
-Milestone 1B/1C.
+appears when its first real contents do. As of Milestone 1B: `backend/app/`
+contains `core/`, `api/`, and `main.py` plus `migrations/` and `tests/`
+(M1A); `apps/storefront` (Next.js App Router) and `apps/control-center`
+(React + Vite + React Router) are the two application shells (M1B).
+`backend/app/domains/` appears with the first domain in Milestone 2;
+`packages/` gains its first member (the generated API client) in M1C.
+
+**Frontend workspace conventions (M1B):** one root ESLint flat config and one
+root `tsconfig.base.json` own shared configuration as plain files — a shared
+package (`frontend-config`, `design-tokens`, `admin-ui`) is created only when
+a real consumer exists in the same milestone. Apps never import from each
+other. Styling is CSS custom properties + CSS Modules per app (no runtime
+styling dependency). Dependency build scripts are blocked by default;
+allowances live in `pnpm-workspace.yaml` and are individually reviewed.
 
 ### Backend domain module template
 

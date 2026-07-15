@@ -7,11 +7,12 @@ operations. Initial market: Bengali-owned restaurants in Buffalo, New York.
 
 ## Status
 
-**Milestone 0 — Architecture and Repository Contract.** This repository
-currently contains the project's governing documents, handbook, architecture
-decision records, and tooling contract. There is intentionally **no
-application code yet**; the first runnable components arrive in Milestone 1.
-See [docs/08_ROADMAP.md](docs/08_ROADMAP.md).
+**Milestone 1 — Platform foundation (in progress).** Milestone 0 (repository
+contract) and M1A (backend + PostgreSQL foundation: FastAPI skeleton, health
+probes, error envelope, Alembic baseline) are complete. M1B adds the two
+frontend application shells; M1C adds the generated API client and the
+integrated CI/contract pipeline. Product-domain behavior (tenants, menus,
+orders) begins in Milestone 2. See [docs/08_ROADMAP.md](docs/08_ROADMAP.md).
 
 ## Governing documents
 

@@ -5,3 +5,8 @@ CLAUDE_PROJECT_PROMPT.md
 
 # Tool-owned files.
 pnpm-lock.yaml
+
+# Generated build output and framework artifacts.
+**/dist/
+**/.next/
+**/next-env.d.ts

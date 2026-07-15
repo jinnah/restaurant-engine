@@ -48,6 +48,33 @@ jobs:
             exit 1
           fi
 
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack (pinned pnpm)
+        run: corepack enable
+
+      - name: Set up Node.js with pnpm store cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Production builds
+        run: pnpm build
+
   backend:
     runs-on: ubuntu-latest
     defaults:
