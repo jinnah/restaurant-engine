@@ -17,5 +17,9 @@ export function createInternalClient(options: ApiClientOptions): Client<paths> {
   return createClient<paths>({
     baseUrl: options.baseUrl,
     fetch: options.fetch,
+    // The session is an HttpOnly cookie (ADR-010): every call sends
+    // credentials so callers can never forget them. Same-origin
+    // deployment is the contract (ADR-012), so this is not a CORS relaxation.
+    credentials: 'include',
   });
 }

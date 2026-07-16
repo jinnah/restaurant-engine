@@ -9,7 +9,14 @@ import json
 
 from scripts.export_openapi import DEFAULT_OUTPUT, canonical_openapi_json
 
-EXPECTED_OPERATION_IDS = {"health_live", "health_ready"}
+EXPECTED_OPERATION_IDS = {
+    "health_live",
+    "health_ready",
+    # M2A (ADR-010): authentication contract.
+    "auth_login",
+    "auth_logout",
+    "auth_session",
+}
 
 
 def test_export_is_deterministic() -> None:
