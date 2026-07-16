@@ -38,7 +38,7 @@ def main() -> None:
     median = statistics.median(durations_ms)
     low, high = _TARGET_WINDOW_MS
     verdict = "WITHIN" if low <= median <= high else "OUTSIDE"
-    print(  # noqa: T201 - this script's entire purpose is console output
+    print(
         f"argon2id t={ARGON2_TIME_COST} m={ARGON2_MEMORY_COST_KIB}KiB "
         f"p={ARGON2_PARALLELISM}: median verify {median:.0f} ms over "
         f"{_ROUNDS} rounds ({min(durations_ms):.0f}-{max(durations_ms):.0f} ms) "
