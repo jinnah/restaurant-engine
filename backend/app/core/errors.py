@@ -44,6 +44,10 @@ class ErrorCode(StrEnum):
     HTTP_ERROR = "http_error"
     INTERNAL_ERROR = "internal_error"
     DEPENDENCY_UNAVAILABLE = "dependency_unavailable"
+    # M2A (ADR-010): browser authentication contract.
+    AUTHENTICATION_REQUIRED = "authentication_required"
+    INVALID_CREDENTIALS = "invalid_credentials"
+    CSRF_REJECTED = "csrf_rejected"
 
 
 _STATUS_CODES: dict[int, ErrorCode] = {
@@ -80,6 +84,7 @@ def error_response(
     message: str,
     field_errors: list[FieldError] | None = None,
     details: dict[str, object] | None = None,
+    headers: dict[str, str] | None = None,
 ) -> JSONResponse:
     """Build an ADR-008 envelope response (used by handlers and endpoints)."""
     # The contextvar covers the normal path; the scope-state fallback covers
@@ -95,9 +100,52 @@ def error_response(
             details=details,
         )
     )
-    headers = {REQUEST_ID_HEADER: correlation_id} if correlation_id else None
+    response_headers = dict(headers) if headers else {}
+    if correlation_id:
+        response_headers[REQUEST_ID_HEADER] = correlation_id
     return JSONResponse(
-        status_code=status_code, content=envelope.model_dump(mode="json"), headers=headers
+        status_code=status_code,
+        content=envelope.model_dump(mode="json"),
+        headers=response_headers or None,
+    )
+
+
+class ApiError(Exception):
+    """Domain-raisable error rendered as an ADR-008 envelope (M2A).
+
+    Application services raise these to express business/security outcomes
+    (invalid credentials, missing authentication, rejected CSRF) without
+    knowing anything about HTTP responses; the handler below is the single
+    translation point. ``headers`` lets an error carry response headers —
+    the session-cookie deletion on authentication failure is the first use.
+    """
+
+    def __init__(
+        self,
+        status_code: int,
+        code: ErrorCode,
+        message: str,
+        *,
+        details: dict[str, object] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.code = code
+        self.message = message
+        self.details = details
+        self.headers = headers
+
+
+async def _handle_api_error(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, ApiError)  # noqa: S101 - handler registration contract
+    return error_response(
+        request,
+        exc.status_code,
+        exc.code,
+        exc.message,
+        details=exc.details,
+        headers=exc.headers,
     )
 
 
@@ -138,6 +186,7 @@ async def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResp
 
 
 def register_error_handlers(app: FastAPI) -> None:
+    app.add_exception_handler(ApiError, _handle_api_error)
     app.add_exception_handler(StarletteHTTPException, _handle_http_exception)
     app.add_exception_handler(RequestValidationError, _handle_validation_error)
     app.add_exception_handler(Exception, _handle_unexpected_error)
