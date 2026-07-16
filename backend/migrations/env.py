@@ -14,6 +14,11 @@ from sqlalchemy import engine_from_config, pool
 from app.core.database import Base
 from app.core.settings import load_settings
 
+# Every domain's models must be imported so autogenerate sees the complete
+# metadata; a missing import here silently produces DROP statements.
+from app.domains.audit import models as _audit_models  # noqa: F401
+from app.domains.identity import models as _identity_models  # noqa: F401
+
 config = context.config
 
 if config.config_file_name is not None:
