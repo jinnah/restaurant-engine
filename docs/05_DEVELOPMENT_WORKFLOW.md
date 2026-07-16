@@ -118,12 +118,20 @@ PostgreSQL connections.
 
 ### One-command development stack (from Milestone 1C)
 
-`corepack pnpm dev` starts everything: the compose database
-(`up -d --wait`, idempotent), the API via uvicorn on **127.0.0.1:8000**, the
-storefront on **3000**, and the control center on **5173**, with prefixed
-output under `concurrently`. Stopping it (Ctrl+C) tears down all three
-processes; only the database container keeps running (stop it with
-`docker compose stop db`). Prerequisites — all of them, nothing hidden:
+`corepack pnpm dev` starts everything, in a strict sequence:
+
+1. the compose database (`docker compose up -d --wait db`, idempotent —
+   blocks until the healthcheck passes);
+2. `alembic upgrade head` against that database, so a clean or outdated
+   database is migrated **before** any application process exists — a
+   migration failure aborts the command and nothing starts;
+3. the API via uvicorn on **127.0.0.1:8000**, the storefront on **3000**,
+   and the control center on **5173**, with prefixed output under
+   `concurrently`.
+
+Stopping it (Ctrl+C) tears down all three processes; only the database
+container keeps running (stop it with `docker compose stop db`).
+Prerequisites — all of them, nothing hidden:
 
 1. Docker Desktop running;
 2. `corepack pnpm install` at the root;

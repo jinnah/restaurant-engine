@@ -45,12 +45,13 @@ America/New_York defaults — without baking market specifics into core logic.
 
 ## Current state
 
-Milestone 0 (architecture and repository contract) is **complete**, and all
-three Milestone 1 sub-milestones are delivered (see
+Milestone 0 (architecture and repository contract) and Milestone 1
+(platform foundation) are **complete** (2026-07-15; see
 [08_ROADMAP.md](08_ROADMAP.md)): **M1A** backend and PostgreSQL foundation,
 **M1B** frontend application shells, **M1C** API contract and CI
 integration. One documented command starts the whole development stack —
-`corepack pnpm dev` — and `corepack pnpm smoke:dev` proves the health
+`corepack pnpm dev`, which migrates the database before starting any
+application process — and `corepack pnpm smoke:dev` proves the health
 endpoints and both shells are serving. The OpenAPI document is the API
 contract: the generated TypeScript client lives in `packages/api-client`
 (ADR-009), regenerated with `corepack pnpm generate:client` and
