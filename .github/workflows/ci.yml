@@ -1,6 +1,7 @@
 # CI runs exactly the documented commands (ADR-006): the local gate and the
-# CI gate are the same list. The backend job arrived with Milestone 1A; the
-# integrated matrix (frontend builds, generated-client drift) lands in M1C.
+# CI gate are the same list. The backend job arrived with Milestone 1A, the
+# frontend job with M1B, and the contract job (generated-client drift,
+# ADR-009) completes the integrated matrix with M1C.
 name: CI
 
 on:
@@ -115,7 +116,40 @@ jobs:
         run: uv run ruff format --check .
 
       - name: mypy (strict)
-        run: uv run mypy app tests
+        run: uv run mypy app tests scripts
 
       - name: pytest (unit, API, and PostgreSQL integration)
         run: uv run pytest
+
+  # The committed OpenAPI contract and generated TypeScript client must
+  # match a fresh regeneration (ADR-009). `pnpm contract:check` generates
+  # into a temporary directory and byte-compares — identical command
+  # locally and here, and it never modifies the checkout.
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv (pinned)
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: '0.11.23'
+
+      - name: Install locked backend dependencies
+        run: uv sync --frozen --directory backend
+
+      - name: Enable Corepack (pinned pnpm)
+        run: corepack enable
+
+      - name: Set up Node.js with pnpm store cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Contract drift check
+        run: pnpm contract:check
