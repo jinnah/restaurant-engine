@@ -13,12 +13,15 @@
     "test": "corepack pnpm -r test",
     "build": "corepack pnpm -r build",
     "generate:client": "uv run --directory backend python -m scripts.export_openapi && corepack pnpm --filter @restaurant-engine/api-client generate",
-    "contract:check": "node scripts/contract-check.mjs"
+    "contract:check": "node scripts/contract-check.mjs",
+    "dev": "docker compose up -d --wait db && concurrently -n api,store,cc -c blue,green,magenta --kill-others-on-fail \"uv run --directory backend uvicorn app.main:create_app --factory --reload --port 8000\" \"corepack pnpm --filter @restaurant-engine/storefront dev\" \"corepack pnpm --filter @restaurant-engine/control-center dev\"",
+    "smoke:dev": "node scripts/smoke-dev.mjs"
   },
   "packageManager": "pnpm@11.13.0+sha512.88d94724d8f2e6c186744a5584c6e59ecac869ec7ba15e9cb4cd628e8dc7066820b2481d8ee3b51ea8da323a7378068aa58c556a3720d32b7c20a051d088363a",
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@next/eslint-plugin-next": "16.2.10",
+    "concurrently": "10.0.3",
     "eslint": "10.7.0",
     "eslint-plugin-jsx-a11y": "6.10.2",
     "eslint-plugin-react-hooks": "7.1.1",
