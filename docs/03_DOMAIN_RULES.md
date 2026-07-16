@@ -27,6 +27,17 @@ expressed as **named capabilities** (for example `menu.write`,
 `orders.advance`) mapped from roles in one policy module — never scattered
 role-string comparisons.
 
+**Implemented in M2A (ADR-010):** `users` (normalized-email identity,
+Argon2id hashes, backoff state, `is_active` kill-switch), `sessions`
+(opaque hashed tokens, per-session CSRF token), and the login/logout/
+session workflows in the identity application service. `platform_admin`
+is a user flag, not a membership. Accounts are created only by the
+`create_platform_admin` bootstrap CLI until onboarding (M2D). Password
+policy (12–128 chars) applies when setting passwords, never at login.
+Self-service password reset is deferred to the first email channel (M6 at
+the earliest); the interim recovery path is a platform-admin-issued
+single-use reset link (M2D).
+
 ## Tenants
 
 Tenant status is a state machine:
@@ -111,6 +122,13 @@ notification commit together; public tracking uses a high-entropy token.
 Append-only events capturing actor, tenant, action, target, timestamp,
 correlation ID, and a safe structured summary. Never passwords, session
 tokens, card data, or unnecessary customer data.
+
+**Implemented foundation (M2A):** `audit_events` written by a single
+recorder inside the same transaction as the change it records. Action
+names live in an append-only code registry; `details` payloads are built
+only from per-action typed schemas (closed, denylist-tested key set).
+First actions: `auth.login_succeeded`, `auth.login_failed`,
+`auth.login_throttled`, `auth.logout`, `user.platform_admin_created`.
 
 ## Data model policies (blueprint §9)
 

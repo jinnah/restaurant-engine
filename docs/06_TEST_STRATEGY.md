@@ -2,7 +2,21 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (Milestone 1C)
+## Current state (Milestone 2A)
+
+The security/tenancy layer began with M2A: a permanent `tests/security/`
+suite (PostgreSQL-backed, auto-marked `integration`) proves the ADR-010
+contracts — uniform login failure compared under an injected fixed
+correlation ID, backoff counter semantics, session rotation/revocation/
+idle/absolute expiry, cookie flags per environment, the full fail-closed
+CSRF precedence matrix, storage and log hygiene (no plaintext tokens or
+passwords anywhere), and bootstrap CLI safety. Migration tests now walk
+the revision chain **stepwise** (every migration applies against the
+previous head) and prove downgrades are real. Audit detail schemas are
+denylist-tested so the `details` column can never carry secrets. The
+api-client suite covers the auth facade group with an injected fetch.
+
+## Earlier state (Milestone 1C)
 
 The API contract is under permanent test (ADR-009): backend unit tests
 prove the canonical OpenAPI export is deterministic, byte-identical to the

@@ -65,14 +65,38 @@ For every tenant-owned resource, tests must prove:
 
 ## Security baseline
 
-### Sessions and authentication (from Milestone 2)
+### Sessions and authentication (implemented in M2A — ADR-010)
 
-- Opaque, database-backed sessions in `Secure`, `HttpOnly`, `SameSite=Lax`
-  cookies; only a cryptographic hash of the token is stored.
-- Absolute and idle expiry; revocable; rotated on login and privilege change.
+- Opaque, database-backed sessions in `HttpOnly`, `SameSite=Lax` cookies
+  (`Secure` + `__Host-` prefix in production); only the SHA-256 digest of
+  the token is stored. The cookie is persistent (`Max-Age` = absolute
+  lifetime); server-side checks are always authoritative.
+- Absolute (30 d) and idle (24 h) expiry; revocable; every login opens a
+  fresh session; `revoke_all_sessions` backs privilege changes (wired to
+  password reset/deactivation in M2D). Authorization state is read fresh
+  per request — sessions cache nothing.
 - No authentication tokens in localStorage, ever.
-- CSRF protection (origin check plus token pattern) for unsafe
-  cookie-authenticated requests; CORS restricted to exact trusted origins.
+- **Fail-closed CSRF, two independent layers** (ADR-010): a
+  browser-context check (`Sec-Fetch-Site` same-origin, else exact `Origin`
+  allowlist, else `Referer` origin, else reject) on every browser-facing
+  unsafe request, plus a per-session synchronizer token in `X-CSRF-Token`
+  on cookie-authenticated unsafe requests.
+- Login failures are uniform `401 invalid_credentials` — unknown email,
+  wrong password, inactive account, and throttled attempts are
+  indistinguishable in body and timing (dummy Argon2 verification).
+  Per-account exponential backoff (5 failures → 1 s doubling to a 60 s
+  cap) replaces lockout; attempts inside the window neither count nor
+  extend it. Per-IP limiting belongs to the reverse proxy and is a
+  **mandatory M8 item before production**.
+- Every `/api/v1` response is `Cache-Control: no-store` until the M4
+  public-caching decision.
+
+### Proxy trust (fixed now, revisited at M8)
+
+The API trusts **no** forwarded headers: `X-Forwarded-For/-Host/-Proto`
+are ignored and uvicorn runs without `--proxy-headers`. Honoring them is
+an explicit Milestone 8 decision coupled to the Nginx topology — do not
+enable it earlier.
 
 ### Password and account policy
 

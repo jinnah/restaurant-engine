@@ -99,6 +99,23 @@ Integration tests **fail with a clear message** (never skip) when the
 database is down — start it with `docker compose up -d db` first. The API
 serves `/health/live`, `/health/ready`, and (non-production) `/docs`.
 
+From M2A, `tests/security/` (session, CSRF, disclosure, bootstrap
+behavior) also requires the database and carries the `integration` marker
+automatically. Non-browser clients calling unsafe endpoints — curl,
+scripts, tests — must send an allowlisted `Origin` header (fail-closed
+CSRF, ADR-010); the security-test fixtures do this centrally.
+
+### Identity commands (from Milestone 2A)
+
+| Command                                                                   | Purpose                                                                                        |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `uv run --directory backend python -m scripts.create_platform_admin`      | Create a platform admin (`--email`, `--display-name`; password prompted or `--password-stdin`) |
+| `uv run --directory backend python -m scripts.benchmark_password_hashing` | Verify Argon2id timing against the 100–500 ms window (ADR-010)                                 |
+
+New environment variables (all optional, safe defaults; see
+`.env.example`): `SESSION_IDLE_TIMEOUT_MINUTES`,
+`SESSION_ABSOLUTE_LIFETIME_DAYS`, `TRUSTED_ORIGINS`.
+
 ### Frontend development (from Milestone 1B)
 
 | Command                                                   | Purpose                                   |
