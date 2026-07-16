@@ -99,6 +99,70 @@ describe('getReadiness', () => {
     }
   });
 
+  it.each([
+    [
+      'code is null',
+      { code: null, message: 'm', field_errors: [], correlation_id: 'c' },
+    ],
+    [
+      'message is a number',
+      {
+        code: 'http_error',
+        message: 42,
+        field_errors: [],
+        correlation_id: 'c',
+      },
+    ],
+    [
+      'correlation_id is a number',
+      { code: 'http_error', message: 'm', field_errors: [], correlation_id: 7 },
+    ],
+    [
+      'field_errors is not an array',
+      {
+        code: 'http_error',
+        message: 'm',
+        field_errors: 'nope',
+        correlation_id: 'c',
+      },
+    ],
+    [
+      'field_errors entry is malformed',
+      {
+        code: 'http_error',
+        message: 'm',
+        field_errors: [{ field: 'f' }],
+        correlation_id: 'c',
+      },
+    ],
+    [
+      'details is a primitive',
+      {
+        code: 'http_error',
+        message: 'm',
+        field_errors: [],
+        correlation_id: 'c',
+        details: 'oops',
+      },
+    ],
+    ['detail is missing entirely', undefined],
+  ])(
+    'rejects a malformed JSON envelope (%s) as envelope: null',
+    async (_label, detail) => {
+      const body =
+        detail === undefined ? { unexpected: true } : { error: detail };
+      const client = clientReturning(jsonResponse(503, body));
+
+      const result = await client.getReadiness();
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.status).toBe(503);
+        expect(result.envelope).toBeNull();
+      }
+    },
+  );
+
   it('reports a non-JSON error body as a failure without an envelope', async () => {
     const client = clientReturning(
       new Response('<html>Bad Gateway</html>', {
