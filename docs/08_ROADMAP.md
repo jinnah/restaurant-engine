@@ -21,18 +21,18 @@ initial architecture-contract commit.
 | Milestone                                 | State                     |
 | ----------------------------------------- | ------------------------- |
 | M0 — Architecture and repository contract | **Complete** (2026-07-14) |
-| M1 — Platform foundation                  | **In progress**           |
+| M1 — Platform foundation                  | **Complete** (2026-07-15) |
 | M2 – M8                                   | Not started               |
 
 ## Milestone 1 delivery decision (2026-07-14)
 
 Approved subdivision into three independently reviewable sub-milestones:
 
-| Sub-milestone                               | Scope                                                                                                                                                                                               | State                                                  |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| **M1A** — Backend and PostgreSQL foundation | FastAPI factory, settings, correlation IDs, structured logging, error envelope (ADR-008), sync SQLAlchemy core (ADR-007), compose database, Alembic baseline, health probes, backend tests + CI job | **Complete** (2026-07-15)                              |
-| **M1B** — Frontend application shells       | Next.js storefront shell, React/Vite control-center shell, neutral placeholder pages, frontend lint/typecheck/test/build                                                                            | **Complete** (2026-07-15)                              |
-| **M1C** — API contract and CI integration   | Deterministic OpenAPI export, generated TypeScript client + facade (ADR-009), drift check, integrated CI matrix, one-command stack + clean-clone verification                                       | **In review** (`feature/m1c-api-contract-integration`) |
+| Sub-milestone                               | Scope                                                                                                                                                                                               | State                     |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| **M1A** — Backend and PostgreSQL foundation | FastAPI factory, settings, correlation IDs, structured logging, error envelope (ADR-008), sync SQLAlchemy core (ADR-007), compose database, Alembic baseline, health probes, backend tests + CI job | **Complete** (2026-07-15) |
+| **M1B** — Frontend application shells       | Next.js storefront shell, React/Vite control-center shell, neutral placeholder pages, frontend lint/typecheck/test/build                                                                            | **Complete** (2026-07-15) |
+| **M1C** — API contract and CI integration   | Deterministic OpenAPI export, generated TypeScript client + facade (ADR-009), drift check, integrated CI matrix, one-command stack + clean-clone verification                                       | **Complete** (2026-07-15) |
 
 M1A ∥ M1B are independent; M1C depends on both. CI gained the backend job
 with M1A (untested application code must not merge); the integrated matrix

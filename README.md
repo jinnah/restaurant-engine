@@ -7,12 +7,12 @@ operations. Initial market: Bengali-owned restaurants in Buffalo, New York.
 
 ## Status
 
-**Milestone 1 — Platform foundation (M1C in review).** Milestone 0
-(repository contract), M1A (backend + PostgreSQL foundation), and M1B (the
-two frontend application shells) are complete; M1C adds the generated API
-client (`packages/api-client`, ADR-009), the contract drift gate, the
-integrated CI matrix, and the one-command dev stack. Product-domain behavior
-(tenants, menus, orders) begins in Milestone 2. See
+**Milestone 1 — Platform foundation: complete (2026-07-15).** Milestone 0
+(repository contract) and all of Milestone 1 are done: M1A backend +
+PostgreSQL foundation, M1B frontend application shells, and M1C the
+generated API client (`packages/api-client`, ADR-009), contract drift gate,
+integrated CI matrix, and one-command dev stack. Product-domain behavior
+(tenants, menus, orders) begins in Milestone 2, which is not started. See
 [docs/08_ROADMAP.md](docs/08_ROADMAP.md).
 
 ## Quick start
