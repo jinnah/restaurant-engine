@@ -102,12 +102,24 @@ restaurant-engine/
 ```
 
 This tree is a direction, not permission to create empty folders. A directory
-appears when its first real contents do. As of Milestone 1B: `backend/app/`
-contains `core/`, `api/`, and `main.py` plus `migrations/` and `tests/`
-(M1A); `apps/storefront` (Next.js App Router) and `apps/control-center`
-(React + Vite + React Router) are the two application shells (M1B).
-`backend/app/domains/` appears with the first domain in Milestone 2;
-`packages/` gains its first member (the generated API client) in M1C.
+appears when its first real contents do. As of Milestone 1C: `backend/app/`
+contains `core/`, `api/`, and `main.py` plus `migrations/`, `scripts/`, and
+`tests/` (M1A/M1C); `apps/storefront` (Next.js App Router) and
+`apps/control-center` (React + Vite + React Router) are the two application
+shells (M1B); `packages/api-client` is the generated API client behind its
+handwritten facade (M1C, ADR-009); root `scripts/` holds the contract-check
+and dev-stack smoke scripts. `backend/app/domains/` appears with the first
+domain in Milestone 2.
+
+**API contract flow (M1C, ADR-009):** the backend exports a canonical
+OpenAPI document (`packages/api-client/openapi.json`); `openapi-typescript`
+generates pure types from it; a handwritten facade over `openapi-fetch` is
+the package's only public surface. Both artifacts are committed, produced
+only by `corepack pnpm generate:client`, and byte-compared against a fresh
+temp-directory regeneration by `corepack pnpm contract:check` locally and in
+CI. Operation IDs are explicit contracts, validated at application
+composition time. Applications consume only the facade — the first real
+consumers, and with them the CORS origin decision, arrive in Milestone 2.
 
 **Frontend workspace conventions (M1B):** one root ESLint flat config and one
 root `tsconfig.base.json` own shared configuration as plain files — a shared

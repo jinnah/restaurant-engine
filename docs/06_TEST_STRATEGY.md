@@ -2,7 +2,23 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (Milestone 1B)
+## Current state (Milestone 1C)
+
+The API contract is under permanent test (ADR-009): backend unit tests
+prove the canonical OpenAPI export is deterministic, byte-identical to the
+committed `packages/api-client/openapi.json`, and carries exactly the
+declared, unique operation ids; boot-time validation tests prove a route
+without an explicit `operation_id` (or with a duplicate) cannot compose.
+`packages/api-client` carries Vitest facade tests with an injected fetch —
+typed success payloads, the ADR-008 error envelope on 503, non-JSON bodies,
+and network failure — with no network and no running backend. The CI
+`contract` job runs the identical local command `pnpm contract:check`
+(temp-directory regeneration, byte-compare, repository untouched).
+`pnpm smoke:dev` is the documented proof that the one-command dev stack
+serves both health probes and both shells; it is deliberately not a CI job
+(CI builds and tests every component individually).
+
+## Earlier state (Milestone 1B)
 
 Frontend tests live in each app (`apps/*/tests/`), run with **Vitest +
 Testing Library + jsdom** via `pnpm test` from the root:

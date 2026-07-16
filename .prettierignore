@@ -10,3 +10,10 @@ pnpm-lock.yaml
 **/dist/
 **/.next/
 **/next-env.d.ts
+
+# Generated API-contract artifacts (ADR-009): produced only by
+# `pnpm generate:client`, which owns their formatting. Nothing else in
+# packages/api-client is excluded — facade, tests, and configuration are
+# formatted normally.
+packages/api-client/openapi.json
+packages/api-client/src/generated/

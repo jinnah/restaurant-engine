@@ -33,7 +33,7 @@ class ReadinessResponse(BaseModel):
     checks: dict[str, CheckResult]
 
 
-@health_router.get("/health/live")
+@health_router.get("/health/live", operation_id="health_live")
 def health_live() -> LivenessResponse:
     """Report that the process is up and able to serve HTTP."""
     return LivenessResponse(status="alive")
@@ -41,6 +41,7 @@ def health_live() -> LivenessResponse:
 
 @health_router.get(
     "/health/ready",
+    operation_id="health_ready",
     response_model=ReadinessResponse,
     responses={status.HTTP_503_SERVICE_UNAVAILABLE: {"model": ErrorEnvelope}},
 )

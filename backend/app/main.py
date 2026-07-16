@@ -16,6 +16,7 @@ from app.core.correlation import CorrelationIdMiddleware
 from app.core.database import create_database_engine, create_session_factory
 from app.core.errors import register_error_handlers
 from app.core.logging import RequestLoggingMiddleware, configure_logging
+from app.core.openapi import assert_contract_operation_ids
 from app.core.settings import Settings, load_settings
 
 
@@ -57,4 +58,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(api_v1_router, prefix="/api/v1")
+
+    # Operation IDs are client contracts (ADR-009): refuse to compose an app
+    # whose schema-visible routes lack explicit, unique ids.
+    assert_contract_operation_ids(app)
     return app
