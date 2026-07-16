@@ -65,14 +65,18 @@ Fake-success placeholders are prohibited.
 
 ### Repository-wide (from the root)
 
-| Command             | Purpose                                                 |
-| ------------------- | ------------------------------------------------------- |
-| `pnpm format:check` | Prettier verification of docs, configuration, and code  |
-| `pnpm format`       | Apply Prettier formatting                               |
-| `pnpm lint`         | Root ESLint flat config over the whole workspace        |
-| `pnpm typecheck`    | Strict TypeScript (`tsc --noEmit`) in every app         |
-| `pnpm test`         | Frontend unit tests (Vitest) in every app               |
-| `pnpm build`        | Production builds of both applications (needs zero env) |
+| Command                | Purpose                                                             |
+| ---------------------- | ------------------------------------------------------------------- |
+| `pnpm format:check`    | Prettier verification of docs, configuration, and code              |
+| `pnpm format`          | Apply Prettier formatting                                           |
+| `pnpm lint`            | Root ESLint flat config over the whole workspace                    |
+| `pnpm typecheck`       | Strict TypeScript (`tsc --noEmit`) in every workspace package       |
+| `pnpm test`            | Unit tests (Vitest) in every workspace package                      |
+| `pnpm build`           | Production builds of both applications (needs zero env)             |
+| `pnpm generate:client` | Regenerate the two committed API-contract artifacts (ADR-009)       |
+| `pnpm contract:check`  | Drift check: temp-dir regeneration byte-compared vs committed files |
+| `pnpm dev`             | One-command dev stack: database + API + both shells                 |
+| `pnpm smoke:dev`       | Verify the running dev stack (health probes + both shells)          |
 
 The `typecheck`/`test`/`build` scripts shell out through `corepack pnpm -r`
 so the pinned pnpm resolves even where Corepack was never globally enabled
@@ -112,13 +116,50 @@ shells build with **zero** environment variables. Dev-server URLs print as
 `localhost`; note the database's 127.0.0.1 rule above applies only to
 PostgreSQL connections.
 
-### Reserved canonical names (first consumer arrives in Milestone 1C)
+### One-command development stack (from Milestone 1C)
 
-| Command                | Future purpose                           |
-| ---------------------- | ---------------------------------------- |
-| `pnpm generate:client` | Regenerate the OpenAPI TypeScript client |
+`corepack pnpm dev` starts everything: the compose database
+(`up -d --wait`, idempotent), the API via uvicorn on **127.0.0.1:8000**, the
+storefront on **3000**, and the control center on **5173**, with prefixed
+output under `concurrently`. Stopping it (Ctrl+C) tears down all three
+processes; only the database container keeps running (stop it with
+`docker compose stop db`). Prerequisites — all of them, nothing hidden:
 
-Adding this script requires its real consumer in the same change.
+1. Docker Desktop running;
+2. `corepack pnpm install` at the root;
+3. `uv sync` inside `backend/`;
+4. `.env` copied from `.env.example` (backend `DATABASE_URL`; the shells
+   need zero environment variables).
+
+`corepack pnpm smoke:dev` (run in a second terminal) polls
+`/health/live`, `/health/ready`, and both shells with a bounded timeout and
+exits 0 only when everything serves. The shells are checked via
+`localhost` — Vite binds the loopback family `localhost` resolves to — while
+the 127.0.0.1 rule above is specific to PostgreSQL connections.
+
+### API contract pipeline (from Milestone 1C, ADR-009)
+
+The OpenAPI document is the API contract. Two committed, generated artifacts
+— `packages/api-client/openapi.json` and
+`packages/api-client/src/generated/schema.ts` — are produced **only** by
+`corepack pnpm generate:client` and never hand-edited (Prettier/ESLint
+ignore exactly these two paths). `corepack pnpm contract:check` regenerates
+both into a temporary directory and byte-compares against the committed
+files without touching the repository; CI runs the identical command.
+
+Rules:
+
+- **Operation IDs are contracts.** Every schema-visible route declares an
+  explicit `operation_id`; `create_app` refuses to compose otherwise.
+  Renaming a Python handler never changes the contract; renaming an
+  `operation_id` is a breaking change and needs a deliberate, reviewed
+  decision.
+- A pull request that changes API surface must include the matching
+  regenerated artifacts (the backend test suite and the contract job both
+  fail otherwise). A generated-only diff without a backend change is
+  rejected.
+- Applications import **only** `@restaurant-engine/api-client` (the facade);
+  deep imports of generated modules fail module resolution and lint.
 
 ## Git workflow
 

@@ -45,15 +45,19 @@ America/New_York defaults — without baking market specifics into core logic.
 
 ## Current state
 
-Milestone 0 (architecture and repository contract) is **complete**. The
-project is in **Milestone 1 — Platform foundation**, delivered as three
-reviewable sub-milestones (see [08_ROADMAP.md](08_ROADMAP.md)): **M1A**
-backend and PostgreSQL foundation, **M1B** frontend application shells,
-**M1C** API contract and CI integration. The backend skeleton is runnable
-(`docker compose up -d db`, then `uv run uvicorn app.main:create_app
---factory` inside `backend/`); it deliberately contains no product-domain
+Milestone 0 (architecture and repository contract) is **complete**, and all
+three Milestone 1 sub-milestones are delivered (see
+[08_ROADMAP.md](08_ROADMAP.md)): **M1A** backend and PostgreSQL foundation,
+**M1B** frontend application shells, **M1C** API contract and CI
+integration. One documented command starts the whole development stack —
+`corepack pnpm dev` — and `corepack pnpm smoke:dev` proves the health
+endpoints and both shells are serving. The OpenAPI document is the API
+contract: the generated TypeScript client lives in `packages/api-client`
+(ADR-009), regenerated with `corepack pnpm generate:client` and
+drift-checked in CI. The system deliberately contains no product-domain
 behavior — no tenants, authentication, menus, or orders — until their
-milestones.
+milestones; the first real client consumers (and the CORS decision) arrive
+with Milestone 2.
 
 ## Rules for AI coding agents
 

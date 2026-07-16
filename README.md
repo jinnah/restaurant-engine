@@ -7,12 +7,26 @@ operations. Initial market: Bengali-owned restaurants in Buffalo, New York.
 
 ## Status
 
-**Milestone 1 — Platform foundation (in progress).** Milestone 0 (repository
-contract) and M1A (backend + PostgreSQL foundation: FastAPI skeleton, health
-probes, error envelope, Alembic baseline) are complete. M1B adds the two
-frontend application shells; M1C adds the generated API client and the
-integrated CI/contract pipeline. Product-domain behavior (tenants, menus,
-orders) begins in Milestone 2. See [docs/08_ROADMAP.md](docs/08_ROADMAP.md).
+**Milestone 1 — Platform foundation (M1C in review).** Milestone 0
+(repository contract), M1A (backend + PostgreSQL foundation), and M1B (the
+two frontend application shells) are complete; M1C adds the generated API
+client (`packages/api-client`, ADR-009), the contract drift gate, the
+integrated CI matrix, and the one-command dev stack. Product-domain behavior
+(tenants, menus, orders) begins in Milestone 2. See
+[docs/08_ROADMAP.md](docs/08_ROADMAP.md).
+
+## Quick start
+
+```powershell
+corepack pnpm install          # workspace dependencies
+cd backend; uv sync; cd ..     # backend environment (Python 3.12 via uv)
+Copy-Item .env.example .env    # local configuration (safe defaults)
+corepack pnpm dev              # database + API + both shells
+corepack pnpm smoke:dev        # in a second terminal: verify everything serves
+```
+
+API health at `http://127.0.0.1:8000/health/ready`, storefront at
+`http://localhost:3000`, control center at `http://localhost:5173`.
 
 ## Governing documents
 
@@ -38,11 +52,9 @@ restaurant-engine/
 ├── 00_RESTAURANT_ENGINE_BLUEPRINT.md   # governing blueprint
 ├── CLAUDE_PROJECT_PROMPT.md            # governing working agreement
 ├── docs/                               # project handbook + ADRs
-├── backend/                            # Python project (contract only until M1)
-├── apps/                               # storefront + control-center (from M1)
-├── packages/                           # shared frontend packages (from M1)
-└── .github/workflows/                  # CI
+├── backend/                            # FastAPI backend (app, migrations, tests, scripts)
+├── apps/                               # storefront + control-center shells
+├── packages/api-client/                # generated API client + handwritten facade (ADR-009)
+├── scripts/                            # contract drift check, dev-stack smoke
+└── .github/workflows/                  # CI (repository contract, backend, frontend, contract)
 ```
-
-`apps/` and `packages/` are declared in the workspace contract but are
-intentionally empty until Milestone 1 delivers their first real contents.
