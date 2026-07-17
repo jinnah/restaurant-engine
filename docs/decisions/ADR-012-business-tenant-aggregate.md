@@ -72,7 +72,7 @@ business_status`. The M2A-created `audit_events.restaurant_id` column
 
 M2C and every later milestone inherit Business vocabulary from the start.
 The `businesses` domain (`app/domains/businesses/`) will absorb
-entitlements, domains, and onboarding as planned for the tenants domain.
+entitlements, domains, and onboarding as planned for the businesses domain.
 ADR-011 was amended in place (it was unmerged) rather than superseded; its
 authorization, lifecycle, and isolation decisions are unchanged. The
 governing blueprint and project prompt carry a short amendment pointing

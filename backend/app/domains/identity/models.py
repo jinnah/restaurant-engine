@@ -6,7 +6,7 @@ through ``memberships`` (Milestone 2B, blueprint §7.1: identity owns
 memberships and roles), never to the account itself.
 
 Database-enforced invariants live here as named constraints; state-machine
-and policy rules live in the identity/tenants services.
+and policy rules live in the identity/businesses services.
 """
 
 import uuid
