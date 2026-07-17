@@ -62,6 +62,7 @@ class TestAppEnv:
             app_env="production",
             database_url=VALID_URL,
             trusted_origins="https://admin.example.com",
+            platform_base_domain="platform.example.com",
         )
         assert production.is_production
         assert not build(app_env="test", database_url=VALID_URL).is_production
@@ -90,6 +91,7 @@ class TestSessionSettings:
             app_env="production",
             database_url=VALID_URL,
             trusted_origins="https://admin.example.com",
+            platform_base_domain="platform.example.com",
         )
         assert production.session_cookie_name == "__Host-session"
         assert production.session_cookie_secure is True
@@ -135,8 +137,17 @@ class TestProductionConfigurationValidation:
             app_env="production",
             database_url="postgresql+psycopg://app:distinct-real-secret@db:5432/app",
             trusted_origins="https://admin.example.com,https://ops.example.com",
+            platform_base_domain="platform.example.com",
         )
         assert settings.is_production
+
+    def test_localhost_base_domain_is_rejected_in_production(self) -> None:
+        with pytest.raises(ValidationError, match="PLATFORM_BASE_DOMAIN"):
+            build(
+                app_env="production",
+                database_url="postgresql+psycopg://app:distinct-real-secret@db:5432/app",
+                trusted_origins="https://admin.example.com",
+            )
 
     def test_development_is_not_subject_to_production_checks(self) -> None:
         # The dev placeholder password and http origin are fine outside prod.
@@ -144,6 +155,25 @@ class TestProductionConfigurationValidation:
             database_url="postgresql+psycopg://u:restaurant_dev_only@127.0.0.1:5433/db"
         )
         assert not settings.is_production
+
+
+class TestPlatformBaseDomain:
+    """M2C tenant-resolution base domain (ADR-013)."""
+
+    def test_defaults_to_localhost_for_development(self) -> None:
+        settings = build(database_url=VALID_URL)
+        assert settings.platform_base_domain == "localhost"
+        assert settings.platform_base_domain_labels == ("localhost",)
+
+    def test_is_lowercased_and_split_into_labels(self) -> None:
+        settings = build(database_url=VALID_URL, platform_base_domain="Platform.Example.COM")
+        assert settings.platform_base_domain == "platform.example.com"
+        assert settings.platform_base_domain_labels == ("platform", "example", "com")
+
+    @pytest.mark.parametrize("value", ["127.0.0.1", "[::1]", "not a domain", "-bad.com", ""])
+    def test_invalid_base_domain_is_rejected(self, value: str) -> None:
+        with pytest.raises(ValidationError, match="PLATFORM_BASE_DOMAIN"):
+            build(database_url=VALID_URL, platform_base_domain=value)
 
 
 class TestLogLevel:

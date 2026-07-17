@@ -13,6 +13,8 @@ from typing import Literal
 from pydantic import Field, PostgresDsn, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.hosts import normalize_host
+
 # Development placeholders that must never reach production (blueprint §11.2:
 # production startup fails when insecure example secrets are detected).
 _PLACEHOLDER_DB_PASSWORDS = frozenset({"restaurant_dev_only", "export", "postgres", "password"})
@@ -59,6 +61,25 @@ class Settings(BaseSettings):
     # proxy origin and for test clients.
     trusted_origins: str = "http://localhost:5173"
 
+    # --- Tenant resolution (M2C, ADR-013) ----------------------------------
+    # The platform base domain. A public request whose Host is a direct
+    # subdomain of this domain resolves that subdomain label to a Business
+    # slug. Development uses ``localhost`` so ``{slug}.localhost`` resolves;
+    # production must set a real domain (validated below). Infrastructure
+    # labels (api/admin/www) are the reserved-slug set and are never tenants.
+    platform_base_domain: str = "localhost"
+
+    @field_validator("platform_base_domain")
+    @classmethod
+    def _valid_base_domain(cls, value: str) -> str:
+        # Reuse the Host parser: the base domain must be a valid DNS hostname
+        # (never an IP literal), stored in canonical lowercase form.
+        normalized = normalize_host(value)
+        if normalized is None or normalized.is_ip:
+            msg = f"PLATFORM_BASE_DOMAIN must be a valid DNS hostname; got {value!r}"
+            raise ValueError(msg)
+        return normalized.hostname
+
     @field_validator("log_level", mode="before")
     @classmethod
     def _normalize_log_level(cls, value: object) -> object:
@@ -95,6 +116,10 @@ class Settings(BaseSettings):
         passwords = {host.get("password") or "" for host in self.database_url.hosts()}
         if passwords & _PLACEHOLDER_DB_PASSWORDS:
             problems.append("DATABASE_URL uses a known development placeholder password")
+        if self.platform_base_domain == "localhost":
+            problems.append(
+                "PLATFORM_BASE_DOMAIN must be a real domain (not localhost) in production"
+            )
         if problems:
             raise ValueError("; ".join(sorted(problems)))
         return self
@@ -102,6 +127,11 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env is AppEnv.PRODUCTION
+
+    @property
+    def platform_base_domain_labels(self) -> tuple[str, ...]:
+        """The base domain as normalized DNS labels (M2C resolution)."""
+        return tuple(self.platform_base_domain.split("."))
 
     @property
     def database_url_str(self) -> str:

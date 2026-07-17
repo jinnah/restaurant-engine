@@ -86,6 +86,7 @@ class TestCookieContract:
             app_env="production",
             database_url="postgresql+psycopg://app:distinct-real-secret@db:5432/app",
             trusted_origins="https://admin.example.com",
+            platform_base_domain="platform.example.com",
         )
         assert settings.session_cookie_name == "__Host-session"
         assert settings.session_cookie_secure is True
