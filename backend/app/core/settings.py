@@ -10,8 +10,12 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Literal
 
-from pydantic import PostgresDsn, field_validator
+from pydantic import Field, PostgresDsn, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Development placeholders that must never reach production (blueprint §11.2:
+# production startup fails when insecure example secrets are detected).
+_PLACEHOLDER_DB_PASSWORDS = frozenset({"restaurant_dev_only", "export", "postgres", "password"})
 
 # The canonical .env lives at the repository root (docs/05), next to
 # .env.example. Anchored on this file's location so backend commands work
@@ -44,6 +48,17 @@ class Settings(BaseSettings):
     database_url: PostgresDsn
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
 
+    # --- Sessions and browser security (M2A, ADR-010) ----------------------
+    # Server-side session validity: both bounds are enforced on every
+    # authenticated request; the cookie's Max-Age mirrors the absolute bound.
+    session_idle_timeout_minutes: int = Field(default=1440, ge=1)  # 24 hours
+    session_absolute_lifetime_days: int = Field(default=30, ge=1)
+    # Comma-separated exact origins allowed to originate browser-facing
+    # unsafe requests (fail-closed CSRF check, ADR-010). Same-origin
+    # consumption is the deployment contract; this list exists for the dev
+    # proxy origin and for test clients.
+    trusted_origins: str = "http://localhost:5173"
+
     @field_validator("log_level", mode="before")
     @classmethod
     def _normalize_log_level(cls, value: object) -> object:
@@ -66,6 +81,24 @@ class Settings(BaseSettings):
             raise ValueError(msg)
         return value
 
+    @model_validator(mode="after")
+    def _validate_production_configuration(self) -> "Settings":
+        """Refuse to start a misconfigured production process (ADR-010)."""
+        if self.app_env is not AppEnv.PRODUCTION:
+            return self
+        problems: list[str] = []
+        if not self.trusted_origin_set:
+            problems.append("TRUSTED_ORIGINS must not be empty in production")
+        for origin in self.trusted_origin_set:
+            if not origin.startswith("https://"):
+                problems.append(f"trusted origin '{origin}' must use https:// in production")
+        passwords = {host.get("password") or "" for host in self.database_url.hosts()}
+        if passwords & _PLACEHOLDER_DB_PASSWORDS:
+            problems.append("DATABASE_URL uses a known development placeholder password")
+        if problems:
+            raise ValueError("; ".join(sorted(problems)))
+        return self
+
     @property
     def is_production(self) -> bool:
         return self.app_env is AppEnv.PRODUCTION
@@ -73,6 +106,26 @@ class Settings(BaseSettings):
     @property
     def database_url_str(self) -> str:
         return str(self.database_url)
+
+    @property
+    def trusted_origin_set(self) -> frozenset[str]:
+        """Normalized (lowercased, no trailing slash) exact trusted origins."""
+        return frozenset(
+            origin.strip().rstrip("/").lower()
+            for origin in self.trusted_origins.split(",")
+            if origin.strip()
+        )
+
+    @property
+    def session_cookie_name(self) -> str:
+        # __Host- binds the cookie to the exact host, requires Secure and
+        # Path=/ with no Domain attribute — free hardening, production only
+        # because the prefix is invalid over plain HTTP (ADR-010).
+        return "__Host-session" if self.is_production else "session"
+
+    @property
+    def session_cookie_secure(self) -> bool:
+        return self.is_production
 
 
 def load_settings() -> Settings:

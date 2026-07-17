@@ -45,20 +45,25 @@ America/New_York defaults — without baking market specifics into core logic.
 
 ## Current state
 
-Milestone 0 (architecture and repository contract) and Milestone 1
-(platform foundation) are **complete** (2026-07-15; see
-[08_ROADMAP.md](08_ROADMAP.md)): **M1A** backend and PostgreSQL foundation,
-**M1B** frontend application shells, **M1C** API contract and CI
-integration. One documented command starts the whole development stack —
+Milestones 0 and 1 are **complete** (2026-07-15); Milestone 2 (identity,
+tenancy, and onboarding) is **in progress** under the approved M2
+architecture — six sub-milestones, one PR each (see
+[08_ROADMAP.md](08_ROADMAP.md)). **M2A** (identity and session core,
+ADR-010) is delivered: users/sessions/audit tables, Argon2id passwords,
+opaque database-backed sessions in HttpOnly cookies, fail-closed CSRF,
+uniform login failures with per-account backoff, an append-only audit
+recorder, and the `create_platform_admin` bootstrap CLI. The permanent
+`tests/security/` suite guards these contracts.
+
+One documented command starts the whole development stack —
 `corepack pnpm dev`, which migrates the database before starting any
 application process — and `corepack pnpm smoke:dev` proves the health
 endpoints and both shells are serving. The OpenAPI document is the API
 contract: the generated TypeScript client lives in `packages/api-client`
 (ADR-009), regenerated with `corepack pnpm generate:client` and
-drift-checked in CI. The system deliberately contains no product-domain
-behavior — no tenants, authentication, menus, or orders — until their
-milestones; the first real client consumers (and the CORS decision) arrive
-with Milestone 2.
+drift-checked in CI. Tenants, menus, and orders arrive with their
+milestones; the first real client consumers (and the same-origin/CORS
+decision, ADR-012) arrive at M2C–M2E.
 
 ## Rules for AI coding agents
 

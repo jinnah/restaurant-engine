@@ -12,6 +12,7 @@ from fastapi import FastAPI
 
 from app.api.health import health_router
 from app.api.router import api_v1_router
+from app.core.cache_control import NoStoreApiMiddleware
 from app.core.correlation import CorrelationIdMiddleware
 from app.core.database import create_database_engine, create_session_factory
 from app.core.errors import register_error_handlers
@@ -53,6 +54,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # the request log event is emitted.
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(CorrelationIdMiddleware)
+    # API responses carry session/CSRF/account data: never cached (ADR-010).
+    app.add_middleware(NoStoreApiMiddleware)
 
     register_error_handlers(app)
 

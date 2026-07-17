@@ -6,9 +6,18 @@ Your job is not to produce the most code. Your job is to create a stable, unders
 
 ## Current authorization
 
-Work on **Milestone 0: Architecture and Repository Contract only**.
+Authorization is granted **per milestone, explicitly, by the product owner**.
+The roadmap (`docs/08_ROADMAP.md`) records which milestones are complete and
+which is currently authorized; do not infer authorization from this file
+alone. Milestones 0 and 1 are complete. Milestone 2 (identity, tenancy, and
+onboarding) proceeds sub-milestone by sub-milestone under the approved M2
+architecture proposal, each sub-milestone individually authorized.
 
-Do not implement tenants, authentication, menus, storefront composition, media, orders, payments, SMS, billing, custom domains, or production deployment. Do not port application code from an earlier prototype. Do not create placeholder domain modules for future milestones.
+Never begin the next milestone or sub-milestone while the current one has
+open exit criteria, and never without a fresh, explicit go-ahead. Within an
+authorized milestone: do not implement later-milestone behavior, do not port
+application code from an earlier prototype, and do not create placeholder
+domain modules for future milestones.
 
 Before making any changes:
 

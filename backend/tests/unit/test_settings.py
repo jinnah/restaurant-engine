@@ -58,8 +58,92 @@ class TestAppEnv:
             build(app_env="staging", database_url=VALID_URL)
 
     def test_is_production_flag(self) -> None:
-        assert build(app_env="production", database_url=VALID_URL).is_production
+        production = build(
+            app_env="production",
+            database_url=VALID_URL,
+            trusted_origins="https://admin.example.com",
+        )
+        assert production.is_production
         assert not build(app_env="test", database_url=VALID_URL).is_production
+
+
+class TestSessionSettings:
+    """M2A session configuration (ADR-010)."""
+
+    def test_defaults(self) -> None:
+        settings = build(database_url=VALID_URL)
+        assert settings.session_idle_timeout_minutes == 1440
+        assert settings.session_absolute_lifetime_days == 30
+
+    def test_nonpositive_lifetimes_are_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            build(database_url=VALID_URL, session_idle_timeout_minutes=0)
+        with pytest.raises(ValidationError):
+            build(database_url=VALID_URL, session_absolute_lifetime_days=0)
+
+    def test_cookie_name_and_secure_flag_by_environment(self) -> None:
+        development = build(database_url=VALID_URL)
+        assert development.session_cookie_name == "session"
+        assert development.session_cookie_secure is False
+
+        production = build(
+            app_env="production",
+            database_url=VALID_URL,
+            trusted_origins="https://admin.example.com",
+        )
+        assert production.session_cookie_name == "__Host-session"
+        assert production.session_cookie_secure is True
+
+
+class TestTrustedOrigins:
+    def test_default_is_the_dev_proxy_origin(self) -> None:
+        assert build(database_url=VALID_URL).trusted_origin_set == frozenset(
+            {"http://localhost:5173"}
+        )
+
+    def test_comma_separated_values_are_normalized(self) -> None:
+        settings = build(
+            database_url=VALID_URL,
+            trusted_origins=" http://localhost:5173 , HTTP://testserver/ ,,",
+        )
+        assert settings.trusted_origin_set == frozenset(
+            {"http://localhost:5173", "http://testserver"}
+        )
+
+
+class TestProductionConfigurationValidation:
+    """A misconfigured production process must never start (ADR-010)."""
+
+    def test_non_https_trusted_origin_is_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="https://"):
+            build(app_env="production", database_url=VALID_URL)
+
+    def test_empty_trusted_origins_are_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="TRUSTED_ORIGINS"):
+            build(app_env="production", database_url=VALID_URL, trusted_origins=" , ")
+
+    def test_placeholder_database_password_is_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="placeholder password"):
+            build(
+                app_env="production",
+                database_url="postgresql+psycopg://u:restaurant_dev_only@db:5432/app",
+                trusted_origins="https://admin.example.com",
+            )
+
+    def test_compliant_production_settings_are_accepted(self) -> None:
+        settings = build(
+            app_env="production",
+            database_url="postgresql+psycopg://app:distinct-real-secret@db:5432/app",
+            trusted_origins="https://admin.example.com,https://ops.example.com",
+        )
+        assert settings.is_production
+
+    def test_development_is_not_subject_to_production_checks(self) -> None:
+        # The dev placeholder password and http origin are fine outside prod.
+        settings = build(
+            database_url="postgresql+psycopg://u:restaurant_dev_only@127.0.0.1:5433/db"
+        )
+        assert not settings.is_production
 
 
 class TestLogLevel:
