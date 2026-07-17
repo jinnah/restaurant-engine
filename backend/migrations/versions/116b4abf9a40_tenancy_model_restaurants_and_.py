@@ -52,7 +52,7 @@ def upgrade() -> None:
             "currency ~ '^[A-Z]{3}$'", name=op.f("ck_restaurants_currency_iso4217_shape")
         ),
         sa.CheckConstraint(
-            "slug ~ '^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$'",
+            "slug ~ '^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$'",
             name=op.f("ck_restaurants_slug_canonical"),
         ),
         sa.CheckConstraint(

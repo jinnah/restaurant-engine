@@ -41,7 +41,9 @@ class Restaurant(Base):
     __table_args__ = (
         CheckConstraint("char_length(name) BETWEEN 1 AND 120", name="name_length"),
         CheckConstraint(
-            r"slug ~ '^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$'",
+            # 3-63 chars, lowercase alphanumeric with internal hyphens, no
+            # leading/trailing hyphen. Matches the create-schema validator.
+            r"slug ~ '^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$'",
             name="slug_canonical",
         ),
         CheckConstraint(

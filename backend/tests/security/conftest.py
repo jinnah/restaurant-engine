@@ -59,9 +59,14 @@ def migrated_engine(test_database_url: str) -> Iterator[Engine]:
 
 @pytest.fixture(autouse=True)
 def clean_tables(migrated_engine: Engine) -> None:
-    """Start every test from empty identity/audit tables."""
+    """Start every test from empty identity/tenants/audit tables."""
     with migrated_engine.begin() as connection:
-        connection.execute(text("TRUNCATE users, sessions, audit_events RESTART IDENTITY CASCADE"))
+        connection.execute(
+            text(
+                "TRUNCATE users, sessions, audit_events, restaurants, memberships"
+                " RESTART IDENTITY CASCADE"
+            )
+        )
 
 
 @pytest.fixture
@@ -132,6 +137,78 @@ def create_user(migrated_engine: Engine, standard_password_hash: str) -> CreateU
     return _create
 
 
+CreateRestaurant = Callable[..., uuid.UUID]
+CreateMembership = Callable[..., uuid.UUID]
+
+
+@pytest.fixture
+def create_restaurant(migrated_engine: Engine) -> CreateRestaurant:
+    """Insert a restaurant directly (fixture setup, not the flow under test)."""
+
+    def _create(
+        slug: str = "demo-kitchen",
+        *,
+        name: str = "Demo Kitchen",
+        status: str = "provisioning",
+        timezone: str = "America/New_York",
+        currency: str = "USD",
+    ) -> uuid.UUID:
+        restaurant_id = uuid.uuid4()
+        with migrated_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO restaurants (id, name, slug, status, timezone, currency)"
+                    " VALUES (:id, :name, :slug, :status, :timezone, :currency)"
+                ),
+                {
+                    "id": restaurant_id,
+                    "name": name,
+                    "slug": slug,
+                    "status": status,
+                    "timezone": timezone,
+                    "currency": currency,
+                },
+            )
+        return restaurant_id
+
+    return _create
+
+
+@pytest.fixture
+def create_membership(migrated_engine: Engine) -> CreateMembership:
+    """Seed an owner/manager/staff membership row directly.
+
+    This is how activation and member-route tests obtain an owner without a
+    product onboarding path (which arrives in M2D) — the same direct-seed
+    pattern used for users/sessions. No temporary endpoint or backdoor
+    exists in application code (approved point 8).
+    """
+
+    def _create(
+        restaurant_id: uuid.UUID,
+        user_id: uuid.UUID,
+        *,
+        role: str = "owner",
+    ) -> uuid.UUID:
+        membership_id = uuid.uuid4()
+        with migrated_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO memberships (id, restaurant_id, user_id, role)"
+                    " VALUES (:id, :restaurant_id, :user_id, :role)"
+                ),
+                {
+                    "id": membership_id,
+                    "restaurant_id": restaurant_id,
+                    "user_id": user_id,
+                    "role": role,
+                },
+            )
+        return membership_id
+
+    return _create
+
+
 def login(
     client: TestClient,
     email: str = "owner@example.com",
@@ -145,3 +222,13 @@ def login(
         headers=BROWSER_HEADERS,
         **kwargs,
     )
+
+
+def csrf_headers(csrf_token: str) -> dict[str, str]:
+    """Trusted browser headers plus the synchronizer token for unsafe calls."""
+    return {**BROWSER_HEADERS, "X-CSRF-Token": csrf_token}
+
+
+def login_as(client: TestClient, email: str) -> str:
+    """Log in and return the CSRF token (cookie is set on the client)."""
+    return str(login(client, email=email).json()["csrf_token"])

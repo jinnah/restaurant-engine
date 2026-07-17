@@ -16,6 +16,15 @@ EXPECTED_OPERATION_IDS = {
     "auth_login",
     "auth_logout",
     "auth_session",
+    # M2B: tenancy and lifecycle.
+    "platform_restaurants_create",
+    "platform_restaurants_list",
+    "platform_restaurant_get",
+    "platform_restaurant_activate",
+    "platform_restaurant_suspend",
+    "platform_restaurant_reactivate",
+    "platform_restaurant_close",
+    "restaurant_get",
 }
 
 

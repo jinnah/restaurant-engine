@@ -32,13 +32,6 @@ from app.domains.tenants.schemas import RestaurantCreate, RestaurantPage, Restau
 
 _MANAGE = Capability.PLATFORM_RESTAURANTS_MANAGE
 
-# Which audit action names each lifecycle transition.
-_TRANSITION_ACTION: dict[RestaurantStatus, AuditAction] = {
-    RestaurantStatus.ACTIVE: AuditAction.TENANT_ACTIVATED,  # from provisioning
-    RestaurantStatus.SUSPENDED: AuditAction.TENANT_SUSPENDED,
-    RestaurantStatus.CLOSED: AuditAction.TENANT_CLOSED,
-}
-
 
 def _to_summary(restaurant: Restaurant) -> RestaurantSummary:
     return RestaurantSummary(
@@ -132,22 +125,50 @@ def get_restaurant_for_member(
 
 def activate(db: Session, actor: ActorContext, restaurant_id: uuid.UUID) -> RestaurantSummary:
     """provisioning → active. Requires at least one owner (decision 6)."""
-    return _transition(db, actor, restaurant_id, target=RestaurantStatus.ACTIVE, require_owner=True)
+    return _transition(
+        db,
+        actor,
+        restaurant_id,
+        expected=RestaurantStatus.PROVISIONING,
+        target=RestaurantStatus.ACTIVE,
+        action=AuditAction.TENANT_ACTIVATED,
+    )
 
 
 def suspend(db: Session, actor: ActorContext, restaurant_id: uuid.UUID) -> RestaurantSummary:
     """active → suspended."""
-    return _transition(db, actor, restaurant_id, target=RestaurantStatus.SUSPENDED)
+    return _transition(
+        db,
+        actor,
+        restaurant_id,
+        expected=RestaurantStatus.ACTIVE,
+        target=RestaurantStatus.SUSPENDED,
+        action=AuditAction.TENANT_SUSPENDED,
+    )
 
 
 def reactivate(db: Session, actor: ActorContext, restaurant_id: uuid.UUID) -> RestaurantSummary:
     """suspended → active (retains its owners)."""
-    return _transition(db, actor, restaurant_id, target=RestaurantStatus.ACTIVE)
+    return _transition(
+        db,
+        actor,
+        restaurant_id,
+        expected=RestaurantStatus.SUSPENDED,
+        target=RestaurantStatus.ACTIVE,
+        action=AuditAction.TENANT_REACTIVATED,
+    )
 
 
 def close(db: Session, actor: ActorContext, restaurant_id: uuid.UUID) -> RestaurantSummary:
     """suspended → closed. Terminal; memberships are retained (decision 6)."""
-    return _transition(db, actor, restaurant_id, target=RestaurantStatus.CLOSED)
+    return _transition(
+        db,
+        actor,
+        restaurant_id,
+        expected=RestaurantStatus.SUSPENDED,
+        target=RestaurantStatus.CLOSED,
+        action=AuditAction.TENANT_CLOSED,
+    )
 
 
 def _transition(
@@ -155,26 +176,32 @@ def _transition(
     actor: ActorContext,
     restaurant_id: uuid.UUID,
     *,
+    expected: RestaurantStatus,
     target: RestaurantStatus,
-    require_owner: bool = False,
+    action: AuditAction,
 ) -> RestaurantSummary:
+    # Each endpoint declares exactly one legal source state, so the endpoint
+    # (not just the shared table) fixes which transition it performs — a
+    # command can never reach a target through the wrong source (e.g.
+    # reactivate must not activate a provisioning tenant, bypassing the
+    # owner guard).
+    assert can_transition(expected, target)  # noqa: S101 - endpoint wiring invariant
     require_platform_capability(actor, _MANAGE)
     # FOR UPDATE serializes concurrent transitions on this restaurant.
     restaurant = repository.get_for_update(db, restaurant_id)
     if restaurant is None:
         raise ResourceNotFoundError("Restaurant not found.")
     current = RestaurantStatus(restaurant.status)
-    if not can_transition(current, target):
-        raise InvalidStateError(f"cannot transition a {current.value} restaurant to {target.value}")
-    if require_owner and memberships.count_owners(db, restaurant_id=restaurant_id) == 0:
+    if current is not expected:
+        raise InvalidStateError(f"cannot {action.value.split('.')[1]} a {current.value} restaurant")
+    # Entering active always requires at least one owner (decision 6): the
+    # guard covers activate and reactivate, so there is no zero-owner path
+    # into active regardless of which command is used.
+    if (
+        target is RestaurantStatus.ACTIVE
+        and memberships.count_owners(db, restaurant_id=restaurant_id) == 0
+    ):
         raise InvalidStateError("cannot activate a restaurant without an owner")
-
-    # reactivate and activate both target ACTIVE; distinguish the audit
-    # action by the state we came from.
-    if target is RestaurantStatus.ACTIVE and current is RestaurantStatus.SUSPENDED:
-        action = AuditAction.TENANT_REACTIVATED
-    else:
-        action = _TRANSITION_ACTION[target]
 
     restaurant.status = target.value
     # Explicitly bump updated_at on the DB clock (approved amendment 4), in
