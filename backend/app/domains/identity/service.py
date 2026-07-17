@@ -37,6 +37,7 @@ from app.domains.audit.details import (
     PlatformAdminCreatedDetails,
 )
 from app.domains.identity import throttling
+from app.domains.identity.actor import ActorContext, AuthenticatedUser
 from app.domains.identity.exceptions import InvalidCredentialsError
 from app.domains.identity.models import User, UserSession
 
@@ -71,28 +72,9 @@ def validate_and_normalize_email(email: str) -> tuple[str, str]:
 
 
 @dataclass(frozen=True)
-class AuthenticatedUser:
-    """Snapshot of the authenticated user for response building."""
-
-    id: uuid.UUID
-    email: str
-    display_name: str
-    is_platform_admin: bool
-
-
-@dataclass(frozen=True)
 class LoginResult:
     user: AuthenticatedUser
     session_token: str  # raw opaque token: sent as the cookie, never stored
-    csrf_token: str
-
-
-@dataclass(frozen=True)
-class ActorContext:
-    """Resolved request actor: who is calling, on which session."""
-
-    user: AuthenticatedUser
-    session_id: uuid.UUID
     csrf_token: str
 
 

@@ -16,15 +16,15 @@ from app.core.database import get_session
 from app.core.errors import ErrorEnvelope
 from app.core.settings import Settings
 from app.domains.identity import service
+from app.domains.identity.actor import ActorContext, AuthenticatedUser
 from app.domains.identity.cookies import clear_session_cookie, set_session_cookie
-from app.domains.identity.dependencies import csrf_protected_actor, current_actor
+from app.domains.identity.dependencies import csrf_protected_actor
 from app.domains.identity.schemas import (
     LoginRequest,
     LogoutResponse,
     SessionResponse,
     UserSummary,
 )
-from app.domains.identity.service import ActorContext
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -36,7 +36,7 @@ _ENVELOPE_403: dict[int | str, dict[str, Any]] = {
 }
 
 
-def _session_response(user: service.AuthenticatedUser, csrf_token: str) -> SessionResponse:
+def _session_response(user: AuthenticatedUser, csrf_token: str) -> SessionResponse:
     return SessionResponse(
         user=UserSummary(
             id=user.id,
@@ -86,13 +86,7 @@ def auth_logout(
     return LogoutResponse(status="logged_out")
 
 
-@auth_router.get(
-    "/session",
-    operation_id="auth_session",
-    responses={**_ENVELOPE_401},
-)
-def auth_session(
-    actor: Annotated[ActorContext, Depends(current_actor)],
-) -> SessionResponse:
-    """Current authenticated identity plus the CSRF synchronizer token."""
-    return _session_response(actor.user, actor.csrf_token)
+# GET /auth/session (operation_id auth_session) is served by the application
+# composition layer (app.api.session_router): its enriched response joins
+# identity memberships with tenant summaries, a cross-domain concern that
+# does not belong inside the identity domain (M2B addendum, decision 4).

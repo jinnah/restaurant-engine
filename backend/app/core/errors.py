@@ -48,6 +48,10 @@ class ErrorCode(StrEnum):
     AUTHENTICATION_REQUIRED = "authentication_required"
     INVALID_CREDENTIALS = "invalid_credentials"
     CSRF_REJECTED = "csrf_rejected"
+    # M2B: authorization, tenancy, and lifecycle.
+    PERMISSION_DENIED = "permission_denied"
+    CONFLICT = "conflict"
+    INVALID_STATE = "invalid_state"
 
 
 _STATUS_CODES: dict[int, ErrorCode] = {
@@ -135,6 +139,38 @@ class ApiError(Exception):
         self.message = message
         self.details = details
         self.headers = headers
+
+
+class ResourceNotFoundError(ApiError):
+    """A resource does not exist, or the actor may not learn that it does.
+
+    Used for tenant existence non-disclosure (M2B): a nonexistent restaurant
+    and one the caller has no membership in are indistinguishable 404s.
+    """
+
+    def __init__(self, message: str = "Not found.") -> None:
+        super().__init__(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND, message)
+
+
+class PermissionDeniedError(ApiError):
+    """The actor is authenticated but lacks the required capability (403)."""
+
+    def __init__(self, message: str = "You do not have permission to do that.") -> None:
+        super().__init__(status.HTTP_403_FORBIDDEN, ErrorCode.PERMISSION_DENIED, message)
+
+
+class ConflictError(ApiError):
+    """A uniqueness or state precondition is already taken (409)."""
+
+    def __init__(self, message: str = "Conflict.") -> None:
+        super().__init__(status.HTTP_409_CONFLICT, ErrorCode.CONFLICT, message)
+
+
+class InvalidStateError(ApiError):
+    """A state-machine transition is not legal from the current state (409)."""
+
+    def __init__(self, message: str = "Operation not allowed in the current state.") -> None:
+        super().__init__(status.HTTP_409_CONFLICT, ErrorCode.INVALID_STATE, message)
 
 
 async def _handle_api_error(request: Request, exc: Exception) -> JSONResponse:
