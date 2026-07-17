@@ -34,7 +34,11 @@ normalizes it, but never treats it as proof of identity.
   literals, bare-IPv6 ambiguity, empty/consecutive labels, LDH and length
   limits, and userinfo/control-character/combined values. IP literals and
   bare single-label hosts never resolve a Business; only a direct subdomain
-  of the base domain does. Any ambiguity yields no candidate.
+  of the base domain does. Any ambiguity yields no candidate. The Host is
+  read from the raw ASGI headers through one shared `sole_host_header`
+  helper: zero or multiple Host header values (equal or not) fail closed —
+  never first-header selection — and both the guard and the public resolver
+  use the same helper, so they cannot disagree.
 - **Reserved slugs** (`app/domains/businesses/slugs.py`): `{api, admin, www}`
   are reserved for platform infrastructure hosts. One policy source is
   consumed by both Business creation (rejected at 422, field `slug`, generic
@@ -60,10 +64,13 @@ normalizes it, but never treats it as proof of identity.
   contract). A custom ASGI guard rejects **non-exempt** API routes whose Host
   is not a recognized platform host family (base apex, a direct subdomain, or
   in dev/test the loopback/`testserver` hosts) with an ADR-008 `400`. This is
-  routing hardening, not authentication. `/health/*` and
-  `GET /api/v1/public/site` are exempt: health probes use arbitrary Hosts,
-  and the public resolver owns all of its own failures (always a neutral 404,
-  never a 400 from the guard). Middleware order is
+  routing hardening, not authentication. Exactly `/health/live`,
+  `/health/ready`, and `GET /api/v1/public/site` are exempt (an exact path
+  set, not a prefix — a guard test pins it to the registered probe routes):
+  health probes use arbitrary Hosts, and the public resolver owns all of its
+  own failures (always a neutral 404, never a 400 from the guard).
+  `PLATFORM_BASE_DOMAIN` must be a bare DNS domain — a port fails startup
+  validation rather than being silently stripped. Middleware order is
   `NoStore → CorrelationId → RequestLogging → KnownHostGuard`, so the guard's
   400 carries a correlation id, is logged, and stays no-store.
 - **`GET /api/v1/public/site`** (`operation_id: public_site_get`,

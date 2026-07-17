@@ -175,6 +175,20 @@ class TestPlatformBaseDomain:
         with pytest.raises(ValidationError, match="PLATFORM_BASE_DOMAIN"):
             build(database_url=VALID_URL, platform_base_domain=value)
 
+    def test_one_trailing_root_dot_canonicalizes(self) -> None:
+        settings = build(database_url=VALID_URL, platform_base_domain="platform.example.com.")
+        assert settings.platform_base_domain == "platform.example.com"
+
+    @pytest.mark.parametrize(
+        "value",
+        ["platform.example.com:8443", "localhost:8000", "platform.example.com:", "[::1]:8000"],
+    )
+    def test_base_domain_with_port_is_rejected_not_stripped(self, value: str) -> None:
+        # Review finding R-3: the base domain is a DNS domain, not a request
+        # authority — a port is a configuration error, never silently masked.
+        with pytest.raises(ValidationError, match="must not contain a port"):
+            build(database_url=VALID_URL, platform_base_domain=value)
+
 
 class TestLogLevel:
     def test_defaults_to_info(self) -> None:

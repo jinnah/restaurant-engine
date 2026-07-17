@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_session
 from app.core.errors import ResourceNotFoundError
-from app.core.hosts import normalize_host
+from app.core.hosts import normalize_host, sole_host_header
 from app.core.settings import Settings
 from app.domains.businesses.lifecycle import BusinessStatus
 from app.domains.businesses.models import Business
@@ -85,7 +85,10 @@ def resolve_public_business(
     malformed inputs are indistinguishable at the public contract level.
     """
     settings: Settings = request.app.state.settings
-    slug = candidate_slug(request.headers.get("host"), settings.platform_base_domain_labels)
+    # Same fail-closed extraction as the global guard (ADR-013): zero or
+    # multiple Host header values never resolve — no first-header selection.
+    host_header = sole_host_header(request.scope["headers"])
+    slug = candidate_slug(host_header, settings.platform_base_domain_labels)
     if slug is None or is_reserved(slug) or not is_slug_shaped(slug):
         raise ResourceNotFoundError()
     business = resolve_active_by_slug(db, slug)

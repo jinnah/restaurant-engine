@@ -7,11 +7,15 @@ tenant authentication** — a Host header is unauthenticated client input, and
 authorization elsewhere relies on the session cookie, CSRF checks,
 membership, and route identifiers, never on the Host.
 
-Two paths are exempt and reach the app regardless of Host:
+Exactly three paths are exempt and reach the app regardless of Host:
 
-* ``/health/*`` — process/orchestration probes use arbitrary Hosts;
+* ``/health/live`` and ``/health/ready`` — the registered probe endpoints
+  (an exact set, not a prefix: ``/healthanything`` is NOT exempt);
 * ``GET /api/v1/public/site`` — the public resolver owns all of its own Host
   failures and returns the neutral 404 contract (never a 400 from here).
+
+The Host is read through ``sole_host_header``: zero or multiple Host header
+values fail closed here exactly as they do in the public resolver.
 
 Recognized host families:
 
@@ -22,16 +26,18 @@ Recognized host families:
 """
 
 from fastapi import status
-from starlette.datastructures import Headers
 from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.errors import ErrorCode, error_response
-from app.core.hosts import normalize_host
+from app.core.hosts import normalize_host, sole_host_header
 from app.core.settings import Settings
 
 _PUBLIC_SITE_PATH = "/api/v1/public/site"
-_HEALTH_PREFIX = "/health"
+# The registered health endpoints, exactly (see app/api/health.py). A guard
+# test asserts this set matches the routes actually mounted, so adding a
+# probe without updating the exemption fails loudly.
+_EXEMPT_HEALTH_PATHS = frozenset({"/health/live", "/health/ready"})
 # Loopback/test hosts permitted only outside production.
 _DEV_NAMED_HOSTS = frozenset({"localhost", "testserver"})
 _DEV_IP_HOSTS = frozenset({"127.0.0.1", "::1"})
@@ -51,11 +57,11 @@ class KnownHostGuardMiddleware:
             return
 
         path = scope["path"]
-        if path == _PUBLIC_SITE_PATH or path.startswith(_HEALTH_PREFIX):
+        if path == _PUBLIC_SITE_PATH or path in _EXEMPT_HEALTH_PATHS:
             await self.app(scope, receive, send)
             return
 
-        if self._is_known_host(Headers(scope=scope).get("host")):
+        if self._is_known_host(sole_host_header(scope["headers"])):
             await self.app(scope, receive, send)
             return
 

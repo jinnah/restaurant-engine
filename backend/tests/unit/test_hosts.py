@@ -6,7 +6,7 @@ Only a valid DNS hostname yields labels; IP literals are flagged.
 
 import pytest
 
-from app.core.hosts import normalize_host
+from app.core.hosts import normalize_host, sole_host_header
 
 
 class TestValidDnsHosts:
@@ -118,3 +118,36 @@ class TestRejected:
     def test_oversized_total_hostname_rejected(self) -> None:
         host = ".".join(["a" * 60] * 5)  # 5*60 + 4 dots = 304 > 253
         assert normalize_host(host) is None
+
+
+class TestSoleHostHeader:
+    """Fail-closed duplicate-Host extraction (ADR-013 review finding R-1)."""
+
+    def test_single_host_value_is_returned(self) -> None:
+        headers = [(b"accept", b"*/*"), (b"host", b"shalik.localhost")]
+        assert sole_host_header(headers) == "shalik.localhost"
+
+    def test_zero_host_values_fail_closed(self) -> None:
+        assert sole_host_header([(b"accept", b"*/*")]) is None
+        assert sole_host_header([]) is None
+
+    def test_duplicate_equal_host_values_fail_closed(self) -> None:
+        headers = [(b"host", b"a.localhost"), (b"host", b"a.localhost")]
+        assert sole_host_header(headers) is None
+
+    def test_duplicate_different_host_values_fail_closed(self) -> None:
+        headers = [(b"host", b"a.localhost"), (b"host", b"evil.net")]
+        assert sole_host_header(headers) is None
+
+    def test_header_name_matching_is_case_insensitive(self) -> None:
+        # ASGI mandates lowercase names, but a defensive guard costs nothing.
+        headers = [(b"Host", b"a.localhost"), (b"HOST", b"b.localhost")]
+        assert sole_host_header(headers) is None
+
+    def test_forwarded_headers_are_not_host(self) -> None:
+        headers = [
+            (b"x-forwarded-host", b"evil.net"),
+            (b"forwarded", b"host=evil.net"),
+            (b"host", b"shalik.localhost"),
+        ]
+        assert sole_host_header(headers) == "shalik.localhost"

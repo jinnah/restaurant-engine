@@ -72,8 +72,15 @@ class Settings(BaseSettings):
     @field_validator("platform_base_domain")
     @classmethod
     def _valid_base_domain(cls, value: str) -> str:
+        # The base domain is a DNS domain, not a request authority: a port
+        # (or any colon — bracketed IPv6 included) is a configuration error
+        # and must fail startup rather than be silently stripped.
+        if ":" in value:
+            msg = f"PLATFORM_BASE_DOMAIN must not contain a port; got {value!r}"
+            raise ValueError(msg)
         # Reuse the Host parser: the base domain must be a valid DNS hostname
-        # (never an IP literal), stored in canonical lowercase form.
+        # (never an IP literal), stored in canonical lowercase form (case and
+        # one trailing root dot canonicalize; anything else fails).
         normalized = normalize_host(value)
         if normalized is None or normalized.is_ip:
             msg = f"PLATFORM_BASE_DOMAIN must be a valid DNS hostname; got {value!r}"

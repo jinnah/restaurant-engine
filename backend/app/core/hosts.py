@@ -12,6 +12,7 @@ authentic (ADR-013). Forwarded headers are never consulted here.
 """
 
 import ipaddress
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 # RFC 1035 limits: a label is 1-63 octets; a hostname is at most 253 octets
@@ -35,6 +36,23 @@ class NormalizedHost:
     hostname: str
     labels: tuple[str, ...]
     is_ip: bool
+
+
+def sole_host_header(raw_headers: Iterable[tuple[bytes, bytes]]) -> str | None:
+    """The single ``Host`` header value from raw ASGI headers, else ``None``.
+
+    Fail-closed duplicate handling (ADR-013): zero Host headers or more than
+    one — equal or not — yields ``None``. Values are never concatenated and
+    neither the first nor the last is selected; an ambiguous request must not
+    resolve. (A single comma-combined value is passed through and rejected by
+    ``normalize_host``.) Every consumer of the Host header goes through this
+    helper so the guard and the public resolver can never disagree.
+    """
+    values = [value for name, value in raw_headers if name.lower() == b"host"]
+    if len(values) != 1:
+        return None
+    # ASGI header values are latin-1 bytes; decoding cannot fail.
+    return values[0].decode("latin-1")
 
 
 def _has_control_or_space(value: str) -> bool:
