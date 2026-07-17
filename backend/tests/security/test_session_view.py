@@ -75,6 +75,29 @@ class TestSessionMemberships:
         statuses = {m["business_status"] for m in body["memberships"]}
         assert statuses == {"closed", "suspended"}
 
+    def test_projection_excludes_other_users_memberships(
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        """Negative control (review finding M-2a): the projection is bound
+        to the caller's own id. User B's membership rows exist in the same
+        table — if ``list_for_user`` ever lost its ``user_id`` predicate,
+        Business B would leak into User A's session and this test fails."""
+        bid_a = create_business("alpha", name="Alpha")
+        bid_b = create_business("beta", name="Beta")
+        user_a = create_user("user-a@example.com")
+        user_b = create_user("user-b@example.com")
+        create_membership(bid_a, user_a, role="owner")
+        create_membership(bid_b, user_b, role="owner")
+
+        login_as(client, "user-a@example.com")
+        body = client.get("/api/v1/auth/session").json()
+        assert [m["business_slug"] for m in body["memberships"]] == ["alpha"]
+        assert all(m["business_id"] != str(bid_b) for m in body["memberships"])
+
     def test_platform_admin_has_empty_memberships(
         self, client: TestClient, create_user: CreateUser
     ) -> None:

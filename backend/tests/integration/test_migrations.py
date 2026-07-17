@@ -12,7 +12,9 @@ from collections.abc import Iterator
 
 import pytest
 from alembic import command
+from alembic.autogenerate import compare_metadata
 from alembic.config import Config
+from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
@@ -178,5 +180,37 @@ def test_tenancy_downgrade_preserves_audit_rows(empty_database_url: str) -> None
         # Re-upgrade to M2B succeeds (the FK re-applies over the nulled rows).
         command.upgrade(config, "head")
         assert "businesses" in set(inspect(engine).get_table_names())
+    finally:
+        engine.dispose()
+
+
+def test_model_metadata_matches_migrated_schema(empty_database_url: str) -> None:
+    """ORM metadata and the migrated schema are identical (review M-1 guard).
+
+    Migrate a scratch database to head and diff it against the complete
+    declarative metadata with Alembic's autogenerate comparison. Any
+    difference — a constraint or FK present in only one of the two, a type
+    or server-default mismatch — fails here, so model/migration drift can
+    never ship silently again.
+    """
+    # Import every model module so Base.metadata is complete (mirrors
+    # migrations/env.py; a missing import would hide tables from the diff).
+    from app.core.database import Base
+    from app.domains.audit import models as _audit_models  # noqa: F401
+    from app.domains.businesses import models as _businesses_models  # noqa: F401
+    from app.domains.identity import models as _identity_models  # noqa: F401
+
+    config = _config(empty_database_url)
+    command.upgrade(config, "head")
+
+    engine = create_engine(empty_database_url, connect_args={"connect_timeout": 3})
+    try:
+        with engine.connect() as connection:
+            context = MigrationContext.configure(
+                connection,
+                opts={"compare_type": True, "compare_server_default": True},
+            )
+            diffs = compare_metadata(context, Base.metadata)
+        assert diffs == [], f"ORM metadata and migrated schema differ: {diffs}"
     finally:
         engine.dispose()

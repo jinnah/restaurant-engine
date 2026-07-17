@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
 
 from tests.security.conftest import (
+    CreateBusiness,
     CreateMembership,
     CreateUser,
     csrf_headers,
@@ -169,6 +170,30 @@ class TestTransitions:
         assert response.json()["error"]["code"] == "invalid_state"
         assert _status(migrated_engine, bid) == "provisioning"
 
+    def test_owner_in_another_business_does_not_satisfy_activation(
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
+    ) -> None:
+        """Negative control (review finding M-2b): the owner guard counts
+        owners of THIS business only. Business Y has an owner; ownerless
+        Business X must still refuse activation — if ``count_owners`` ever
+        lost its ``business_id`` predicate, Y's owner would satisfy X's
+        guard and this test fails."""
+        csrf = _admin_client(client, create_user)
+        bid_x = _create_business(client, csrf, slug="ownerless-x")["id"]
+        bid_y = create_business("owned-y", name="Owned Y")
+        owner_y = create_user("owner-y@example.com")
+        create_membership(bid_y, owner_y, role="owner")
+
+        response = _post(client, f"/api/v1/platform/businesses/{bid_x}/activate", csrf)
+        assert response.status_code == 409
+        assert response.json()["error"]["code"] == "invalid_state"
+        assert _status(migrated_engine, bid_x) == "provisioning"
+
     def test_illegal_transitions_are_409(
         self,
         client: TestClient,
@@ -179,11 +204,12 @@ class TestTransitions:
         bid = _create_business(client, csrf)["id"]
         owner_id = create_user("owner@example.com")
         create_membership(uuid.UUID(bid), owner_id, role="owner")
-        # provisioning cannot suspend/close/reactivate.
+        # provisioning cannot suspend/close/reactivate. The message carries
+        # the command verb (review finding L-2), not a past participle.
         for verb in ("suspend", "close", "reactivate"):
-            assert (
-                _post(client, f"/api/v1/platform/businesses/{bid}/{verb}", csrf).status_code == 409
-            )
+            response = _post(client, f"/api/v1/platform/businesses/{bid}/{verb}", csrf)
+            assert response.status_code == 409
+            assert response.json()["error"]["message"] == f"cannot {verb} a provisioning business"
         # active cannot close directly (ruling 1).
         _post(client, f"/api/v1/platform/businesses/{bid}/activate", csrf)
         assert _post(client, f"/api/v1/platform/businesses/{bid}/close", csrf).status_code == 409

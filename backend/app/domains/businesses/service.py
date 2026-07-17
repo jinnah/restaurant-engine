@@ -28,6 +28,7 @@ from app.domains.businesses.models import Business
 from app.domains.businesses.schemas import BusinessCreate, BusinessPage, BusinessSummary
 from app.domains.identity import memberships
 from app.domains.identity.actor import ActorContext
+from app.domains.identity.authorization import require_membership_capability
 from app.domains.identity.policies import Capability, require_platform_capability
 
 _MANAGE = Capability.PLATFORM_BUSINESSES_MANAGE
@@ -108,8 +109,6 @@ def get_business_for_member(
     status (approved ruling 2). Nonmembers — including platform admins with
     no membership — get 404 (existence non-disclosure).
     """
-    from app.domains.identity.authorization import require_membership_capability
-
     require_membership_capability(
         db, actor, business_id=business_id, capability=Capability.BUSINESS_VIEW
     )
@@ -128,6 +127,7 @@ def activate(db: Session, actor: ActorContext, business_id: uuid.UUID) -> Busine
         expected=BusinessStatus.PROVISIONING,
         target=BusinessStatus.ACTIVE,
         action=AuditAction.BUSINESS_ACTIVATED,
+        verb="activate",
     )
 
 
@@ -140,6 +140,7 @@ def suspend(db: Session, actor: ActorContext, business_id: uuid.UUID) -> Busines
         expected=BusinessStatus.ACTIVE,
         target=BusinessStatus.SUSPENDED,
         action=AuditAction.BUSINESS_SUSPENDED,
+        verb="suspend",
     )
 
 
@@ -152,6 +153,7 @@ def reactivate(db: Session, actor: ActorContext, business_id: uuid.UUID) -> Busi
         expected=BusinessStatus.SUSPENDED,
         target=BusinessStatus.ACTIVE,
         action=AuditAction.BUSINESS_REACTIVATED,
+        verb="reactivate",
     )
 
 
@@ -164,6 +166,7 @@ def close(db: Session, actor: ActorContext, business_id: uuid.UUID) -> BusinessS
         expected=BusinessStatus.SUSPENDED,
         target=BusinessStatus.CLOSED,
         action=AuditAction.BUSINESS_CLOSED,
+        verb="close",
     )
 
 
@@ -175,6 +178,7 @@ def _transition(
     expected: BusinessStatus,
     target: BusinessStatus,
     action: AuditAction,
+    verb: str,
 ) -> BusinessSummary:
     # Each endpoint declares exactly one legal source state, so the endpoint
     # (not just the shared table) fixes which transition it performs — a
@@ -189,7 +193,9 @@ def _transition(
         raise ResourceNotFoundError("Business not found.")
     current = BusinessStatus(business.status)
     if current is not expected:
-        raise InvalidStateError(f"cannot {action.value.split('.')[1]} a {current.value} business")
+        # The command verb, not the audit past participle (review finding
+        # L-2): "cannot suspend a provisioning business".
+        raise InvalidStateError(f"cannot {verb} a {current.value} business")
     # Entering active always requires at least one owner (decision 6): the
     # guard covers activate and reactivate, so there is no zero-owner path
     # into active regardless of which command is used.
