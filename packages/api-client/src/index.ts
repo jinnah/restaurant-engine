@@ -13,9 +13,18 @@ export type {
   AuthApi,
   LoginRequest,
   LogoutResponse,
+  MembershipSummary,
   SessionResponse,
+  SessionView,
   UserSummary,
 } from './auth';
+export type {
+  PlatformApi,
+  RestaurantCreate,
+  RestaurantPage,
+  RestaurantSummary,
+} from './platform';
+export type { RestaurantsApi } from './restaurants';
 export { isErrorEnvelope } from './errors';
 export type {
   ErrorCode,

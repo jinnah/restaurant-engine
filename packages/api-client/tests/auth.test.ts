@@ -141,9 +141,21 @@ describe('auth.logout', () => {
 });
 
 describe('auth.getSession', () => {
-  it('returns the typed session payload', async () => {
+  it('returns the enriched session view with memberships', async () => {
     const requests: Request[] = [];
-    const client = clientCapturing(jsonResponse(200, SESSION_BODY), requests);
+    const sessionView = {
+      ...SESSION_BODY,
+      memberships: [
+        {
+          restaurant_id: '5f7d3f5e-3f3e-4b62-9a5e-3c7c2b1a0d9e',
+          restaurant_slug: 'juniper',
+          restaurant_name: 'Juniper',
+          role: 'owner',
+          restaurant_status: 'active',
+        },
+      ],
+    };
+    const client = clientCapturing(jsonResponse(200, sessionView), requests);
 
     const result = await client.auth.getSession();
 
@@ -151,6 +163,8 @@ describe('auth.getSession', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.data.user.display_name).toBe('Owner');
+      expect(result.data.memberships[0]?.restaurant_slug).toBe('juniper');
+      expect(result.data.memberships[0]?.role).toBe('owner');
     }
   });
 
