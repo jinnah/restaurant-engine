@@ -1,12 +1,12 @@
-"""Identity persistence models (M2A, ADR-010).
+"""Identity persistence models (M2A, ADR-010; M2B memberships).
 
 ``users`` and ``sessions`` are **platform-global tables** (docs/04): they
-deliberately carry no ``restaurant_id``. Tenant scope attaches to a user
-through memberships (Milestone 2B), never to the account itself.
+deliberately carry no ``business_id``. Tenant scope attaches to a user
+through ``memberships`` (Milestone 2B, blueprint §7.1: identity owns
+memberships and roles), never to the account itself.
 
-Database-enforced invariants live here as named constraints (the approved
-M2 proposal, addendum items 2-3); state-machine and policy rules live in
-the identity service.
+Database-enforced invariants live here as named constraints; state-machine
+and policy rules live in the identity/businesses services.
 """
 
 import uuid
@@ -17,10 +17,13 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Text,
+    UniqueConstraint,
     Uuid,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -113,5 +116,49 @@ class UserSession(Base):
         CheckConstraint(
             "revoked_at IS NULL OR revoked_at >= created_at",
             name="revocation_after_creation",
+        ),
+    )
+
+
+class Membership(Base):
+    """A user's role in one business (M2B; identity owns memberships).
+
+    Tenant-owned: every row carries ``business_id`` (docs/04; ADR-012:
+    Business is the tenant aggregate). The FK to ``businesses`` is declared
+    by table name so identity never imports the businesses model — the
+    acyclic dependency graph holds (identity → core only). Platform admins
+    hold **no** membership rows; platform authority comes from
+    ``users.is_platform_admin``.
+    """
+
+    __tablename__ = "memberships"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("businesses.id", ondelete="RESTRICT"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    role: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint("role IN ('owner', 'manager', 'staff')", name="role_valid"),
+        # One membership per user per business, tenant-leading (docs/04).
+        # Unnamed so the metadata convention yields the deterministic
+        # uq_memberships_business_id_user_id.
+        UniqueConstraint("business_id", "user_id"),
+        # Self-scoped "my memberships" path (user_id is not the leading column
+        # of the unique constraint above).
+        Index("ix_memberships_user_id", "user_id"),
+        # Supports the owner-count guard for activation and the final-owner
+        # invariant (approved M2B decision 6).
+        Index(
+            "ix_memberships_business_id_owner",
+            "business_id",
+            postgresql_where=text("role = 'owner'"),
         ),
     )

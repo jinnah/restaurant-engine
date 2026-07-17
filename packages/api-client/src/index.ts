@@ -13,9 +13,18 @@ export type {
   AuthApi,
   LoginRequest,
   LogoutResponse,
+  MembershipSummary,
   SessionResponse,
+  SessionView,
   UserSummary,
 } from './auth';
+export type {
+  BusinessCreate,
+  BusinessPage,
+  BusinessSummary,
+  PlatformApi,
+} from './platform';
+export type { BusinessesApi } from './businesses';
 export { isErrorEnvelope } from './errors';
 export type {
   ErrorCode,

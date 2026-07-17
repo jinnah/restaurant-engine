@@ -17,6 +17,7 @@ from app.core.settings import load_settings
 # Every domain's models must be imported so autogenerate sees the complete
 # metadata; a missing import here silently produces DROP statements.
 from app.domains.audit import models as _audit_models  # noqa: F401
+from app.domains.businesses import models as _businesses_models  # noqa: F401
 from app.domains.identity import models as _identity_models  # noqa: F401
 
 config = context.config

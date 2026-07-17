@@ -9,16 +9,16 @@ during Milestone 0.**
 
 ## Domain map
 
-| Domain     | Owns                                                                                                                                     |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Identity   | Users, credentials, sessions, memberships, roles, password reset                                                                         |
-| Tenants    | Restaurants, status, slug, locale/currency/timezone defaults, entitlements, design assignment, domains, onboarding                       |
-| Catalog    | Categories, items, modifier groups/options, availability, pricing, sorting, featured status, dietary attributes, public menu projections |
-| Storefront | Design variants, section registry, section content, draft/published versions, publication history, public projection                     |
-| Media      | Upload validation, metadata, tenant storage keys, variants, deletion policy                                                              |
-| Hours      | Weekly schedules, exceptions, pickup windows, preparation time, throttling, next-valid-pickup-time                                       |
-| Orders     | Checkout validation, numbering, snapshots, totals, status transitions, projections                                                       |
-| Audit      | Append-only security and business events                                                                                                 |
+| Domain     | Owns                                                                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity   | Users, credentials, sessions, memberships, roles, password reset                                                                                  |
+| Businesses | Businesses (the tenant aggregate, ADR-012), status, slug, locale/currency/timezone defaults, entitlements, design assignment, domains, onboarding |
+| Catalog    | Categories, items, modifier groups/options, availability, pricing, sorting, featured status, dietary attributes, public menu projections          |
+| Storefront | Design variants, section registry, section content, draft/published versions, publication history, public projection                              |
+| Media      | Upload validation, metadata, tenant storage keys, variants, deletion policy                                                                       |
+| Hours      | Weekly schedules, exceptions, pickup windows, preparation time, throttling, next-valid-pickup-time                                                |
+| Orders     | Checkout validation, numbering, snapshots, totals, status transitions, projections                                                                |
+| Audit      | Append-only security and business events                                                                                                          |
 
 ## Identity and access
 
@@ -38,9 +38,13 @@ Self-service password reset is deferred to the first email channel (M6 at
 the earliest); the interim recovery path is a platform-admin-issued
 single-use reset link (M2D).
 
-## Tenants
+## Businesses (the tenant aggregate)
 
-Tenant status is a state machine:
+One **Business** is one tenant (ADR-012): one storefront, its own
+memberships, currency, and timezone. Restaurants are the first vertical;
+vertical differences are expressed through reusable platform capabilities
+and configuration, never customer-specific code. Tenant status is a state
+machine:
 
 ```text
 provisioning → active → suspended → active
@@ -49,6 +53,22 @@ provisioning → active → suspended → active
 
 Permanent deletion is a separate, heavily restricted operational process;
 the normal platform action is suspension or closure.
+
+**Implemented in M2B (ADR-011, amended by ADR-012):** businesses owns
+`businesses` and this lifecycle; identity owns `memberships` and the
+capability policy. Closure is reachable **only** through
+`suspended → closed`; `closed` is terminal. Every transition runs under a
+row lock, is audited, and rejects illegal transitions with 409
+`invalid_state`. **Owner invariant:** `provisioning` may have zero owners;
+entering `active` (activate or reactivate) requires at least one owner;
+`suspended` retains its owners; `closed` retains its historical
+memberships. The removal/demotion-side guard ships with the first
+milestone that introduces membership removal (not M3). Public tenant
+resolution and public suspension behavior are M2C. Authorization: platform
+operations require the `platform.businesses.manage` capability (conferred
+by `users.is_platform_admin`, never a membership); business-scoped reads
+require `business.view` (a membership role). Nonmember/nonexistent → 404
+(existence non-disclosure); member lacking capability → 403.
 
 ## Catalog
 
@@ -129,6 +149,9 @@ names live in an append-only code registry; `details` payloads are built
 only from per-action typed schemas (closed, denylist-tested key set).
 First actions: `auth.login_succeeded`, `auth.login_failed`,
 `auth.login_throttled`, `auth.logout`, `user.platform_admin_created`.
+M2B adds the business lifecycle actions `business.created`,
+`business.activated`, `business.suspended`, `business.reactivated`,
+`business.closed`, tenant-scoped via `audit_events.business_id`.
 
 ## Data model policies (blueprint §9)
 

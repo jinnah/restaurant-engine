@@ -41,3 +41,16 @@ class PlatformAdminCreatedDetails(AuditDetails):
     """A platform administrator account was created via the bootstrap CLI."""
 
     email_normalized: str
+
+
+class BusinessCreatedDetails(AuditDetails):
+    """A business was created (starts in provisioning)."""
+
+    slug: str
+
+
+class BusinessStatusChangedDetails(AuditDetails):
+    """A business lifecycle transition (M2B)."""
+
+    previous_status: str
+    new_status: str

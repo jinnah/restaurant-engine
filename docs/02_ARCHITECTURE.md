@@ -79,7 +79,7 @@ silent drift.
 restaurant-engine/
 ├── apps/
 │   ├── storefront/                 # Next.js public experience (from M1)
-│   └── control-center/             # restaurant + platform admin (from M1)
+│   └── control-center/             # business + platform admin (from M1)
 ├── packages/
 │   ├── api-client/                 # generated client; never hand-edited (from M1)
 │   ├── admin-ui/                   # shared operational components (when consumed)
@@ -88,7 +88,7 @@ restaurant-engine/
 ├── backend/
 │   ├── app/
 │   │   ├── core/                   # settings, database, security, tenancy, errors
-│   │   ├── domains/                # identity, tenants, catalog, storefront,
+│   │   ├── domains/                # identity, businesses, catalog, storefront,
 │   │   │                           # media, hours, orders, audit
 │   │   ├── api/                    # composition and shared HTTP concerns
 │   │   └── main.py

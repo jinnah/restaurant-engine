@@ -205,3 +205,12 @@ Milestone 0 is complete only when:
 - the final review finds no committed secrets or unexplained architectural drift.
 
 Begin by inspecting and planning. Do not code yet.
+## Amendment — 2026-07-17: Business is the tenant aggregate (ADR-012)
+
+The tenant aggregate is **Business**, not Restaurant (approved pivot; see
+`docs/decisions/ADR-012-business-tenant-aggregate.md` and the blueprint
+amendment of the same date). When this prompt or the blueprint says
+"restaurant" for the tenant/domain model, read "business"; restaurant
+remains correct as the first vertical and launch market. Never introduce
+customer-specific code paths, a separate `tenant_id`, or `business_type`
+without a new approved decision.

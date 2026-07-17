@@ -16,6 +16,15 @@ EXPECTED_OPERATION_IDS = {
     "auth_login",
     "auth_logout",
     "auth_session",
+    # M2B: tenancy and lifecycle (ADR-012: Business is the tenant aggregate).
+    "platform_businesses_create",
+    "platform_businesses_list",
+    "platform_business_get",
+    "platform_business_activate",
+    "platform_business_suspend",
+    "platform_business_reactivate",
+    "platform_business_close",
+    "business_get",
 }
 
 

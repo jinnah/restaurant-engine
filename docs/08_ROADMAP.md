@@ -31,14 +31,14 @@ The approved M2 architecture (proposal + revision + final addendum)
 subdivides M2 into six independently reviewed sub-milestones, one PR each,
 strictly sequential:
 
-| Sub                                           | Scope                                                                                                                                                                                | State                      |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------- |
-| **M2A** — Identity & session core             | users/sessions/audit_events schema; Argon2id; opaque hashed-token sessions; login/logout/session; fail-closed CSRF; uniform-failure backoff; audit recorder; bootstrap CLI (ADR-010) | **Delivered** (PR pending) |
-| **M2B** — Tenancy model & capabilities        | restaurants, memberships, capability policies, service-layer authorization, lifecycle + platform endpoints, isolation matrix v1                                                      | Not started                |
-| **M2C** — Tenant resolution & isolation       | trusted hosts, host normalization, public site endpoint, suspension public semantics, consolidated isolation matrix                                                                  | Not started                |
-| **M2D** — Onboarding, recovery & entitlements | invitations, password-reset tokens, feature entitlements, audit list API                                                                                                             | Not started                |
-| **M2E** — Control-center auth UI              | login/session UI, guards, accept-invitation and reset pages, dev proxy                                                                                                               | Not started                |
-| **M2F** — Platform UI & E2E                   | platform area UI, deep-import lint hardening, first Playwright journeys + CI e2e job                                                                                                 | Not started                |
+| Sub                                           | Scope                                                                                                                                                                                           | State                      |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| **M2A** — Identity & session core             | users/sessions/audit_events schema; Argon2id; opaque hashed-token sessions; login/logout/session; fail-closed CSRF; uniform-failure backoff; audit recorder; bootstrap CLI (ADR-010)            | **Complete** (2026-07-16)  |
+| **M2B** — Tenancy model & capabilities        | businesses (the tenant aggregate, ADR-012), memberships, capability policies (ADR-011), service-layer authorization, lifecycle + platform endpoints, enriched session view, isolation matrix v1 | **Delivered** (PR pending) |
+| **M2C** — Tenant resolution & isolation       | trusted hosts, host normalization, public site endpoint, suspension public semantics, consolidated isolation matrix                                                                             | Not started                |
+| **M2D** — Onboarding, recovery & entitlements | invitations, password-reset tokens, feature entitlements, audit list API                                                                                                                        | Not started                |
+| **M2E** — Control-center auth UI              | login/session UI, guards, accept-invitation and reset pages, dev proxy                                                                                                                          | Not started                |
+| **M2F** — Platform UI & E2E                   | platform area UI, deep-import lint hardening, first Playwright journeys + CI e2e job                                                                                                            | Not started                |
 
 ## Milestone 1 delivery decision (2026-07-14)
 

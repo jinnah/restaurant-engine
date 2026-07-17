@@ -19,20 +19,21 @@ a tenant header by itself.
 
 ### Data rules
 
-Every tenant-owned table contains `restaurant_id` — including grandchildren
-such as modifier options and order lines. Required mechanics:
+Every tenant-owned table contains `business_id` (ADR-012: Business is the
+tenant aggregate) — including grandchildren such as modifier options and
+order lines. Required mechanics:
 
-- composite unique constraints beginning with `restaurant_id`;
+- composite unique constraints beginning with `business_id`;
 - composite foreign keys where practical, so a child cannot reference another
   tenant's parent;
-- indexes beginning with `restaurant_id` for tenant-scoped access paths;
+- indexes beginning with `business_id` for tenant-scoped access paths;
 - repository methods that **require** a tenant identifier — a repository
   method reading tenant-owned data without one is invalid by definition;
 - tenant-aware cache keys and tenant-prefixed media keys;
 - tenant identity in audit and structured logs.
 
 Platform-global tables are explicitly documented as such. A table is never
-assumed global merely because `restaurant_id` was inconvenient.
+assumed global merely because `business_id` was inconvenient.
 
 ### Failure behavior
 
@@ -49,6 +50,25 @@ PostgreSQL Row-Level Security is deferred (ADR direction, blueprint §8.4):
 the first release relies on explicit tenant-scoped repositories, tenant-aware
 database relationships, and exhaustive isolation tests. RLS is revisited as a
 hardening ADR once access patterns and the platform-support model are stable.
+
+### Tenant-scoped repositories and sanctioned exceptions (M2B, ADR-011)
+
+Every repository read of tenant-owned data takes `business_id`. Any
+tenant-unscoped query must name which sanctioned exception it belongs to,
+or be rejected in review:
+
+1. **Public slug/host resolution** — establishes tenant identity (M2C).
+2. **Single-use token resolution** — invitation/reset tokens (M2D);
+   authorized by possession of a high-entropy secret.
+3. **Self/session scope** — the session-token lookup, and
+   `list_for_user(user_id=actor.id)` which spans the caller's own tenants
+   (bound to the authenticated actor's own id, never a supplied id).
+4. **Platform-capability-gated queries** — cross-tenant reads (business
+   list/get) reachable only through services that first pass
+   `platform.businesses.manage`.
+
+M2B uses exceptions 3 and 4. `businesses` is the tenant root; a lookup by
+its own primary key is a "which tenant" query, not a tenant-owned-data leak.
 
 ### Permanent isolation test matrix
 

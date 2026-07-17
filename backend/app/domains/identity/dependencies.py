@@ -16,9 +16,9 @@ from app.core.database import get_session
 from app.core.errors import ApiError, ErrorCode
 from app.core.settings import Settings
 from app.domains.identity import service
+from app.domains.identity.actor import ActorContext
 from app.domains.identity.cookies import session_cookie_deletion_header
 from app.domains.identity.exceptions import AuthenticationRequiredError
-from app.domains.identity.service import ActorContext
 
 CSRF_HEADER = "X-CSRF-Token"
 
