@@ -4,7 +4,6 @@ Command schemas reject unknown fields (blueprint §11.3; approved point 8).
 Response schemas are explicit — never serialized ORM objects.
 """
 
-import re
 import uuid
 import zoneinfo
 from datetime import datetime
@@ -12,7 +11,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-_SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$")
+from app.domains.businesses.slugs import is_reserved, is_slug_shaped
 
 
 class BusinessCreate(BaseModel):
@@ -28,11 +27,17 @@ class BusinessCreate(BaseModel):
     @field_validator("slug")
     @classmethod
     def _canonical_slug(cls, value: str) -> str:
-        # Canonicalize before the regex check so mixed-case / padded input
-        # is accepted and stored in one canonical (lowercase) form.
+        # Canonicalize before the checks so mixed-case / padded input is
+        # accepted and stored in one canonical (lowercase) form. Shape and
+        # the reserved-label set come from the shared slug policy, so
+        # creation and public resolution can never diverge (ADR-013).
         canonical = value.strip().lower()
-        if not _SLUG_PATTERN.match(canonical):
+        if not is_slug_shaped(canonical):
             msg = "slug must be 3-63 chars, lowercase letters/digits/hyphens, no edge hyphen"
+            raise ValueError(msg)
+        if is_reserved(canonical):
+            # Generic message: does not enumerate the reserved set.
+            msg = "slug is reserved"
             raise ValueError(msg)
         return canonical
 
@@ -94,6 +99,21 @@ class BusinessPage(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class PublicSiteSummary(BaseModel):
+    """Minimal public projection returned for a resolved active business
+    (M2C, ADR-013).
+
+    Deliberately narrow: a 200 already proves the business is active, so no
+    ``status`` field is needed, and no id/timestamps/management data are
+    exposed on the unauthenticated surface.
+    """
+
+    name: str
+    slug: str
+    timezone: str
+    currency: str
 
 
 PaginationLimit = Annotated[int, Field(ge=1, le=100)]
