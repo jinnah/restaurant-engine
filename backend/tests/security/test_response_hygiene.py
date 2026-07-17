@@ -4,12 +4,18 @@ no-store on the versioned API, secrets absent from bodies and logs, and
 correlation-ID behavior on auth errors.
 """
 
-import contextlib
-import io
-
+import structlog
 from fastapi.testclient import TestClient
 
-from tests.security.conftest import CreateUser, login
+from app.core.logging import configure_logging
+from app.main import create_app
+from tests.conftest import make_settings
+from tests.security.conftest import (
+    STANDARD_PASSWORD,
+    TRUSTED_ORIGIN,
+    CreateUser,
+    login,
+)
 
 
 class TestNoStore:
@@ -39,22 +45,58 @@ class TestSecretHygiene:
         session_token = response.cookies["session"]
         assert session_token not in response.text
 
-    def test_login_flow_never_logs_password_or_token(
-        self, client: TestClient, create_user: CreateUser
+    def test_login_flow_logs_are_captured_and_secret_free(
+        self, create_user: CreateUser, standard_password_hash: str
     ) -> None:
-        # structlog's PrintLoggerFactory writes to stdout; capture the whole
-        # flow (success + failure) and assert no secret material leaks.
+        """Repaired per security review M2A, MEDIUM-2.
+
+        The app under test logs at INFO (the request events exist), the
+        capture is structlog-native (``capture_logs`` swaps the processor
+        chain for the duration and restores the previous configuration on
+        exit), and a positive control proves the capture actually saw the
+        request events before any absence assertion is trusted.
+        """
         create_user()
         secret_password = "super-secret-wrong-pass"
-        captured = io.StringIO()
-        with contextlib.redirect_stdout(captured):
-            success = login(client)
-            login(client, password=secret_password)
-            client.get("/api/v1/auth/session")
-        output = captured.getvalue()
-        assert secret_password not in output
-        assert success.cookies["session"] not in output
-        assert success.json()["csrf_token"] not in output
+        settings = make_settings(
+            log_level="INFO",
+            trusted_origins=f"{TRUSTED_ORIGIN},http://localhost:5173",
+        )
+        try:
+            app = create_app(settings)  # configures structlog at INFO
+            with (
+                TestClient(app) as client,
+                structlog.testing.capture_logs() as logs,
+            ):
+                success = login(client)
+                login(client, password=secret_password)
+                client.get("/api/v1/auth/session")
+        finally:
+            # Never leak the INFO configuration into other tests.
+            configure_logging(make_settings())
+
+        # Positive control: the capture must have seen one request event
+        # per call above — otherwise the absence assertions are vacuous.
+        # Note: the logged route template omits the /api/v1 prefix for
+        # nested routers — pre-existing M1 logging behavior, observed here,
+        # deliberately not changed in this correction.
+        request_events = [entry for entry in logs if entry.get("event") == "request"]
+        assert len(request_events) == 3
+        assert {entry.get("route") for entry in request_events} == {
+            "/auth/login",
+            "/auth/session",
+        }
+        assert {entry.get("status") for entry in request_events} == {200, 401}
+
+        # With capture proven live, absence is meaningful: no passwords,
+        # raw session tokens (== cookie values), CSRF tokens, or password
+        # hashes in any captured event.
+        dump = repr(logs)
+        assert secret_password not in dump
+        assert STANDARD_PASSWORD not in dump
+        assert success.cookies["session"] not in dump
+        assert success.json()["csrf_token"] not in dump
+        assert standard_password_hash not in dump
 
 
 class TestAuthErrorEnvelope:

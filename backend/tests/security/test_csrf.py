@@ -132,3 +132,26 @@ class TestSynchronizerToken:
         login(client)
         response = client.post("/api/v1/auth/logout", headers={"Sec-Fetch-Site": "same-origin"})
         assert response.status_code == 403
+
+    def test_non_ascii_token_is_a_clean_403_not_a_500(
+        self, client: TestClient, create_user: CreateUser
+    ) -> None:
+        # Regression (security review M2A, MEDIUM-1): header values are
+        # latin-1-decoded and may contain non-ASCII; hmac.compare_digest
+        # raises TypeError on such strings. The comparison must treat an
+        # unencodable token as simply wrong — ADR-008 403 envelope, never
+        # an internal error.
+        create_user()
+        login(client)
+        # httpx itself refuses non-ASCII *str* header values, so send the
+        # raw latin-1 bytes — exactly what reaches the server from any
+        # client that does emit them; Starlette decodes them back to the
+        # non-ASCII str that used to crash hmac.compare_digest.
+        response = client.post(
+            "/api/v1/auth/logout",
+            headers={**BROWSER_HEADERS, "X-CSRF-Token": "café-token-ÿ".encode("latin-1")},
+        )
+        assert response.status_code == 403
+        body = response.json()
+        assert body["error"]["code"] == "csrf_rejected"
+        assert body["error"]["message"] == "Missing or invalid CSRF token."

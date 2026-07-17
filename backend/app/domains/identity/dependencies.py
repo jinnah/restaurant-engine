@@ -41,6 +41,21 @@ def current_actor(request: Request, db: Annotated[Session, Depends(get_session)]
     return actor
 
 
+def _csrf_tokens_match(presented: str, expected: str) -> bool:
+    """Constant-time comparison over ASCII bytes.
+
+    ``hmac.compare_digest`` raises ``TypeError`` for non-ASCII *strings*;
+    header values arrive latin-1-decoded and may contain such characters
+    (security review M2A, MEDIUM-1). Real tokens are URL-safe ASCII, so a
+    token that can not encode as ASCII is by definition wrong — never an
+    internal error.
+    """
+    try:
+        return hmac.compare_digest(presented.encode("ascii"), expected.encode("ascii"))
+    except UnicodeEncodeError:
+        return False
+
+
 def csrf_protected_actor(
     request: Request, actor: Annotated[ActorContext, Depends(current_actor)]
 ) -> ActorContext:
@@ -50,7 +65,7 @@ def csrf_protected_actor(
     the browser-context header check.
     """
     presented = request.headers.get(CSRF_HEADER)
-    if presented is None or not hmac.compare_digest(presented, actor.csrf_token):
+    if presented is None or not _csrf_tokens_match(presented, actor.csrf_token):
         raise ApiError(
             status.HTTP_403_FORBIDDEN,
             ErrorCode.CSRF_REJECTED,

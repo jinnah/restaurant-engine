@@ -22,7 +22,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, cast
 
+from email_validator import EmailNotValidError, validate_email
 from sqlalchemy import CursorResult, delete, func, or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core import security
@@ -47,6 +49,25 @@ _LAST_USED_REFRESH_SECONDS = 60
 def normalize_email(email: str) -> str:
     """Canonical account identity: trimmed and lowercased."""
     return email.strip().lower()
+
+
+def validate_and_normalize_email(email: str) -> tuple[str, str]:
+    """Shared email contract for non-HTTP account creation paths.
+
+    Applies the same validation the HTTP layer gets from ``EmailStr``
+    (email-validator syntax checks, deliverability/network checks
+    disabled) plus this project's normalization. Returns
+    ``(display_email, email_normalized)``; raises ``ValueError`` with an
+    operator-readable message on invalid syntax (security review M2A,
+    LOW-1).
+    """
+    candidate = email.strip()
+    try:
+        validate_email(candidate, check_deliverability=False)
+    except EmailNotValidError as exc:
+        msg = f"invalid email address: {exc}"
+        raise ValueError(msg) from None
+    return candidate, normalize_email(candidate)
 
 
 @dataclass(frozen=True)
@@ -323,14 +344,33 @@ def revoke_all_sessions(db: Session, *, user_id: uuid.UUID) -> int:
     return cast("CursorResult[Any]", result).rowcount
 
 
+def _email_exists(db: Session, email_normalized: str) -> bool:
+    return (
+        db.execute(
+            select(User.id).where(User.email_normalized == email_normalized)
+        ).scalar_one_or_none()
+        is not None
+    )
+
+
+def _is_email_unique_violation(exc: IntegrityError) -> bool:
+    diag = getattr(exc.orig, "diag", None)
+    return getattr(diag, "constraint_name", None) == "uq_users_email_normalized"
+
+
 def create_platform_admin(
     db: Session, *, email: str, display_name: str, password: str
 ) -> AuthenticatedUser:
     """Create a platform administrator (bootstrap CLI only in M2A).
 
-    Password policy is enforced here (setting a password), never at login.
+    Password policy is enforced here (setting a password), never at login;
+    the email contract matches the HTTP layer (validate_and_normalize_email).
     Raises ``ValueError`` on policy violations or duplicate email so the
-    CLI can present them; commits on success.
+    CLI can present them; commits on success. The check-then-insert race is
+    closed by ``uq_users_email_normalized``: that one violation is rolled
+    back and converted to the same duplicate ``ValueError``; every other
+    ``IntegrityError`` is rolled back and propagates (security review M2A,
+    LOW-2).
     """
     if not (security.PASSWORD_MIN_LENGTH <= len(password) <= security.PASSWORD_MAX_LENGTH):
         msg = (
@@ -338,23 +378,26 @@ def create_platform_admin(
             f"{security.PASSWORD_MAX_LENGTH} characters"
         )
         raise ValueError(msg)
-    email_normalized = normalize_email(email)
-    existing = db.execute(
-        select(User.id).where(User.email_normalized == email_normalized)
-    ).scalar_one_or_none()
-    if existing is not None:
-        msg = f"a user with email '{email_normalized}' already exists"
-        raise ValueError(msg)
+    display_email, email_normalized = validate_and_normalize_email(email)
+    duplicate_msg = f"a user with email '{email_normalized}' already exists"
+    if _email_exists(db, email_normalized):
+        raise ValueError(duplicate_msg)
 
     user = User(
-        email=email.strip(),
+        email=display_email,
         email_normalized=email_normalized,
         display_name=display_name.strip(),
         password_hash=security.hash_password(password),
         is_platform_admin=True,
     )
     db.add(user)
-    db.flush()  # assign defaults before auditing the id
+    try:
+        db.flush()  # assign defaults before auditing the id
+    except IntegrityError as exc:
+        db.rollback()
+        if _is_email_unique_violation(exc):
+            raise ValueError(duplicate_msg) from None
+        raise
     recorder.record(
         db,
         AuditAction.USER_PLATFORM_ADMIN_CREATED,
