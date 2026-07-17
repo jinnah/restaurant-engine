@@ -162,6 +162,23 @@ exits 0 only when everything serves. The shells are checked via
 `localhost` — Vite binds the loopback family `localhost` resolves to — while
 the 127.0.0.1 rule above is specific to PostgreSQL connections.
 
+### Public tenant resolution in development (from Milestone 2C, ADR-013)
+
+A public request resolves to a Business from its Host. Development uses
+`PLATFORM_BASE_DOMAIN=localhost` (the default), so a **direct subdomain of
+`localhost`** resolves that label as the Business slug:
+
+```text
+curl http://shalik.localhost:8000/api/v1/public/site   # resolves slug "shalik"
+```
+
+Most browsers and `curl` resolve any `*.localhost` name to the loopback
+automatically (no `hosts` edit needed). Bare `localhost`, IP literals, and
+the reserved labels `api`/`admin`/`www` never resolve a Business — the
+endpoint returns a neutral 404. There is no header or query override; tests
+set the `Host` header directly. Production sets `PLATFORM_BASE_DOMAIN` to the
+real platform domain (`localhost` is rejected at startup).
+
 ### API contract pipeline (from Milestone 1C, ADR-009)
 
 The OpenAPI document is the API contract. Two committed, generated artifacts
