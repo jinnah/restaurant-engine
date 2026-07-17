@@ -50,6 +50,25 @@ the first release relies on explicit tenant-scoped repositories, tenant-aware
 database relationships, and exhaustive isolation tests. RLS is revisited as a
 hardening ADR once access patterns and the platform-support model are stable.
 
+### Tenant-scoped repositories and sanctioned exceptions (M2B, ADR-011)
+
+Every repository read of tenant-owned data takes `restaurant_id`. Any
+tenant-unscoped query must name which sanctioned exception it belongs to,
+or be rejected in review:
+
+1. **Public slug/host resolution** — establishes tenant identity (M2C).
+2. **Single-use token resolution** — invitation/reset tokens (M2D);
+   authorized by possession of a high-entropy secret.
+3. **Self/session scope** — the session-token lookup, and
+   `list_for_user(user_id=actor.id)` which spans the caller's own tenants
+   (bound to the authenticated actor's own id, never a supplied id).
+4. **Platform-capability-gated queries** — cross-tenant reads (restaurant
+   list/get) reachable only through services that first pass
+   `platform.restaurants.manage`.
+
+M2B uses exceptions 3 and 4. `restaurants` is the tenant root; a lookup by
+its own primary key is a "which tenant" query, not a tenant-owned-data leak.
+
 ### Permanent isolation test matrix
 
 For every tenant-owned resource, tests must prove:

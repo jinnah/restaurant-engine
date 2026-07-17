@@ -49,11 +49,16 @@ Milestones 0 and 1 are **complete** (2026-07-15); Milestone 2 (identity,
 tenancy, and onboarding) is **in progress** under the approved M2
 architecture — six sub-milestones, one PR each (see
 [08_ROADMAP.md](08_ROADMAP.md)). **M2A** (identity and session core,
-ADR-010) is delivered: users/sessions/audit tables, Argon2id passwords,
+ADR-010) is complete: users/sessions/audit tables, Argon2id passwords,
 opaque database-backed sessions in HttpOnly cookies, fail-closed CSRF,
 uniform login failures with per-account backoff, an append-only audit
-recorder, and the `create_platform_admin` bootstrap CLI. The permanent
-`tests/security/` suite guards these contracts.
+recorder, and the `create_platform_admin` bootstrap CLI. **M2B** (tenancy
+model and capabilities, ADR-011) adds the `tenants` domain: `restaurants`
+and `memberships`, the capability policy (platform vs membership
+authority, enforced in services), the restaurant lifecycle state machine
+with its owner invariant, platform lifecycle endpoints, and the enriched
+session view. The permanent `tests/security/` suite (including the tenant
+isolation matrix) guards these contracts.
 
 One documented command starts the whole development stack —
 `corepack pnpm dev`, which migrates the database before starting any

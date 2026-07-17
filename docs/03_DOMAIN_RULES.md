@@ -50,6 +50,21 @@ provisioning → active → suspended → active
 Permanent deletion is a separate, heavily restricted operational process;
 the normal platform action is suspension or closure.
 
+**Implemented in M2B (ADR-011):** tenants owns `restaurants` and this
+lifecycle; identity owns `memberships` and the capability policy. Closure
+is reachable **only** through `suspended → closed`; `closed` is terminal.
+Every transition runs under a row lock, is audited, and rejects illegal
+transitions with 409 `invalid_state`. **Owner invariant:** `provisioning`
+may have zero owners; entering `active` (activate or reactivate) requires
+at least one owner; `suspended` retains its owners; `closed` retains its
+historical memberships. The removal/demotion-side guard ships with the
+first milestone that introduces membership removal (not M3). Public tenant
+resolution and public suspension behavior are M2C. Authorization: platform
+operations require the `platform.restaurants.manage` capability (conferred
+by `users.is_platform_admin`, never a membership); restaurant-scoped reads
+require `restaurant.view` (a membership role). Nonmember/nonexistent → 404
+(existence non-disclosure); member lacking capability → 403.
+
 ## Catalog
 
 - All prices are integer minor units; currency comes from the tenant.
