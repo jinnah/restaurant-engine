@@ -147,7 +147,9 @@ class Membership(Base):
     __table_args__ = (
         CheckConstraint("role IN ('owner', 'manager', 'staff')", name="role_valid"),
         # One membership per user per restaurant, tenant-leading (docs/04).
-        UniqueConstraint("restaurant_id", "user_id", name="restaurant_id_user_id"),
+        # Unnamed so the metadata convention yields the deterministic
+        # uq_memberships_restaurant_id_user_id.
+        UniqueConstraint("restaurant_id", "user_id"),
         # Self-scoped "my memberships" path (user_id is not the leading column
         # of the unique constraint above).
         Index("ix_memberships_user_id", "user_id"),

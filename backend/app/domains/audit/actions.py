@@ -17,3 +17,9 @@ class AuditAction(StrEnum):
     AUTH_LOGIN_THROTTLED = "auth.login_throttled"
     AUTH_LOGOUT = "auth.logout"
     USER_PLATFORM_ADMIN_CREATED = "user.platform_admin_created"
+    # M2B: restaurant lifecycle.
+    TENANT_CREATED = "tenant.created"
+    TENANT_ACTIVATED = "tenant.activated"
+    TENANT_SUSPENDED = "tenant.suspended"
+    TENANT_REACTIVATED = "tenant.reactivated"
+    TENANT_CLOSED = "tenant.closed"

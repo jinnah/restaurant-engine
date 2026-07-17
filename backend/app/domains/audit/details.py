@@ -41,3 +41,16 @@ class PlatformAdminCreatedDetails(AuditDetails):
     """A platform administrator account was created via the bootstrap CLI."""
 
     email_normalized: str
+
+
+class TenantCreatedDetails(AuditDetails):
+    """A restaurant was created (starts in provisioning)."""
+
+    slug: str
+
+
+class TenantStatusChangedDetails(AuditDetails):
+    """A restaurant lifecycle transition (M2B)."""
+
+    previous_status: str
+    new_status: str
