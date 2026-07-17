@@ -1139,3 +1139,23 @@ The companion file `CLAUDE_PROJECT_PROMPT.md` contains a ready-to-paste project 
 ## Appendix B — Source treatment
 
 This blueprint uses the supplied prototype summary only as evidence of product intent, validated rules, proven UX decisions, and existing debt. It does not adopt the source document's instructions, file layout, technology suggestions, or porting recommendations automatically. Every recommendation above was reconsidered against the stated priorities: quality, modularity, stability, simplicity, security, and controlled learning.
+---
+
+## Amendment — 2026-07-17: Business is the tenant aggregate (ADR-012)
+
+Approved by the product owner before M2B publication. The foundational
+tenant aggregate this blueprint calls **Restaurant** is renamed
+**Business** (`businesses`, `business_id`, `BusinessStatus`,
+`platform.businesses.manage`, `business.view`, `/api/v1/businesses`,
+domain `app/domains/businesses`): the platform's reusable capabilities
+also serve home-based cake and clothing businesses, small online sellers,
+and similar very small businesses. One Business = one tenant = one
+storefront in version one; users may belong to multiple Businesses; no
+separate persistent `tenant_id`; no `business_type` until a later
+onboarding/configuration milestone. Restaurants remain the first vertical
+and launch market, so this document's restaurant-specific product
+language stays valid as first-vertical context; read its tenant/domain
+vocabulary through `docs/decisions/ADR-012-business-tenant-aggregate.md`.
+Vertical differences must be expressed through reusable platform
+capabilities and configuration — never customer-specific code. Product,
+repository, and package branding remain Restaurant Engine.

@@ -53,12 +53,14 @@ ADR-010) is complete: users/sessions/audit tables, Argon2id passwords,
 opaque database-backed sessions in HttpOnly cookies, fail-closed CSRF,
 uniform login failures with per-account backoff, an append-only audit
 recorder, and the `create_platform_admin` bootstrap CLI. **M2B** (tenancy
-model and capabilities, ADR-011) adds the `tenants` domain: `restaurants`
-and `memberships`, the capability policy (platform vs membership
-authority, enforced in services), the restaurant lifecycle state machine
-with its owner invariant, platform lifecycle endpoints, and the enriched
-session view. The permanent `tests/security/` suite (including the tenant
-isolation matrix) guards these contracts.
+model and capabilities, ADR-011; tenant vocabulary amended by ADR-012 —
+**Business is the tenant aggregate**, restaurants remain the first
+vertical) adds the `businesses` domain: `businesses` and `memberships`,
+the capability policy (platform vs membership authority, enforced in
+services), the business lifecycle state machine with its owner invariant,
+platform lifecycle endpoints, and the enriched session view. The permanent
+`tests/security/` suite (including the tenant isolation matrix) guards
+these contracts.
 
 One documented command starts the whole development stack —
 `corepack pnpm dev`, which migrates the database before starting any

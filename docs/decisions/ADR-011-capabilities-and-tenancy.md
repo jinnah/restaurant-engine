@@ -2,40 +2,44 @@
 
 - **Status:** Accepted
 - **Date:** 2026-07-16
+- **Amended:** 2026-07-17 — vocabulary updated in place (this ADR was
+  unmerged) after ADR-012 renamed the tenant aggregate Restaurant →
+  Business. Every decision below is unchanged in substance.
 - **Deciders:** Product owner, principal architect
 
 ## Context
 
 Milestone 2B introduces the first tenant domain and the authorization model
-every later milestone inherits: how platform versus restaurant authority is
-expressed, where it is enforced, and how the restaurant lifecycle and its
+every later milestone inherits: how platform versus business authority is
+expressed, where it is enforced, and how the business lifecycle and its
 invariants are protected. The blueprint fixes the direction (capability-based
-permissions, tenant-scoped repositories, a restaurant state machine); this
+permissions, tenant-scoped repositories, a tenant state machine); this
 ADR records the concrete contract fixed in the approved M2B proposal, its
-addendum, and the four rulings.
+addendum, and the four rulings. The tenant aggregate is **Business**
+(ADR-012); restaurants are the first vertical.
 
 ## Decision
 
-### Domain ownership (blueprint §7.1/§7.2)
+### Domain ownership (blueprint §7.1/§7.2, ADR-012)
 
 **Identity** owns users, sessions, **memberships**, roles, and the capability
-policy. **Tenants** owns restaurants and the lifecycle state machine.
-`memberships.restaurant_id` references `restaurants` by table name only, so
-identity imports no tenants persistence. The dependency graph is acyclic:
-`app/api → identity + tenants`, `tenants → identity`, `identity → core`.
-Where a response needs both domains — the enriched session view — the join
-is composed in the application layer (`app/api/session_view`), not inside a
-domain.
+policy. **Businesses** owns the `businesses` table and the lifecycle state
+machine. `memberships.business_id` references `businesses` by table name
+only, so identity imports no businesses persistence. The dependency graph is
+acyclic: `app/api → identity + businesses`, `businesses → identity`,
+`identity → core`. Where a response needs both domains — the enriched
+session view — the join is composed in the application layer
+(`app/api/session_view`), not inside a domain.
 
 ### Capabilities, not roles
 
 One policy module (`identity/policies.py`) maps roles to named capabilities.
 Two authorities, deliberately separate:
 
-- **Platform capabilities** (`platform.restaurants.manage`) are conferred by
+- **Platform capabilities** (`platform.businesses.manage`) are conferred by
   `users.is_platform_admin` — never by a membership. Platform admins hold no
   membership rows.
-- **Restaurant capabilities** (`restaurant.view`) are conferred by a
+- **Business capabilities** (`business.view`) are conferred by a
   membership `role` (owner/manager/staff). M2B enforces exactly these two
   capabilities; catalog/order/entitlement capabilities arrive with their
   milestones.
@@ -50,19 +54,19 @@ errors render through the central `ApiError` handler.
 
 ### Failure semantics (existence non-disclosure)
 
-- Restaurant-scoped routes: no membership row (nonexistent restaurant **or**
+- Business-scoped routes: no membership row (nonexistent business **or**
   nonmember, including a membership-less platform admin) → **404**; a member
   whose role lacks the capability → **403**.
 - Platform routes: any non-platform-admin → **403**; a nonexistent
-  restaurant, after the capability passes, → **404**.
+  business, after the capability passes, → **404**.
 
-### Restaurant lifecycle
+### Business lifecycle
 
 State machine (blueprint §7.2): `provisioning → active → suspended → active`,
 `suspended → closed`; `closed` terminal. **Closure is reachable only through
 `suspended → closed`** (ruling 1). Each lifecycle command declares its exact
 source state, so a command cannot reach a target through the wrong source.
-Every transition runs under `SELECT … FOR UPDATE` on the restaurant row,
+Every transition runs under `SELECT … FOR UPDATE` on the business row,
 validates, audits, and commits in one transaction; illegal transitions →
 409 `invalid_state`.
 
@@ -75,34 +79,37 @@ M3 (catalog), which has no membership operations.
 
 ### Data and constraints
 
-`restaurants`: UUID PK, unique canonical `slug` (3–63 lowercase, CHECK),
+`businesses`: UUID PK, unique canonical `slug` (3–63 lowercase, CHECK),
 `status`/`currency` (`VARCHAR(3)`) CHECKs, `updated_at >= created_at` CHECK,
 explicit `updated_at` bump on every transition. `memberships`: tenant-leading
-`UNIQUE (restaurant_id, user_id)`, `user_id` index, partial owner index; FKs
-to restaurants and users `ON DELETE RESTRICT`. The deferred
-`audit_events.restaurant_id` FK is added here `ON DELETE RESTRICT`; its
-migration downgrade nulls tenant-scoped audit ids first so audit rows
-survive (never deleted, never dangling). Downgrade is a scratch/dev
-operation only; production policy is forward-fix.
+`UNIQUE (business_id, user_id)`, `user_id` index, partial owner index; FKs
+to businesses and users `ON DELETE RESTRICT`. The deferred
+`audit_events` tenant FK is added here `ON DELETE RESTRICT` (the M2A-created
+column and cursor index are renamed to `business_id` in the same migration,
+and the ORM model declares the FK so metadata and schema are identical);
+the migration downgrade nulls tenant-scoped audit ids first so audit rows
+survive (never deleted, never dangling) and restores the M2A column/index
+names. Downgrade is a scratch/dev operation only; production policy is
+forward-fix.
 
 ### Session projection
 
 `login` returns the lean `SessionResponse` (user + CSRF token, identity
 only). `auth_session` returns `SessionView` (adds `memberships`), composed
 in the application layer from identity's self-scoped membership list and
-tenant summaries, sorted `restaurant_name ASC, restaurant_id ASC`, including
+business summaries, sorted `business_name ASC, business_id ASC`, including
 all statuses. The membership list is always bound to the authenticated
 actor's own id.
 
 ## Alternatives considered
 
-- **`platform_admin` as a null-`restaurant_id` membership:** rejected — a
+- **`platform_admin` as a null-`business_id` membership:** rejected — a
   nullable tenant key wrecks every composite constraint; the flag is cleaner.
-- **Memberships in the tenants domain:** rejected — blueprint §7.1 assigns
+- **Memberships in the businesses domain:** rejected — blueprint §7.1 assigns
   memberships to identity; an earlier proposal deviated and was corrected.
-- **Enriching `auth_session` inside identity via a tenants query:** rejected
-  — it inverts domain layering; the application layer owns cross-domain
-  composition.
+- **Enriching `auth_session` inside identity via a businesses query:**
+  rejected — it inverts domain layering; the application layer owns
+  cross-domain composition.
 - **Native PostgreSQL enums for status/role:** rejected — `VARCHAR` + CHECK
   avoids `ALTER TYPE` churn when the value set grows.
 - **Idempotent lifecycle transitions:** rejected — explicit 409 on illegal
@@ -121,7 +128,7 @@ regress silently.
 
 ## Security and operations impact
 
-Existence non-disclosure holds for restaurant-scoped access; platform
+Existence non-disclosure holds for business-scoped access; platform
 authority never leaks through membership. The owner guard prevents a
 zero-owner active tenant. RESTRICT foreign keys prevent orphaning tenants
 that have memberships or audit history. Public tenant resolution and the
@@ -130,6 +137,6 @@ neutral public 404 are **M2C** — M2B exposes no public surface.
 ## Reconsideration triggers
 
 The first membership removal/demotion path (adds the removal-side owner
-guard); a read-only platform role (splits `platform.restaurants.manage`);
+guard); a read-only platform role (splits `platform.businesses.manage`);
 RLS adoption (blueprint §8.4); a lifecycle needing direct
 `provisioning`/`active` closure.
