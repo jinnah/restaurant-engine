@@ -1,13 +1,13 @@
-"""Bounded deterministic platform restaurant pagination (M2B, point 7)."""
+"""Bounded deterministic platform business pagination (M2B, point 7)."""
 
 import uuid
 
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
 
-from tests.security.conftest import CreateRestaurant, CreateUser, login_as
+from tests.security.conftest import CreateBusiness, CreateUser, login_as
 
-_ROUTE = "/api/v1/platform/restaurants"
+_ROUTE = "/api/v1/platform/businesses"
 
 
 def _admin(client: TestClient, create_user: CreateUser) -> None:
@@ -28,15 +28,15 @@ class TestPagination:
         self,
         client: TestClient,
         create_user: CreateUser,
-        create_restaurant: CreateRestaurant,
+        create_business: CreateBusiness,
     ) -> None:
         # Distinct insertion times → newest first, and the order is
         # identical across requests (deterministic).
         for i in range(5):
-            create_restaurant(f"rest-{i}", name=f"R{i}")
+            create_business(f"rest-{i}", name=f"R{i}")
         _admin(client, create_user)
-        first = [r["slug"] for r in client.get(_ROUTE).json()["items"]]
-        second = [r["slug"] for r in client.get(_ROUTE).json()["items"]]
+        first = [b["slug"] for b in client.get(_ROUTE).json()["items"]]
+        second = [b["slug"] for b in client.get(_ROUTE).json()["items"]]
         assert first == second
         assert first == ["rest-4", "rest-3", "rest-2", "rest-1", "rest-0"]
 
@@ -47,36 +47,36 @@ class TestPagination:
         # tiebreak decides the order (total ordering, approved point 7).
         ids = sorted(uuid.uuid4() for _ in range(3))
         with migrated_engine.begin() as connection:
-            for n, rid in enumerate(ids):
+            for n, bid in enumerate(ids):
                 connection.execute(
                     text(
-                        "INSERT INTO restaurants (id, name, slug, status, created_at,"
+                        "INSERT INTO businesses (id, name, slug, status, created_at,"
                         " updated_at) VALUES (:id, :name, :slug, 'provisioning',"
                         " '2026-07-16T00:00:00+00', '2026-07-16T00:00:00+00')"
                     ),
-                    {"id": rid, "name": f"Tie {n}", "slug": f"tie-{n}"},
+                    {"id": bid, "name": f"Tie {n}", "slug": f"tie-{n}"},
                 )
         _admin(client, create_user)
-        returned = [uuid.UUID(r["id"]) for r in client.get(_ROUTE).json()["items"]]
+        returned = [uuid.UUID(b["id"]) for b in client.get(_ROUTE).json()["items"]]
         assert returned == sorted(ids, reverse=True)
 
     def test_offset_paging_has_no_gap_or_overlap(
         self,
         client: TestClient,
         create_user: CreateUser,
-        create_restaurant: CreateRestaurant,
+        create_business: CreateBusiness,
     ) -> None:
         for i in range(5):
-            create_restaurant(f"rest-{i}")
+            create_business(f"rest-{i}")
         _admin(client, create_user)
         page1 = client.get(f"{_ROUTE}?limit=2&offset=0").json()
         page2 = client.get(f"{_ROUTE}?limit=2&offset=2").json()
         page3 = client.get(f"{_ROUTE}?limit=2&offset=4").json()
         assert page1["total"] == page2["total"] == 5
         ids = (
-            [r["id"] for r in page1["items"]]
-            + [r["id"] for r in page2["items"]]
-            + [r["id"] for r in page3["items"]]
+            [b["id"] for b in page1["items"]]
+            + [b["id"] for b in page2["items"]]
+            + [b["id"] for b in page3["items"]]
         )
         assert len(ids) == 5
         assert len(set(ids)) == 5  # no overlap; covers every row exactly once

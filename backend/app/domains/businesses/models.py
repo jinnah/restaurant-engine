@@ -1,12 +1,13 @@
-"""Tenant persistence model (M2B).
+"""Tenant persistence model (M2B, ADR-012).
 
-Tenants owns ``restaurants`` and the lifecycle state machine (blueprint
-§7.2). Memberships live in the identity domain (§7.1) and reference this
-table by name; tenants therefore imports no identity persistence.
+Businesses owns the ``businesses`` table and the lifecycle state machine
+(blueprint §7.2; ADR-012: Business is the tenant aggregate). Memberships
+live in the identity domain (§7.1) and reference this table by name;
+businesses therefore imports no identity persistence.
 
 Database-enforced invariants are named constraints here; the transition
 *legality* (which previous state may become which) lives in
-``tenants.lifecycle`` because a CHECK cannot see the prior value.
+``businesses.lifecycle`` because a CHECK cannot see the prior value.
 """
 
 import uuid
@@ -18,10 +19,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
 
-class Restaurant(Base):
+class Business(Base):
     """A tenant. Platform-scoped access; the root of every tenant-owned row."""
 
-    __tablename__ = "restaurants"
+    __tablename__ = "businesses"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(Text, nullable=False)

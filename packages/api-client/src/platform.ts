@@ -1,4 +1,4 @@
-// Platform restaurant-management facade (M2B).
+// Platform business-management facade (M2B).
 //
 // Every unsafe call sends credentials (the session cookie) via the internal
 // client; the CSRF synchronizer token must be passed back explicitly on
@@ -10,68 +10,80 @@ import type { Client } from 'openapi-fetch';
 import type { components, paths } from './generated/schema';
 import { toResult, type ApiResult } from './result';
 
-type GeneratedRestaurantCreate = components['schemas']['RestaurantCreate'];
-export type RestaurantSummary = components['schemas']['RestaurantSummary'];
-export type RestaurantPage = components['schemas']['RestaurantPage'];
+type GeneratedBusinessCreate = components['schemas']['BusinessCreate'];
+export type BusinessSummary = components['schemas']['BusinessSummary'];
+export type BusinessPage = components['schemas']['BusinessPage'];
 
 /**
- * Create-restaurant input. `timezone` and `currency` are optional here — the
- * server defaults them (the OpenAPI contract lists only `name`/`slug` as
- * required). openapi-typescript marks default-valued fields as required in
- * the generated type; the facade smooths that idiom in exactly one place
- * (ADR-009) so callers omit what the server fills.
+ * Fields the backend supplies server-side defaults for. The OpenAPI
+ * contract lists only `name`/`slug` as required; openapi-typescript still
+ * marks default-valued fields required in the generated type (its
+ * `defaultNonNullable` idiom), so the facade widens exactly these fields
+ * back to optional. Extend this union ONLY when the backend adds another
+ * server-defaulted create field.
  */
-export interface RestaurantCreate {
-  name: string;
-  slug: string;
-  timezone?: string;
-  currency?: string;
-}
+type ServerDefaultedCreateField = 'timezone' | 'currency';
+
+/**
+ * Create-business input, derived from the generated contract (review
+ * finding L-3): a new required backend field flows through `Omit` and
+ * every call site fails to compile; if a recognized defaulted field is
+ * removed or renamed, `Pick` itself fails to compile. Only `timezone` and
+ * `currency` are widened to optional — the server fills them.
+ */
+export type BusinessCreate = Omit<
+  GeneratedBusinessCreate,
+  ServerDefaultedCreateField
+> &
+  Partial<Pick<GeneratedBusinessCreate, ServerDefaultedCreateField>>;
 
 const CSRF_HEADER = 'X-CSRF-Token';
 
 export interface PlatformApi {
-  createRestaurant(
-    body: RestaurantCreate,
+  createBusiness(
+    body: BusinessCreate,
     csrfToken: string,
-  ): Promise<ApiResult<RestaurantSummary>>;
-  listRestaurants(params?: {
+  ): Promise<ApiResult<BusinessSummary>>;
+  listBusinesses(params?: {
     limit?: number;
     offset?: number;
-  }): Promise<ApiResult<RestaurantPage>>;
-  getRestaurant(restaurantId: string): Promise<ApiResult<RestaurantSummary>>;
+  }): Promise<ApiResult<BusinessPage>>;
+  getBusiness(businessId: string): Promise<ApiResult<BusinessSummary>>;
   activate(
-    restaurantId: string,
+    businessId: string,
     csrfToken: string,
-  ): Promise<ApiResult<RestaurantSummary>>;
+  ): Promise<ApiResult<BusinessSummary>>;
   suspend(
-    restaurantId: string,
+    businessId: string,
     csrfToken: string,
-  ): Promise<ApiResult<RestaurantSummary>>;
+  ): Promise<ApiResult<BusinessSummary>>;
   reactivate(
-    restaurantId: string,
+    businessId: string,
     csrfToken: string,
-  ): Promise<ApiResult<RestaurantSummary>>;
+  ): Promise<ApiResult<BusinessSummary>>;
   close(
-    restaurantId: string,
+    businessId: string,
     csrfToken: string,
-  ): Promise<ApiResult<RestaurantSummary>>;
+  ): Promise<ApiResult<BusinessSummary>>;
 }
 
 export function createPlatformApi(client: Client<paths>): PlatformApi {
   const csrf = (csrfToken: string) => ({ [CSRF_HEADER]: csrfToken });
-  const path = (restaurantId: string) => ({
-    params: { path: { restaurant_id: restaurantId } },
+  const path = (businessId: string) => ({
+    params: { path: { business_id: businessId } },
   });
 
   return {
-    async createRestaurant(body, csrfToken) {
+    async createBusiness(body, csrfToken) {
       try {
         const { data, error, response } = await client.POST(
-          '/api/v1/platform/restaurants',
-          // The server accepts the partial (required: name, slug); the cast
-          // reconciles openapi-typescript's over-strict default handling.
-          { body: body as GeneratedRestaurantCreate, headers: csrf(csrfToken) },
+          '/api/v1/platform/businesses',
+          // Narrow transport cast, still required: openapi-fetch demands
+          // the exact generated body type, whose defaulted fields are
+          // non-optional. BusinessCreate differs from it ONLY in the
+          // optionality of the two ServerDefaultedCreateField members, so
+          // the cast cannot mask a missing new field.
+          { body: body as GeneratedBusinessCreate, headers: csrf(csrfToken) },
         );
         return toResult(data, error, response);
       } catch {
@@ -79,10 +91,10 @@ export function createPlatformApi(client: Client<paths>): PlatformApi {
       }
     },
 
-    async listRestaurants(params) {
+    async listBusinesses(params) {
       try {
         const { data, error, response } = await client.GET(
-          '/api/v1/platform/restaurants',
+          '/api/v1/platform/businesses',
           {
             params: { query: { limit: params?.limit, offset: params?.offset } },
           },
@@ -93,11 +105,11 @@ export function createPlatformApi(client: Client<paths>): PlatformApi {
       }
     },
 
-    async getRestaurant(restaurantId) {
+    async getBusiness(businessId) {
       try {
         const { data, error, response } = await client.GET(
-          '/api/v1/platform/restaurants/{restaurant_id}',
-          path(restaurantId),
+          '/api/v1/platform/businesses/{business_id}',
+          path(businessId),
         );
         return toResult(data, error, response);
       } catch {
@@ -105,11 +117,11 @@ export function createPlatformApi(client: Client<paths>): PlatformApi {
       }
     },
 
-    async activate(restaurantId, csrfToken) {
+    async activate(businessId, csrfToken) {
       try {
         const { data, error, response } = await client.POST(
-          '/api/v1/platform/restaurants/{restaurant_id}/activate',
-          { ...path(restaurantId), body: {}, headers: csrf(csrfToken) },
+          '/api/v1/platform/businesses/{business_id}/activate',
+          { ...path(businessId), body: {}, headers: csrf(csrfToken) },
         );
         return toResult(data, error, response);
       } catch {
@@ -117,11 +129,11 @@ export function createPlatformApi(client: Client<paths>): PlatformApi {
       }
     },
 
-    async suspend(restaurantId, csrfToken) {
+    async suspend(businessId, csrfToken) {
       try {
         const { data, error, response } = await client.POST(
-          '/api/v1/platform/restaurants/{restaurant_id}/suspend',
-          { ...path(restaurantId), body: {}, headers: csrf(csrfToken) },
+          '/api/v1/platform/businesses/{business_id}/suspend',
+          { ...path(businessId), body: {}, headers: csrf(csrfToken) },
         );
         return toResult(data, error, response);
       } catch {
@@ -129,11 +141,11 @@ export function createPlatformApi(client: Client<paths>): PlatformApi {
       }
     },
 
-    async reactivate(restaurantId, csrfToken) {
+    async reactivate(businessId, csrfToken) {
       try {
         const { data, error, response } = await client.POST(
-          '/api/v1/platform/restaurants/{restaurant_id}/reactivate',
-          { ...path(restaurantId), body: {}, headers: csrf(csrfToken) },
+          '/api/v1/platform/businesses/{business_id}/reactivate',
+          { ...path(businessId), body: {}, headers: csrf(csrfToken) },
         );
         return toResult(data, error, response);
       } catch {
@@ -141,11 +153,11 @@ export function createPlatformApi(client: Client<paths>): PlatformApi {
       }
     },
 
-    async close(restaurantId, csrfToken) {
+    async close(businessId, csrfToken) {
       try {
         const { data, error, response } = await client.POST(
-          '/api/v1/platform/restaurants/{restaurant_id}/close',
-          { ...path(restaurantId), body: {}, headers: csrf(csrfToken) },
+          '/api/v1/platform/businesses/{business_id}/close',
+          { ...path(businessId), body: {}, headers: csrf(csrfToken) },
         );
         return toResult(data, error, response);
       } catch {

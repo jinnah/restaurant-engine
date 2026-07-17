@@ -9,15 +9,15 @@ orchestrate more than one domain. The router establishes the permanent
 from fastapi import APIRouter
 
 from app.api.session_router import session_router
+from app.domains.businesses.router import business_router
+from app.domains.businesses.router_platform import platform_router
 from app.domains.identity.router import auth_router
-from app.domains.tenants.router import restaurant_router
-from app.domains.tenants.router_platform import platform_router
 
 api_v1_router = APIRouter()
 # Identity credential operations (login/logout).
 api_v1_router.include_router(auth_router)
 # Application composition: the enriched GET /auth/session view.
 api_v1_router.include_router(session_router)
-# Tenants: platform lifecycle management + the restaurant-scoped member read.
+# Businesses: platform lifecycle management + the business-scoped member read.
 api_v1_router.include_router(platform_router)
-api_v1_router.include_router(restaurant_router)
+api_v1_router.include_router(business_router)

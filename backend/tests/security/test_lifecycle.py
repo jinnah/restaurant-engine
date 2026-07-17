@@ -1,4 +1,4 @@
-"""Restaurant lifecycle over HTTP (M2B): transitions, guards, audit.
+"""Business lifecycle over HTTP (M2B): transitions, guards, audit.
 
 All routes are platform-capability gated; these tests log in as a platform
 admin. The owner precondition for activation is met by seeding a membership
@@ -26,9 +26,9 @@ def _admin_client(client: TestClient, create_user: CreateUser) -> str:
     return login_as(client, ADMIN)
 
 
-def _create_restaurant(client: TestClient, csrf: str, slug: str = "juniper") -> dict[str, Any]:
+def _create_business(client: TestClient, csrf: str, slug: str = "juniper") -> dict[str, Any]:
     response = client.post(
-        "/api/v1/platform/restaurants",
+        "/api/v1/platform/businesses",
         json={"name": "Juniper", "slug": slug},
         headers=csrf_headers(csrf),
     )
@@ -40,20 +40,20 @@ def _post(client: TestClient, path: str, csrf: str) -> Any:
     return client.post(path, json={}, headers=csrf_headers(csrf))
 
 
-def _status(engine: Engine, restaurant_id: str) -> str:
+def _status(engine: Engine, business_id: str) -> str:
     with engine.connect() as connection:
         value = connection.execute(
-            text("SELECT status FROM restaurants WHERE id = :id"), {"id": restaurant_id}
+            text("SELECT status FROM businesses WHERE id = :id"), {"id": business_id}
         ).scalar_one()
         return str(value)
 
 
 def _audit_actions(engine: Engine) -> list[str]:
-    """Tenant lifecycle audit actions only (ignores the admin's login event)."""
+    """Business lifecycle audit actions only (ignores the admin's login event)."""
     with engine.connect() as connection:
         return list(
             connection.execute(
-                text("SELECT action FROM audit_events WHERE action LIKE 'tenant.%' ORDER BY id")
+                text("SELECT action FROM audit_events WHERE action LIKE 'business.%' ORDER BY id")
             ).scalars()
         )
 
@@ -63,16 +63,16 @@ class TestCreate:
         self, client: TestClient, create_user: CreateUser, migrated_engine: Engine
     ) -> None:
         csrf = _admin_client(client, create_user)
-        body = _create_restaurant(client, csrf)
+        body = _create_business(client, csrf)
         assert body["status"] == "provisioning"
         assert body["slug"] == "juniper"
         assert body["currency"] == "USD"
-        assert _audit_actions(migrated_engine) == ["tenant.created"]
+        assert _audit_actions(migrated_engine) == ["business.created"]
 
     def test_slug_is_canonicalized(self, client: TestClient, create_user: CreateUser) -> None:
         csrf = _admin_client(client, create_user)
         response = client.post(
-            "/api/v1/platform/restaurants",
+            "/api/v1/platform/businesses",
             json={"name": "Juniper", "slug": "  JuniPer-Cafe  "},
             headers=csrf_headers(csrf),
         )
@@ -83,9 +83,9 @@ class TestCreate:
         self, client: TestClient, create_user: CreateUser
     ) -> None:
         csrf = _admin_client(client, create_user)
-        _create_restaurant(client, csrf, slug="taken")
+        _create_business(client, csrf, slug="taken")
         response = client.post(
-            "/api/v1/platform/restaurants",
+            "/api/v1/platform/businesses",
             json={"name": "Other", "slug": "taken"},
             headers=csrf_headers(csrf),
         )
@@ -98,7 +98,7 @@ class TestCreate:
         csrf = _admin_client(client, create_user)
         assert (
             client.post(
-                "/api/v1/platform/restaurants",
+                "/api/v1/platform/businesses",
                 json={"name": "X", "slug": "-bad-"},
                 headers=csrf_headers(csrf),
             ).status_code
@@ -106,7 +106,7 @@ class TestCreate:
         )
         assert (
             client.post(
-                "/api/v1/platform/restaurants",
+                "/api/v1/platform/businesses",
                 json={"name": "X", "slug": "okay", "timezone": "Mars/Phobos"},
                 headers=csrf_headers(csrf),
             ).status_code
@@ -116,7 +116,7 @@ class TestCreate:
     def test_extra_field_is_rejected(self, client: TestClient, create_user: CreateUser) -> None:
         csrf = _admin_client(client, create_user)
         response = client.post(
-            "/api/v1/platform/restaurants",
+            "/api/v1/platform/businesses",
             json={"name": "X", "slug": "okay", "is_platform_owned": True},
             headers=csrf_headers(csrf),
         )
@@ -132,44 +132,42 @@ class TestTransitions:
         migrated_engine: Engine,
     ) -> None:
         csrf = _admin_client(client, create_user)
-        restaurant = _create_restaurant(client, csrf)
-        rid = restaurant["id"]
+        business = _create_business(client, csrf)
+        bid = business["id"]
         # Seed an owner so activation's precondition is met.
         owner_id = create_user("owner@example.com")
-        create_membership(uuid.UUID(rid), owner_id, role="owner")
+        create_membership(uuid.UUID(bid), owner_id, role="owner")
 
+        assert _post(client, f"/api/v1/platform/businesses/{bid}/activate", csrf).status_code == 200
+        assert _status(migrated_engine, bid) == "active"
+        assert _post(client, f"/api/v1/platform/businesses/{bid}/suspend", csrf).status_code == 200
+        assert _status(migrated_engine, bid) == "suspended"
         assert (
-            _post(client, f"/api/v1/platform/restaurants/{rid}/activate", csrf).status_code == 200
+            _post(client, f"/api/v1/platform/businesses/{bid}/reactivate", csrf).status_code == 200
         )
-        assert _status(migrated_engine, rid) == "active"
-        assert _post(client, f"/api/v1/platform/restaurants/{rid}/suspend", csrf).status_code == 200
-        assert _status(migrated_engine, rid) == "suspended"
-        assert (
-            _post(client, f"/api/v1/platform/restaurants/{rid}/reactivate", csrf).status_code == 200
-        )
-        assert _status(migrated_engine, rid) == "active"
-        assert _post(client, f"/api/v1/platform/restaurants/{rid}/suspend", csrf).status_code == 200
-        assert _post(client, f"/api/v1/platform/restaurants/{rid}/close", csrf).status_code == 200
-        assert _status(migrated_engine, rid) == "closed"
+        assert _status(migrated_engine, bid) == "active"
+        assert _post(client, f"/api/v1/platform/businesses/{bid}/suspend", csrf).status_code == 200
+        assert _post(client, f"/api/v1/platform/businesses/{bid}/close", csrf).status_code == 200
+        assert _status(migrated_engine, bid) == "closed"
 
         assert _audit_actions(migrated_engine) == [
-            "tenant.created",
-            "tenant.activated",
-            "tenant.suspended",
-            "tenant.reactivated",
-            "tenant.suspended",
-            "tenant.closed",
+            "business.created",
+            "business.activated",
+            "business.suspended",
+            "business.reactivated",
+            "business.suspended",
+            "business.closed",
         ]
 
     def test_activation_without_owner_is_409(
         self, client: TestClient, create_user: CreateUser, migrated_engine: Engine
     ) -> None:
         csrf = _admin_client(client, create_user)
-        rid = _create_restaurant(client, csrf)["id"]
-        response = _post(client, f"/api/v1/platform/restaurants/{rid}/activate", csrf)
+        bid = _create_business(client, csrf)["id"]
+        response = _post(client, f"/api/v1/platform/businesses/{bid}/activate", csrf)
         assert response.status_code == 409
         assert response.json()["error"]["code"] == "invalid_state"
-        assert _status(migrated_engine, rid) == "provisioning"
+        assert _status(migrated_engine, bid) == "provisioning"
 
     def test_illegal_transitions_are_409(
         self,
@@ -178,17 +176,17 @@ class TestTransitions:
         create_membership: CreateMembership,
     ) -> None:
         csrf = _admin_client(client, create_user)
-        rid = _create_restaurant(client, csrf)["id"]
+        bid = _create_business(client, csrf)["id"]
         owner_id = create_user("owner@example.com")
-        create_membership(uuid.UUID(rid), owner_id, role="owner")
+        create_membership(uuid.UUID(bid), owner_id, role="owner")
         # provisioning cannot suspend/close/reactivate.
         for verb in ("suspend", "close", "reactivate"):
             assert (
-                _post(client, f"/api/v1/platform/restaurants/{rid}/{verb}", csrf).status_code == 409
+                _post(client, f"/api/v1/platform/businesses/{bid}/{verb}", csrf).status_code == 409
             )
         # active cannot close directly (ruling 1).
-        _post(client, f"/api/v1/platform/restaurants/{rid}/activate", csrf)
-        assert _post(client, f"/api/v1/platform/restaurants/{rid}/close", csrf).status_code == 409
+        _post(client, f"/api/v1/platform/businesses/{bid}/activate", csrf)
+        assert _post(client, f"/api/v1/platform/businesses/{bid}/close", csrf).status_code == 409
 
     def test_updated_at_increases_on_transition(
         self,
@@ -198,19 +196,19 @@ class TestTransitions:
         migrated_engine: Engine,
     ) -> None:
         csrf = _admin_client(client, create_user)
-        rid = _create_restaurant(client, csrf)["id"]
+        bid = _create_business(client, csrf)["id"]
         owner_id = create_user("owner@example.com")
-        create_membership(uuid.UUID(rid), owner_id, role="owner")
+        create_membership(uuid.UUID(bid), owner_id, role="owner")
 
         with migrated_engine.connect() as connection:
             before = connection.execute(
-                text("SELECT created_at, updated_at FROM restaurants WHERE id = :id"),
-                {"id": rid},
+                text("SELECT created_at, updated_at FROM businesses WHERE id = :id"),
+                {"id": bid},
             ).one()
-        _post(client, f"/api/v1/platform/restaurants/{rid}/activate", csrf)
+        _post(client, f"/api/v1/platform/businesses/{bid}/activate", csrf)
         with migrated_engine.connect() as connection:
             after = connection.execute(
-                text("SELECT updated_at FROM restaurants WHERE id = :id"), {"id": rid}
+                text("SELECT updated_at FROM businesses WHERE id = :id"), {"id": bid}
             ).one()
         # created_at unchanged; updated_at strictly advanced (later transaction).
         assert after.updated_at > before.updated_at
@@ -223,19 +221,19 @@ class TestTransitions:
         create_membership: CreateMembership,
     ) -> None:
         csrf = _admin_client(client, create_user)
-        rid = _create_restaurant(client, csrf)["id"]
+        bid = _create_business(client, csrf)["id"]
         owner_id = create_user("owner@example.com")
-        create_membership(uuid.UUID(rid), owner_id, role="owner")
+        create_membership(uuid.UUID(bid), owner_id, role="owner")
         response = client.post(
-            f"/api/v1/platform/restaurants/{rid}/activate",
+            f"/api/v1/platform/businesses/{bid}/activate",
             json={"force": True},
             headers=csrf_headers(csrf),
         )
         assert response.status_code == 422
 
-    def test_transition_on_missing_restaurant_is_404(
+    def test_transition_on_missing_business_is_404(
         self, client: TestClient, create_user: CreateUser
     ) -> None:
         csrf = _admin_client(client, create_user)
-        rid = uuid.uuid4()
-        assert _post(client, f"/api/v1/platform/restaurants/{rid}/suspend", csrf).status_code == 404
+        bid = uuid.uuid4()
+        assert _post(client, f"/api/v1/platform/businesses/{bid}/suspend", csrf).status_code == 404

@@ -144,7 +144,7 @@ class ApiError(Exception):
 class ResourceNotFoundError(ApiError):
     """A resource does not exist, or the actor may not learn that it does.
 
-    Used for tenant existence non-disclosure (M2B): a nonexistent restaurant
+    Used for tenant existence non-disclosure (M2B): a nonexistent business
     and one the caller has no membership in are indistinguishable 404s.
     """
 

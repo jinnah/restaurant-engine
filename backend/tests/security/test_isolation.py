@@ -1,7 +1,7 @@
 """Tenant isolation matrix v1 (M2B).
 
 Proves the platform-route / member-route separation and existence
-non-disclosure for restaurant-scoped access and memberships. The corrected
+non-disclosure for business-scoped access and memberships. The corrected
 platform-admin case (approved point 5): a platform admin with no membership
 gets 404 from the member route but 200 from the platform route.
 """
@@ -12,37 +12,37 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
 
 from tests.security.conftest import (
+    CreateBusiness,
     CreateMembership,
-    CreateRestaurant,
     CreateUser,
     csrf_headers,
     login_as,
 )
 
-_PLATFORM_ROUTES = "/api/v1/platform/restaurants"
+_PLATFORM_ROUTES = "/api/v1/platform/businesses"
 
 
-def _member_get(client: TestClient, restaurant_id: uuid.UUID | str) -> int:
-    return int(client.get(f"/api/v1/restaurants/{restaurant_id}").status_code)
+def _member_get(client: TestClient, business_id: uuid.UUID | str) -> int:
+    return int(client.get(f"/api/v1/businesses/{business_id}").status_code)
 
 
-def _platform_get(client: TestClient, restaurant_id: uuid.UUID | str) -> int:
-    return int(client.get(f"{_PLATFORM_ROUTES}/{restaurant_id}").status_code)
+def _platform_get(client: TestClient, business_id: uuid.UUID | str) -> int:
+    return int(client.get(f"{_PLATFORM_ROUTES}/{business_id}").status_code)
 
 
 class TestMemberRouteIsolation:
-    def test_member_reads_own_restaurant(
+    def test_member_reads_own_business(
         self,
         client: TestClient,
         create_user: CreateUser,
-        create_restaurant: CreateRestaurant,
+        create_business: CreateBusiness,
         create_membership: CreateMembership,
     ) -> None:
-        rid = create_restaurant("alpha", status="active")
+        bid = create_business("alpha", status="active")
         owner = create_user("owner-a@example.com")
-        create_membership(rid, owner, role="owner")
+        create_membership(bid, owner, role="owner")
         login_as(client, "owner-a@example.com")
-        response = client.get(f"/api/v1/restaurants/{rid}")
+        response = client.get(f"/api/v1/businesses/{bid}")
         assert response.status_code == 200
         assert response.json()["slug"] == "alpha"
 
@@ -50,38 +50,38 @@ class TestMemberRouteIsolation:
         self,
         client: TestClient,
         create_user: CreateUser,
-        create_restaurant: CreateRestaurant,
+        create_business: CreateBusiness,
         create_membership: CreateMembership,
     ) -> None:
-        rid_a = create_restaurant("alpha")
-        rid_b = create_restaurant("bravo")
+        bid_a = create_business("alpha")
+        bid_b = create_business("bravo")
         owner_a = create_user("owner-a@example.com")
-        create_membership(rid_a, owner_a, role="owner")
+        create_membership(bid_a, owner_a, role="owner")
         login_as(client, "owner-a@example.com")
-        # Tenant B is indistinguishable from a nonexistent restaurant.
-        assert _member_get(client, rid_b) == 404
+        # Tenant B is indistinguishable from a nonexistent business.
+        assert _member_get(client, bid_b) == 404
         assert _member_get(client, uuid.uuid4()) == 404
 
-    def test_suspended_own_restaurant_still_returns_200_with_status(
+    def test_suspended_own_business_still_returns_200_with_status(
         self,
         client: TestClient,
         create_user: CreateUser,
-        create_restaurant: CreateRestaurant,
+        create_business: CreateBusiness,
         create_membership: CreateMembership,
     ) -> None:
-        rid = create_restaurant("alpha", status="suspended")
+        bid = create_business("alpha", status="suspended")
         owner = create_user("owner-a@example.com")
-        create_membership(rid, owner, role="owner")
+        create_membership(bid, owner, role="owner")
         login_as(client, "owner-a@example.com")
-        response = client.get(f"/api/v1/restaurants/{rid}")
+        response = client.get(f"/api/v1/businesses/{bid}")
         assert response.status_code == 200
         assert response.json()["status"] == "suspended"
 
     def test_unauthenticated_member_route_is_401(
-        self, client: TestClient, create_restaurant: CreateRestaurant
+        self, client: TestClient, create_business: CreateBusiness
     ) -> None:
-        rid = create_restaurant("alpha")
-        assert _member_get(client, rid) == 401
+        bid = create_business("alpha")
+        assert _member_get(client, bid) == 401
 
 
 class TestPlatformRouteIsolation:
@@ -89,17 +89,17 @@ class TestPlatformRouteIsolation:
         self,
         client: TestClient,
         create_user: CreateUser,
-        create_restaurant: CreateRestaurant,
+        create_business: CreateBusiness,
         create_membership: CreateMembership,
     ) -> None:
-        rid = create_restaurant("alpha")
+        bid = create_business("alpha")
         owner = create_user("owner-a@example.com")
-        create_membership(rid, owner, role="owner")
+        create_membership(bid, owner, role="owner")
         csrf = login_as(client, "owner-a@example.com")
 
         # An owner is a member, but not a platform admin → 403 everywhere.
         assert client.get(_PLATFORM_ROUTES).status_code == 403
-        assert _platform_get(client, rid) == 403
+        assert _platform_get(client, bid) == 403
         assert (
             client.post(
                 _PLATFORM_ROUTES,
@@ -111,23 +111,23 @@ class TestPlatformRouteIsolation:
         for verb in ("activate", "suspend", "reactivate", "close"):
             assert (
                 client.post(
-                    f"{_PLATFORM_ROUTES}/{rid}/{verb}", json={}, headers=csrf_headers(csrf)
+                    f"{_PLATFORM_ROUTES}/{bid}/{verb}", json={}, headers=csrf_headers(csrf)
                 ).status_code
                 == 403
             )
 
-    def test_platform_admin_can_read_any_restaurant(
+    def test_platform_admin_can_read_any_business(
         self,
         client: TestClient,
         create_user: CreateUser,
-        create_restaurant: CreateRestaurant,
+        create_business: CreateBusiness,
     ) -> None:
-        rid = create_restaurant("alpha")
+        bid = create_business("alpha")
         create_user("admin@example.com", is_platform_admin=True)
         login_as(client, "admin@example.com")
-        assert _platform_get(client, rid) == 200
+        assert _platform_get(client, bid) == 200
 
-    def test_platform_get_missing_restaurant_is_404(
+    def test_platform_get_missing_business_is_404(
         self, client: TestClient, create_user: CreateUser
     ) -> None:
         create_user("admin@example.com", is_platform_admin=True)
@@ -143,43 +143,43 @@ class TestPlatformAdminHasNoImplicitMembership:
         self,
         client: TestClient,
         create_user: CreateUser,
-        create_restaurant: CreateRestaurant,
+        create_business: CreateBusiness,
     ) -> None:
-        rid = create_restaurant("alpha", status="active")
+        bid = create_business("alpha", status="active")
         create_user("admin@example.com", is_platform_admin=True)
         login_as(client, "admin@example.com")
         # No membership row exists for the admin → member route 404.
-        assert _member_get(client, rid) == 404
+        assert _member_get(client, bid) == 404
         # Platform capability (the flag) → platform route 200.
-        assert _platform_get(client, rid) == 200
+        assert _platform_get(client, bid) == 200
 
 
 class TestMembershipDatabaseIsolation:
-    def test_one_membership_per_user_per_restaurant(
+    def test_one_membership_per_user_per_business(
         self,
         create_user: CreateUser,
-        create_restaurant: CreateRestaurant,
+        create_business: CreateBusiness,
         create_membership: CreateMembership,
         migrated_engine: Engine,
     ) -> None:
-        rid = create_restaurant("alpha")
+        bid = create_business("alpha")
         user = create_user("u@example.com")
-        create_membership(rid, user, role="owner")
+        create_membership(bid, user, role="owner")
         with migrated_engine.begin() as connection:
             try:
                 connection.execute(
                     text(
-                        "INSERT INTO memberships (id, restaurant_id, user_id, role)"
-                        " VALUES (:id, :rid, :uid, 'manager')"
+                        "INSERT INTO memberships (id, business_id, user_id, role)"
+                        " VALUES (:id, :bid, :uid, 'manager')"
                     ),
-                    {"id": uuid.uuid4(), "rid": rid, "uid": user},
+                    {"id": uuid.uuid4(), "bid": bid, "uid": user},
                 )
                 raised = False
             except Exception:
                 raised = True
         assert raised, "duplicate membership must violate the unique constraint"
 
-    def test_membership_to_missing_restaurant_is_rejected(
+    def test_membership_to_missing_business_is_rejected(
         self, create_user: CreateUser, migrated_engine: Engine
     ) -> None:
         user = create_user("u@example.com")
@@ -187,30 +187,30 @@ class TestMembershipDatabaseIsolation:
             try:
                 connection.execute(
                     text(
-                        "INSERT INTO memberships (id, restaurant_id, user_id, role)"
-                        " VALUES (:id, :rid, :uid, 'owner')"
+                        "INSERT INTO memberships (id, business_id, user_id, role)"
+                        " VALUES (:id, :bid, :uid, 'owner')"
                     ),
-                    {"id": uuid.uuid4(), "rid": uuid.uuid4(), "uid": user},
+                    {"id": uuid.uuid4(), "bid": uuid.uuid4(), "uid": user},
                 )
                 raised = False
             except Exception:
                 raised = True
-        assert raised, "membership FK to a nonexistent restaurant must be rejected"
+        assert raised, "membership FK to a nonexistent business must be rejected"
 
-    def test_restaurant_with_memberships_cannot_be_deleted(
+    def test_business_with_memberships_cannot_be_deleted(
         self,
         create_user: CreateUser,
-        create_restaurant: CreateRestaurant,
+        create_business: CreateBusiness,
         create_membership: CreateMembership,
         migrated_engine: Engine,
     ) -> None:
-        rid = create_restaurant("alpha")
+        bid = create_business("alpha")
         user = create_user("u@example.com")
-        create_membership(rid, user, role="owner")
+        create_membership(bid, user, role="owner")
         with migrated_engine.begin() as connection:
             try:
-                connection.execute(text("DELETE FROM restaurants WHERE id = :id"), {"id": rid})
+                connection.execute(text("DELETE FROM businesses WHERE id = :id"), {"id": bid})
                 raised = False
             except Exception:
                 raised = True
-        assert raised, "ON DELETE RESTRICT must block deleting a restaurant with memberships"
+        assert raised, "ON DELETE RESTRICT must block deleting a business with memberships"

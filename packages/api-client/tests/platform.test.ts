@@ -1,4 +1,4 @@
-// Platform + restaurants facade behavior with an injected fetch — no
+// Platform + businesses facade behavior with an injected fetch — no
 // network, no backend. Covers request shape (path/CSRF/body), success
 // payloads, and the 403/404/409 envelope narrowing.
 
@@ -7,10 +7,10 @@ import { describe, expect, it } from 'vitest';
 import { createApiClient, type ErrorEnvelope } from '../src/index';
 
 const BASE_URL = 'http://api.test';
-const RID = '5f7d3f5e-3f3e-4b62-9a5e-3c7c2b1a0d9e';
+const BID = '5f7d3f5e-3f3e-4b62-9a5e-3c7c2b1a0d9e';
 
-const RESTAURANT = {
-  id: RID,
+const BUSINESS = {
+  id: BID,
   name: 'Juniper',
   slug: 'juniper',
   status: 'provisioning',
@@ -49,17 +49,17 @@ function clientCapturing(response: Response, requests: Request[] = []) {
   });
 }
 
-describe('platform.createRestaurant', () => {
+describe('platform.createBusiness', () => {
   it('posts the body with the CSRF header and credentials', async () => {
     const requests: Request[] = [];
-    const client = clientCapturing(jsonResponse(201, RESTAURANT), requests);
+    const client = clientCapturing(jsonResponse(201, BUSINESS), requests);
 
-    const result = await client.platform.createRestaurant(
+    const result = await client.platform.createBusiness(
       { name: 'Juniper', slug: 'juniper' },
       'csrf-token',
     );
 
-    expect(requests[0]?.url).toBe(`${BASE_URL}/api/v1/platform/restaurants`);
+    expect(requests[0]?.url).toBe(`${BASE_URL}/api/v1/platform/businesses`);
     expect(requests[0]?.method).toBe('POST');
     expect(requests[0]?.headers.get('X-CSRF-Token')).toBe('csrf-token');
     expect(requests[0]?.credentials).toBe('include');
@@ -71,7 +71,7 @@ describe('platform.createRestaurant', () => {
 
   it('narrows conflict on 409', async () => {
     const client = clientCapturing(jsonResponse(409, envelope('conflict')));
-    const result = await client.platform.createRestaurant(
+    const result = await client.platform.createBusiness(
       { name: 'X', slug: 'taken' },
       'csrf',
     );
@@ -86,7 +86,7 @@ describe('platform.createRestaurant', () => {
     const client = clientCapturing(
       jsonResponse(403, envelope('permission_denied')),
     );
-    const result = await client.platform.createRestaurant(
+    const result = await client.platform.createBusiness(
       { name: 'X', slug: 'x-slug' },
       'csrf',
     );
@@ -97,7 +97,7 @@ describe('platform.createRestaurant', () => {
   });
 });
 
-describe('platform.listRestaurants', () => {
+describe('platform.listBusinesses', () => {
   it('passes limit and offset as query params', async () => {
     const requests: Request[] = [];
     const client = clientCapturing(
@@ -105,13 +105,13 @@ describe('platform.listRestaurants', () => {
       requests,
     );
 
-    const result = await client.platform.listRestaurants({
+    const result = await client.platform.listBusinesses({
       limit: 10,
       offset: 20,
     });
 
     const url = new URL(requests[0]!.url);
-    expect(url.pathname).toBe('/api/v1/platform/restaurants');
+    expect(url.pathname).toBe('/api/v1/platform/businesses');
     expect(url.searchParams.get('limit')).toBe('10');
     expect(url.searchParams.get('offset')).toBe('20');
     expect(result.ok).toBe(true);
@@ -127,14 +127,14 @@ describe('platform lifecycle transitions', () => {
     async (verb) => {
       const requests: Request[] = [];
       const client = clientCapturing(
-        jsonResponse(200, { ...RESTAURANT, status: 'active' }),
+        jsonResponse(200, { ...BUSINESS, status: 'active' }),
         requests,
       );
 
-      const result = await client.platform[verb](RID, 'csrf-token');
+      const result = await client.platform[verb](BID, 'csrf-token');
 
       expect(requests[0]?.url).toBe(
-        `${BASE_URL}/api/v1/platform/restaurants/${RID}/${verb}`,
+        `${BASE_URL}/api/v1/platform/businesses/${BID}/${verb}`,
       );
       expect(requests[0]?.method).toBe('POST');
       expect(requests[0]?.headers.get('X-CSRF-Token')).toBe('csrf-token');
@@ -146,7 +146,7 @@ describe('platform lifecycle transitions', () => {
     const client = clientCapturing(
       jsonResponse(409, envelope('invalid_state')),
     );
-    const result = await client.platform.close(RID, 'csrf');
+    const result = await client.platform.close(BID, 'csrf');
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.envelope?.error.code).toBe('invalid_state');
@@ -154,14 +154,14 @@ describe('platform lifecycle transitions', () => {
   });
 });
 
-describe('restaurants.get', () => {
-  it('reads the member restaurant', async () => {
+describe('businesses.get', () => {
+  it('reads the member business', async () => {
     const requests: Request[] = [];
-    const client = clientCapturing(jsonResponse(200, RESTAURANT), requests);
+    const client = clientCapturing(jsonResponse(200, BUSINESS), requests);
 
-    const result = await client.restaurants.get(RID);
+    const result = await client.businesses.get(BID);
 
-    expect(requests[0]?.url).toBe(`${BASE_URL}/api/v1/restaurants/${RID}`);
+    expect(requests[0]?.url).toBe(`${BASE_URL}/api/v1/businesses/${BID}`);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.data.slug).toBe('juniper');
@@ -170,7 +170,7 @@ describe('restaurants.get', () => {
 
   it('narrows not_found on 404 (nonmember or nonexistent)', async () => {
     const client = clientCapturing(jsonResponse(404, envelope('not_found')));
-    const result = await client.restaurants.get(RID);
+    const result = await client.businesses.get(BID);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.status).toBe(404);

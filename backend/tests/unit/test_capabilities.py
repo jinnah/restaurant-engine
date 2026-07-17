@@ -33,11 +33,11 @@ class TestRoleCapabilityMap:
     def test_every_role_is_mapped(self) -> None:
         assert set(CAPABILITIES_BY_ROLE) == set(Role)
 
-    def test_all_roles_can_view_their_restaurant(self) -> None:
+    def test_all_roles_can_view_their_business(self) -> None:
         for role in Role:
-            assert role_has_capability(role, Capability.RESTAURANT_VIEW)
+            assert role_has_capability(role, Capability.BUSINESS_VIEW)
 
-    def test_no_restaurant_role_holds_a_platform_capability(self) -> None:
+    def test_no_business_role_holds_a_platform_capability(self) -> None:
         # Platform authority never comes from a membership role.
         for role in Role:
             assert not (CAPABILITIES_BY_ROLE[role] & PLATFORM_CAPABILITIES)
@@ -46,17 +46,17 @@ class TestRoleCapabilityMap:
 class TestRequirePlatformCapability:
     def test_platform_admin_passes(self) -> None:
         require_platform_capability(
-            _actor(is_platform_admin=True), Capability.PLATFORM_RESTAURANTS_MANAGE
+            _actor(is_platform_admin=True), Capability.PLATFORM_BUSINESSES_MANAGE
         )
 
     def test_non_admin_is_denied(self) -> None:
         with pytest.raises(PermissionDeniedError):
             require_platform_capability(
-                _actor(is_platform_admin=False), Capability.PLATFORM_RESTAURANTS_MANAGE
+                _actor(is_platform_admin=False), Capability.PLATFORM_BUSINESSES_MANAGE
             )
 
     def test_asking_for_a_non_platform_capability_is_a_programming_error(self) -> None:
-        # restaurant.view is not a platform capability; requesting it through
+        # business.view is not a platform capability; requesting it through
         # the platform gate is a bug, not an authorization outcome.
         with pytest.raises(ValueError, match="not a platform capability"):
-            require_platform_capability(_actor(is_platform_admin=True), Capability.RESTAURANT_VIEW)
+            require_platform_capability(_actor(is_platform_admin=True), Capability.BUSINESS_VIEW)

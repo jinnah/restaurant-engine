@@ -147,11 +147,11 @@ describe('auth.getSession', () => {
       ...SESSION_BODY,
       memberships: [
         {
-          restaurant_id: '5f7d3f5e-3f3e-4b62-9a5e-3c7c2b1a0d9e',
-          restaurant_slug: 'juniper',
-          restaurant_name: 'Juniper',
+          business_id: '5f7d3f5e-3f3e-4b62-9a5e-3c7c2b1a0d9e',
+          business_slug: 'juniper',
+          business_name: 'Juniper',
           role: 'owner',
-          restaurant_status: 'active',
+          business_status: 'active',
         },
       ],
     };
@@ -163,7 +163,7 @@ describe('auth.getSession', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.data.user.display_name).toBe('Owner');
-      expect(result.data.memberships[0]?.restaurant_slug).toBe('juniper');
+      expect(result.data.memberships[0]?.business_slug).toBe('juniper');
       expect(result.data.memberships[0]?.role).toBe('owner');
     }
   });

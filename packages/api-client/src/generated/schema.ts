@@ -51,7 +51,7 @@ export interface paths {
         };
         /**
          * Auth Session
-         * @description Current identity, CSRF token, and the caller's restaurant memberships.
+         * @description Current identity, CSRF token, and the caller's business memberships.
          */
         get: operations["auth_session"];
         put?: never;
@@ -62,7 +62,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/platform/restaurants": {
+    "/api/v1/businesses/{business_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -70,23 +70,43 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Platform Restaurants List
+         * Business Get
+         * @description Read the caller's own business (requires membership).
+         */
+        get: operations["business_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/businesses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Platform Businesses List
          * @description Bounded platform catalog page (created_at DESC, id DESC).
          */
-        get: operations["platform_restaurants_list"];
+        get: operations["platform_businesses_list"];
         put?: never;
         /**
-         * Platform Restaurants Create
-         * @description Create a restaurant (starts in provisioning).
+         * Platform Businesses Create
+         * @description Create a business (starts in provisioning).
          */
-        post: operations["platform_restaurants_create"];
+        post: operations["platform_businesses_create"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/platform/restaurants/{restaurant_id}": {
+    "/api/v1/platform/businesses/{business_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -94,10 +114,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Platform Restaurant Get
-         * @description Platform read of any restaurant.
+         * Platform Business Get
+         * @description Platform read of any business.
          */
-        get: operations["platform_restaurant_get"];
+        get: operations["platform_business_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -106,7 +126,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/platform/restaurants/{restaurant_id}/activate": {
+    "/api/v1/platform/businesses/{business_id}/activate": {
         parameters: {
             query?: never;
             header?: never;
@@ -116,17 +136,17 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Platform Restaurant Activate
+         * Platform Business Activate
          * @description provisioning → active (requires at least one owner).
          */
-        post: operations["platform_restaurant_activate"];
+        post: operations["platform_business_activate"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/platform/restaurants/{restaurant_id}/close": {
+    "/api/v1/platform/businesses/{business_id}/close": {
         parameters: {
             query?: never;
             header?: never;
@@ -136,17 +156,17 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Platform Restaurant Close
+         * Platform Business Close
          * @description suspended → closed (terminal).
          */
-        post: operations["platform_restaurant_close"];
+        post: operations["platform_business_close"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/platform/restaurants/{restaurant_id}/reactivate": {
+    "/api/v1/platform/businesses/{business_id}/reactivate": {
         parameters: {
             query?: never;
             header?: never;
@@ -156,17 +176,17 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Platform Restaurant Reactivate
+         * Platform Business Reactivate
          * @description suspended → active.
          */
-        post: operations["platform_restaurant_reactivate"];
+        post: operations["platform_business_reactivate"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/platform/restaurants/{restaurant_id}/suspend": {
+    "/api/v1/platform/businesses/{business_id}/suspend": {
         parameters: {
             query?: never;
             header?: never;
@@ -176,30 +196,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Platform Restaurant Suspend
+         * Platform Business Suspend
          * @description active → suspended.
          */
-        post: operations["platform_restaurant_suspend"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/restaurants/{restaurant_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Restaurant Get
-         * @description Read the caller's own restaurant (requires membership).
-         */
-        get: operations["restaurant_get"];
-        put?: never;
-        post?: never;
+        post: operations["platform_business_suspend"];
         delete?: never;
         options?: never;
         head?: never;
@@ -258,6 +258,71 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * BusinessCreate
+         * @description Platform command to create a business (starts in provisioning).
+         */
+        BusinessCreate: {
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /**
+             * Timezone
+             * @default America/New_York
+             */
+            timezone: string;
+        };
+        /**
+         * BusinessPage
+         * @description A bounded page of businesses for the platform catalog.
+         */
+        BusinessPage: {
+            /** Items */
+            items: components["schemas"]["BusinessSummary"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * BusinessSummary
+         * @description Public representation of a business (never the ORM object).
+         */
+        BusinessSummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Status */
+            status: string;
+            /** Timezone */
+            timezone: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** CheckResult */
         CheckResult: {
             /**
@@ -344,17 +409,17 @@ export interface components {
         };
         /**
          * MembershipSummary
-         * @description One of the caller's restaurant memberships (composed projection).
+         * @description One of the caller's business memberships (composed projection).
          */
         MembershipSummary: {
-            /** Restaurant Id */
-            restaurant_id: string;
-            /** Restaurant Name */
-            restaurant_name: string;
-            /** Restaurant Slug */
-            restaurant_slug: string;
-            /** Restaurant Status */
-            restaurant_status: string;
+            /** Business Id */
+            business_id: string;
+            /** Business Name */
+            business_name: string;
+            /** Business Slug */
+            business_slug: string;
+            /** Business Status */
+            business_status: string;
             /** Role */
             role: string;
         };
@@ -369,71 +434,6 @@ export interface components {
              * @constant
              */
             status: "ready";
-        };
-        /**
-         * RestaurantCreate
-         * @description Platform command to create a restaurant (starts in provisioning).
-         */
-        RestaurantCreate: {
-            /**
-             * Currency
-             * @default USD
-             */
-            currency: string;
-            /** Name */
-            name: string;
-            /** Slug */
-            slug: string;
-            /**
-             * Timezone
-             * @default America/New_York
-             */
-            timezone: string;
-        };
-        /**
-         * RestaurantPage
-         * @description A bounded page of restaurants for the platform catalog.
-         */
-        RestaurantPage: {
-            /** Items */
-            items: components["schemas"]["RestaurantSummary"][];
-            /** Limit */
-            limit: number;
-            /** Offset */
-            offset: number;
-            /** Total */
-            total: number;
-        };
-        /**
-         * RestaurantSummary
-         * @description Public representation of a restaurant (never the ORM object).
-         */
-        RestaurantSummary: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Currency */
-            currency: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Name */
-            name: string;
-            /** Slug */
-            slug: string;
-            /** Status */
-            status: string;
-            /** Timezone */
-            timezone: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
         };
         /**
          * SessionResponse
@@ -612,7 +612,56 @@ export interface operations {
             };
         };
     };
-    platform_restaurants_list: {
+    business_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessSummary"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    platform_businesses_list: {
         parameters: {
             query?: {
                 limit?: number;
@@ -630,7 +679,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RestaurantPage"];
+                    "application/json": components["schemas"]["BusinessPage"];
                 };
             };
             /** @description Unauthorized */
@@ -662,7 +711,7 @@ export interface operations {
             };
         };
     };
-    platform_restaurants_create: {
+    platform_businesses_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -671,7 +720,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RestaurantCreate"];
+                "application/json": components["schemas"]["BusinessCreate"];
             };
         };
         responses: {
@@ -681,7 +730,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RestaurantSummary"];
+                    "application/json": components["schemas"]["BusinessSummary"];
                 };
             };
             /** @description Unauthorized */
@@ -722,12 +771,12 @@ export interface operations {
             };
         };
     };
-    platform_restaurant_get: {
+    platform_business_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                restaurant_id: string;
+                business_id: string;
             };
             cookie?: never;
         };
@@ -739,7 +788,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RestaurantSummary"];
+                    "application/json": components["schemas"]["BusinessSummary"];
                 };
             };
             /** @description Unauthorized */
@@ -780,12 +829,12 @@ export interface operations {
             };
         };
     };
-    platform_restaurant_activate: {
+    platform_business_activate: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                restaurant_id: string;
+                business_id: string;
             };
             cookie?: never;
         };
@@ -801,7 +850,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RestaurantSummary"];
+                    "application/json": components["schemas"]["BusinessSummary"];
                 };
             };
             /** @description Unauthorized */
@@ -851,12 +900,12 @@ export interface operations {
             };
         };
     };
-    platform_restaurant_close: {
+    platform_business_close: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                restaurant_id: string;
+                business_id: string;
             };
             cookie?: never;
         };
@@ -872,7 +921,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RestaurantSummary"];
+                    "application/json": components["schemas"]["BusinessSummary"];
                 };
             };
             /** @description Unauthorized */
@@ -922,12 +971,12 @@ export interface operations {
             };
         };
     };
-    platform_restaurant_reactivate: {
+    platform_business_reactivate: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                restaurant_id: string;
+                business_id: string;
             };
             cookie?: never;
         };
@@ -943,7 +992,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RestaurantSummary"];
+                    "application/json": components["schemas"]["BusinessSummary"];
                 };
             };
             /** @description Unauthorized */
@@ -993,12 +1042,12 @@ export interface operations {
             };
         };
     };
-    platform_restaurant_suspend: {
+    platform_business_suspend: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                restaurant_id: string;
+                business_id: string;
             };
             cookie?: never;
         };
@@ -1014,7 +1063,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RestaurantSummary"];
+                    "application/json": components["schemas"]["BusinessSummary"];
                 };
             };
             /** @description Unauthorized */
@@ -1046,55 +1095,6 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    restaurant_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                restaurant_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RestaurantSummary"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };

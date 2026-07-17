@@ -7,14 +7,14 @@ capabilities, never scattered role-string comparisons.
 Two kinds of authority, deliberately separate (approved M2B decision):
 
 * **Platform capabilities** are conferred by the ``users.is_platform_admin``
-  flag — never by a restaurant membership. A platform admin holds no
+  flag — never by a business membership. A platform admin holds no
   membership rows.
-* **Restaurant capabilities** are conferred by a membership ``role`` in a
-  specific restaurant.
+* **Business capabilities** are conferred by a membership ``role`` in a
+  specific business.
 
 This module is pure: it depends only on the actor and these constants, never
-on the database or on the tenants domain. The membership-backed helper that
-needs a database lookup lives in ``identity.authorization``.
+on the database or on the businesses domain. The membership-backed helper
+that needs a database lookup lives in ``identity.authorization``.
 """
 
 from enum import StrEnum
@@ -24,7 +24,7 @@ from app.domains.identity.actor import ActorContext
 
 
 class Role(StrEnum):
-    """Restaurant membership roles (blueprint §7.1)."""
+    """Business membership roles (blueprint §7.1)."""
 
     OWNER = "owner"
     MANAGER = "manager"
@@ -40,25 +40,25 @@ class Capability(StrEnum):
     """
 
     # Platform-scoped (conferred by is_platform_admin).
-    PLATFORM_RESTAURANTS_MANAGE = "platform.restaurants.manage"
-    # Restaurant-scoped (conferred by a membership role).
-    RESTAURANT_VIEW = "restaurant.view"
+    PLATFORM_BUSINESSES_MANAGE = "platform.businesses.manage"
+    # Business-scoped (conferred by a membership role).
+    BUSINESS_VIEW = "business.view"
 
 
-PLATFORM_CAPABILITIES: frozenset[Capability] = frozenset({Capability.PLATFORM_RESTAURANTS_MANAGE})
+PLATFORM_CAPABILITIES: frozenset[Capability] = frozenset({Capability.PLATFORM_BUSINESSES_MANAGE})
 
-# Every role maps to a capability set; every restaurant role can view its
-# restaurant. No role differentiates further in M2B (no catalog/order
+# Every role maps to a capability set; every business role can view its
+# business. No role differentiates further in M2B (no catalog/order
 # surface exists yet), so the map is deliberately uniform here.
 CAPABILITIES_BY_ROLE: dict[Role, frozenset[Capability]] = {
-    Role.OWNER: frozenset({Capability.RESTAURANT_VIEW}),
-    Role.MANAGER: frozenset({Capability.RESTAURANT_VIEW}),
-    Role.STAFF: frozenset({Capability.RESTAURANT_VIEW}),
+    Role.OWNER: frozenset({Capability.BUSINESS_VIEW}),
+    Role.MANAGER: frozenset({Capability.BUSINESS_VIEW}),
+    Role.STAFF: frozenset({Capability.BUSINESS_VIEW}),
 }
 
 
 def role_has_capability(role: Role, capability: Capability) -> bool:
-    """True when a restaurant role confers the capability."""
+    """True when a business role confers the capability."""
     return capability in CAPABILITIES_BY_ROLE[role]
 
 
@@ -66,7 +66,7 @@ def require_platform_capability(actor: ActorContext, capability: Capability) -> 
     """Enforce a platform capability, conferred only by is_platform_admin.
 
     Raises ``PermissionDeniedError`` (403) for any actor without the flag —
-    including a restaurant owner, who is a member but not a platform admin.
+    including a business owner, who is a member but not a platform admin.
     Never grants via membership.
     """
     if capability not in PLATFORM_CAPABILITIES:

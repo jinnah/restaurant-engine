@@ -1,10 +1,10 @@
-"""Restaurant lifecycle transition table (M2B): pure state-machine rules."""
+"""Business lifecycle transition table (M2B): pure state-machine rules."""
 
 import pytest
 
-from app.domains.tenants.lifecycle import RestaurantStatus, can_transition
+from app.domains.businesses.lifecycle import BusinessStatus, can_transition
 
-_S = RestaurantStatus
+_S = BusinessStatus
 
 # Exactly the legal transitions (approved ruling 1: closure only via
 # suspended → closed; closed terminal).
@@ -19,7 +19,7 @@ _LEGAL = {
 @pytest.mark.parametrize("current", list(_S))
 @pytest.mark.parametrize("target", list(_S))
 def test_transition_table_matches_the_approved_machine(
-    current: RestaurantStatus, target: RestaurantStatus
+    current: BusinessStatus, target: BusinessStatus
 ) -> None:
     assert can_transition(current, target) is ((current, target) in _LEGAL)
 

@@ -1,4 +1,4 @@
-"""Tenant API schemas (M2B).
+"""Business API schemas (M2B).
 
 Command schemas reject unknown fields (blueprint §11.3; approved point 8).
 Response schemas are explicit — never serialized ORM objects.
@@ -15,8 +15,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 _SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$")
 
 
-class RestaurantCreate(BaseModel):
-    """Platform command to create a restaurant (starts in provisioning)."""
+class BusinessCreate(BaseModel):
+    """Platform command to create a business (starts in provisioning)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -74,8 +74,8 @@ class EmptyCommand(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class RestaurantSummary(BaseModel):
-    """Public representation of a restaurant (never the ORM object)."""
+class BusinessSummary(BaseModel):
+    """Public representation of a business (never the ORM object)."""
 
     id: uuid.UUID
     name: str
@@ -87,10 +87,10 @@ class RestaurantSummary(BaseModel):
     updated_at: datetime
 
 
-class RestaurantPage(BaseModel):
-    """A bounded page of restaurants for the platform catalog."""
+class BusinessPage(BaseModel):
+    """A bounded page of businesses for the platform catalog."""
 
-    items: list[RestaurantSummary]
+    items: list[BusinessSummary]
     total: int
     limit: int
     offset: int

@@ -2,13 +2,13 @@
 
 Identity owns memberships and the capability policy, so the DB-backed
 membership check lives here (it needs a database lookup, unlike the pure
-``policies.require_platform_capability``). Any restaurant-scoped service
+``policies.require_platform_capability``). Any business-scoped service
 calls this before doing work — enforcement is in the service layer, never
 only in an HTTP dependency (approved decision 4).
 
 Failure semantics (docs/04, approved point 5):
 
-* no membership row (nonexistent restaurant OR not a member) →
+* no membership row (nonexistent business OR not a member) →
   ``ResourceNotFoundError`` (404), so existence is not disclosed;
 * member whose role lacks the capability → ``PermissionDeniedError`` (403).
 """
@@ -27,19 +27,19 @@ def require_membership_capability(
     db: Session,
     actor: ActorContext,
     *,
-    restaurant_id: uuid.UUID,
+    business_id: uuid.UUID,
     capability: Capability,
 ) -> Role:
-    """Authorize a restaurant-scoped action; return the actor's role.
+    """Authorize a business-scoped action; return the actor's role.
 
     Platform admins are **not** implicitly members (approved decision): a
     platform admin with no membership row is a nonmember here and gets 404,
     exactly like any other nonmember. Platform-scoped access uses the
     platform routes and ``require_platform_capability`` instead.
     """
-    role = memberships.get_role(db, restaurant_id=restaurant_id, user_id=actor.user.id)
+    role = memberships.get_role(db, business_id=business_id, user_id=actor.user.id)
     if role is None:
-        raise ResourceNotFoundError("Restaurant not found.")
+        raise ResourceNotFoundError("Business not found.")
     if not role_has_capability(role, capability):
         raise PermissionDeniedError()
     return role

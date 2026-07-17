@@ -59,11 +59,11 @@ def migrated_engine(test_database_url: str) -> Iterator[Engine]:
 
 @pytest.fixture(autouse=True)
 def clean_tables(migrated_engine: Engine) -> None:
-    """Start every test from empty identity/tenants/audit tables."""
+    """Start every test from empty identity/businesses/audit tables."""
     with migrated_engine.begin() as connection:
         connection.execute(
             text(
-                "TRUNCATE users, sessions, audit_events, restaurants, memberships"
+                "TRUNCATE users, sessions, audit_events, businesses, memberships"
                 " RESTART IDENTITY CASCADE"
             )
         )
@@ -137,13 +137,13 @@ def create_user(migrated_engine: Engine, standard_password_hash: str) -> CreateU
     return _create
 
 
-CreateRestaurant = Callable[..., uuid.UUID]
+CreateBusiness = Callable[..., uuid.UUID]
 CreateMembership = Callable[..., uuid.UUID]
 
 
 @pytest.fixture
-def create_restaurant(migrated_engine: Engine) -> CreateRestaurant:
-    """Insert a restaurant directly (fixture setup, not the flow under test)."""
+def create_business(migrated_engine: Engine) -> CreateBusiness:
+    """Insert a business directly (fixture setup, not the flow under test)."""
 
     def _create(
         slug: str = "demo-kitchen",
@@ -153,15 +153,15 @@ def create_restaurant(migrated_engine: Engine) -> CreateRestaurant:
         timezone: str = "America/New_York",
         currency: str = "USD",
     ) -> uuid.UUID:
-        restaurant_id = uuid.uuid4()
+        business_id = uuid.uuid4()
         with migrated_engine.begin() as connection:
             connection.execute(
                 text(
-                    "INSERT INTO restaurants (id, name, slug, status, timezone, currency)"
+                    "INSERT INTO businesses (id, name, slug, status, timezone, currency)"
                     " VALUES (:id, :name, :slug, :status, :timezone, :currency)"
                 ),
                 {
-                    "id": restaurant_id,
+                    "id": business_id,
                     "name": name,
                     "slug": slug,
                     "status": status,
@@ -169,7 +169,7 @@ def create_restaurant(migrated_engine: Engine) -> CreateRestaurant:
                     "currency": currency,
                 },
             )
-        return restaurant_id
+        return business_id
 
     return _create
 
@@ -185,7 +185,7 @@ def create_membership(migrated_engine: Engine) -> CreateMembership:
     """
 
     def _create(
-        restaurant_id: uuid.UUID,
+        business_id: uuid.UUID,
         user_id: uuid.UUID,
         *,
         role: str = "owner",
@@ -194,12 +194,12 @@ def create_membership(migrated_engine: Engine) -> CreateMembership:
         with migrated_engine.begin() as connection:
             connection.execute(
                 text(
-                    "INSERT INTO memberships (id, restaurant_id, user_id, role)"
-                    " VALUES (:id, :restaurant_id, :user_id, :role)"
+                    "INSERT INTO memberships (id, business_id, user_id, role)"
+                    " VALUES (:id, :business_id, :user_id, :role)"
                 ),
                 {
                     "id": membership_id,
-                    "restaurant_id": restaurant_id,
+                    "business_id": business_id,
                     "user_id": user_id,
                     "role": role,
                 },

@@ -63,13 +63,13 @@ def test_upgrade_head_runs_on_empty_database(empty_database_url: str) -> None:
     engine = create_engine(empty_database_url, connect_args={"connect_timeout": 3})
     try:
         tables = set(inspect(engine).get_table_names())
-        # M2B schema: identity/audit (M2A) + tenancy (restaurants, memberships).
+        # M2B schema: identity/audit (M2A) + tenancy (businesses, memberships).
         assert tables == {
             "alembic_version",
             "users",
             "sessions",
             "audit_events",
-            "restaurants",
+            "businesses",
             "memberships",
         }
         with engine.connect() as connection:
@@ -133,48 +133,50 @@ def test_tenancy_downgrade_preserves_audit_rows(empty_database_url: str) -> None
     """Audit-preserving downgrade (approved amendment 1), scratch DB only.
 
     Create a real tenant-scoped audit event, downgrade to M2A, and prove the
-    audit row survives with a null restaurant_id (never deleted, never
-    dangling); then re-upgrade to M2B successfully.
+    audit row survives — nulled and restored to the M2A ``restaurant_id``
+    column name (never deleted, never dangling); then re-upgrade to M2B
+    successfully.
     """
     config = _config(empty_database_url)
     command.upgrade(config, "head")
 
     engine = create_engine(empty_database_url, connect_args={"connect_timeout": 3})
     try:
-        # A restaurant and a tenant-scoped audit event referencing it.
+        # A business and a tenant-scoped audit event referencing it.
         with engine.begin() as connection:
-            restaurant_id = connection.execute(
+            business_id = connection.execute(
                 text(
-                    "INSERT INTO restaurants (id, name, slug, status) VALUES"
+                    "INSERT INTO businesses (id, name, slug, status) VALUES"
                     " (gen_random_uuid(), 'Audit Fixture', 'audit-fixture', 'provisioning')"
                     " RETURNING id"
                 )
             ).scalar_one()
             connection.execute(
                 text(
-                    "INSERT INTO audit_events (occurred_at, action, restaurant_id,"
-                    " target_type, target_id) VALUES (now(), 'tenant.created', :rid,"
-                    " 'restaurant', :tid)"
+                    "INSERT INTO audit_events (occurred_at, action, business_id,"
+                    " target_type, target_id) VALUES (now(), 'business.created', :bid,"
+                    " 'business', :tid)"
                 ),
-                {"rid": restaurant_id, "tid": str(restaurant_id)},
+                {"bid": business_id, "tid": str(business_id)},
             )
             audit_id = connection.execute(
-                text("SELECT id FROM audit_events WHERE action = 'tenant.created'")
+                text("SELECT id FROM audit_events WHERE action = 'business.created'")
             ).scalar_one()
 
-        # Downgrade to M2A: the audit row must remain, restaurant_id nulled.
+        # Downgrade to M2A: the audit row must remain; the tenant column is
+        # nulled and restored to its M2A restaurant_id name.
         command.downgrade(config, _M2A_REVISION)
         with engine.connect() as connection:
             row = connection.execute(
                 text("SELECT action, restaurant_id FROM audit_events WHERE id = :id"),
                 {"id": audit_id},
             ).one()
-        assert row.action == "tenant.created"
+        assert row.action == "business.created"
         assert row.restaurant_id is None
-        assert "restaurants" not in set(inspect(engine).get_table_names())
+        assert "businesses" not in set(inspect(engine).get_table_names())
 
         # Re-upgrade to M2B succeeds (the FK re-applies over the nulled rows).
         command.upgrade(config, "head")
-        assert "restaurants" in set(inspect(engine).get_table_names())
+        assert "businesses" in set(inspect(engine).get_table_names())
     finally:
         engine.dispose()

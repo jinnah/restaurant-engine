@@ -19,12 +19,12 @@ export type {
   UserSummary,
 } from './auth';
 export type {
+  BusinessCreate,
+  BusinessPage,
+  BusinessSummary,
   PlatformApi,
-  RestaurantCreate,
-  RestaurantPage,
-  RestaurantSummary,
 } from './platform';
-export type { RestaurantsApi } from './restaurants';
+export type { BusinessesApi } from './businesses';
 export { isErrorEnvelope } from './errors';
 export type {
   ErrorCode,

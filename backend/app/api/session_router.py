@@ -2,7 +2,7 @@
 
 Hosts ``GET /api/v1/auth/session`` (operation_id ``auth_session``, unchanged
 from M2A) at the application layer, because its response joins identity and
-tenants. login/logout remain in the identity domain router.
+businesses. login/logout remain in the identity domain router.
 """
 
 from typing import Annotated, Any
@@ -32,5 +32,5 @@ def auth_session(
     db: Annotated[Session, Depends(get_session)],
     actor: Annotated[ActorContext, Depends(current_actor)],
 ) -> SessionView:
-    """Current identity, CSRF token, and the caller's restaurant memberships."""
+    """Current identity, CSRF token, and the caller's business memberships."""
     return build_session_view(db, actor)

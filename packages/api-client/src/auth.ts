@@ -24,7 +24,7 @@ export interface AuthApi {
   login(body: LoginRequest): Promise<ApiResult<SessionResponse>>;
   /** Revoke the current session. Requires the CSRF token (ADR-010). */
   logout(csrfToken: string): Promise<ApiResult<LogoutResponse>>;
-  /** Current identity, CSRF token, and the caller's restaurant memberships. */
+  /** Current identity, CSRF token, and the caller's business memberships. */
   getSession(): Promise<ApiResult<SessionView>>;
 }
 

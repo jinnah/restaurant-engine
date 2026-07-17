@@ -1,4 +1,4 @@
-"""Platform restaurant-management endpoints (M2B).
+"""Platform business-management endpoints (M2B).
 
 Routers translate only (docs/02): the service enforces the platform
 capability and owns the transaction. Every unsafe route carries the two
@@ -15,17 +15,17 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_session
 from app.core.errors import ErrorEnvelope
+from app.domains.businesses import service
+from app.domains.businesses.schemas import (
+    BusinessCreate,
+    BusinessPage,
+    BusinessSummary,
+    EmptyCommand,
+)
 from app.domains.identity.actor import ActorContext
 from app.domains.identity.dependencies import csrf_protected_actor, current_actor
-from app.domains.tenants import service
-from app.domains.tenants.schemas import (
-    EmptyCommand,
-    RestaurantCreate,
-    RestaurantPage,
-    RestaurantSummary,
-)
 
-platform_router = APIRouter(prefix="/platform/restaurants", tags=["platform"])
+platform_router = APIRouter(prefix="/platform/businesses", tags=["platform"])
 
 _ENVELOPES: dict[int | str, dict[str, Any]] = {
     status.HTTP_401_UNAUTHORIZED: {"model": ErrorEnvelope},
@@ -37,103 +37,103 @@ _ENVELOPES_STATE = {**_ENVELOPES_404, status.HTTP_409_CONFLICT: {"model": ErrorE
 
 @platform_router.post(
     "",
-    operation_id="platform_restaurants_create",
+    operation_id="platform_businesses_create",
     status_code=status.HTTP_201_CREATED,
     responses={**_ENVELOPES, status.HTTP_409_CONFLICT: {"model": ErrorEnvelope}},
 )
-def platform_restaurants_create(
-    payload: RestaurantCreate,
+def platform_businesses_create(
+    payload: BusinessCreate,
     db: Annotated[Session, Depends(get_session)],
     actor: Annotated[ActorContext, Depends(csrf_protected_actor)],
-) -> RestaurantSummary:
-    """Create a restaurant (starts in provisioning)."""
-    return service.create_restaurant(db, actor, payload)
+) -> BusinessSummary:
+    """Create a business (starts in provisioning)."""
+    return service.create_business(db, actor, payload)
 
 
 @platform_router.get(
     "",
-    operation_id="platform_restaurants_list",
+    operation_id="platform_businesses_list",
     responses=_ENVELOPES,
 )
-def platform_restaurants_list(
+def platform_businesses_list(
     db: Annotated[Session, Depends(get_session)],
     actor: Annotated[ActorContext, Depends(current_actor)],
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
-) -> RestaurantPage:
+) -> BusinessPage:
     """Bounded platform catalog page (created_at DESC, id DESC)."""
-    return service.list_restaurants(db, actor, limit=limit, offset=offset)
+    return service.list_businesses(db, actor, limit=limit, offset=offset)
 
 
 @platform_router.get(
-    "/{restaurant_id}",
-    operation_id="platform_restaurant_get",
+    "/{business_id}",
+    operation_id="platform_business_get",
     responses=_ENVELOPES_404,
 )
-def platform_restaurant_get(
-    restaurant_id: uuid.UUID,
+def platform_business_get(
+    business_id: uuid.UUID,
     db: Annotated[Session, Depends(get_session)],
     actor: Annotated[ActorContext, Depends(current_actor)],
-) -> RestaurantSummary:
-    """Platform read of any restaurant."""
-    return service.get_restaurant_platform(db, actor, restaurant_id)
+) -> BusinessSummary:
+    """Platform read of any business."""
+    return service.get_business_platform(db, actor, business_id)
 
 
 @platform_router.post(
-    "/{restaurant_id}/activate",
-    operation_id="platform_restaurant_activate",
+    "/{business_id}/activate",
+    operation_id="platform_business_activate",
     responses=_ENVELOPES_STATE,
 )
-def platform_restaurant_activate(
-    restaurant_id: uuid.UUID,
+def platform_business_activate(
+    business_id: uuid.UUID,
     _command: EmptyCommand,
     db: Annotated[Session, Depends(get_session)],
     actor: Annotated[ActorContext, Depends(csrf_protected_actor)],
-) -> RestaurantSummary:
+) -> BusinessSummary:
     """provisioning → active (requires at least one owner)."""
-    return service.activate(db, actor, restaurant_id)
+    return service.activate(db, actor, business_id)
 
 
 @platform_router.post(
-    "/{restaurant_id}/suspend",
-    operation_id="platform_restaurant_suspend",
+    "/{business_id}/suspend",
+    operation_id="platform_business_suspend",
     responses=_ENVELOPES_STATE,
 )
-def platform_restaurant_suspend(
-    restaurant_id: uuid.UUID,
+def platform_business_suspend(
+    business_id: uuid.UUID,
     _command: EmptyCommand,
     db: Annotated[Session, Depends(get_session)],
     actor: Annotated[ActorContext, Depends(csrf_protected_actor)],
-) -> RestaurantSummary:
+) -> BusinessSummary:
     """active → suspended."""
-    return service.suspend(db, actor, restaurant_id)
+    return service.suspend(db, actor, business_id)
 
 
 @platform_router.post(
-    "/{restaurant_id}/reactivate",
-    operation_id="platform_restaurant_reactivate",
+    "/{business_id}/reactivate",
+    operation_id="platform_business_reactivate",
     responses=_ENVELOPES_STATE,
 )
-def platform_restaurant_reactivate(
-    restaurant_id: uuid.UUID,
+def platform_business_reactivate(
+    business_id: uuid.UUID,
     _command: EmptyCommand,
     db: Annotated[Session, Depends(get_session)],
     actor: Annotated[ActorContext, Depends(csrf_protected_actor)],
-) -> RestaurantSummary:
+) -> BusinessSummary:
     """suspended → active."""
-    return service.reactivate(db, actor, restaurant_id)
+    return service.reactivate(db, actor, business_id)
 
 
 @platform_router.post(
-    "/{restaurant_id}/close",
-    operation_id="platform_restaurant_close",
+    "/{business_id}/close",
+    operation_id="platform_business_close",
     responses=_ENVELOPES_STATE,
 )
-def platform_restaurant_close(
-    restaurant_id: uuid.UUID,
+def platform_business_close(
+    business_id: uuid.UUID,
     _command: EmptyCommand,
     db: Annotated[Session, Depends(get_session)],
     actor: Annotated[ActorContext, Depends(csrf_protected_actor)],
-) -> RestaurantSummary:
+) -> BusinessSummary:
     """suspended → closed (terminal)."""
-    return service.close(db, actor, restaurant_id)
+    return service.close(db, actor, business_id)

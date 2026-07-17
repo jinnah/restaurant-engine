@@ -1,7 +1,7 @@
 """Audit persistence model (M2A).
 
 ``audit_events`` is a **platform-global table with optional tenant scope**
-(docs/04): platform-level events carry a NULL ``restaurant_id``. The table
+(docs/04): platform-level events carry a NULL ``business_id``. The table
 is append-only by application discipline — the audit service exposes only
 ``record``; revoking UPDATE/DELETE at the database-role level is a
 Milestone 8 production-hardening item.
@@ -45,10 +45,13 @@ class AuditEvent(Base):
     actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    # Tenant scope arrives with the restaurants table (M2B); the column and
-    # its composite cursor index are part of this table's permanent shape,
-    # so they are created now and the FK is added by the M2B migration.
-    restaurant_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    # Tenant scope (M2B): NULL = platform-level event. The FK to the tenant
+    # root is declared by table name so audit imports no businesses code
+    # (same string-FK pattern as identity's Membership). RESTRICT keeps
+    # audit history pinned to its tenant.
+    business_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("businesses.id", ondelete="RESTRICT"), nullable=True
+    )
     target_type: Mapped[str | None] = mapped_column(Text, nullable=True)
     target_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     correlation_id: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -62,7 +65,7 @@ class AuditEvent(Base):
             "(target_type IS NULL) = (target_id IS NULL)",
             name="target_pairing",
         ),
-        # Serves the tenant-filtered cursor page (WHERE restaurant_id = ?
+        # Serves the tenant-filtered cursor page (WHERE business_id = ?
         # AND id < ? ORDER BY id DESC) directly (approved addendum item 8).
-        Index("ix_audit_events_restaurant_id_id", "restaurant_id", "id"),
+        Index("ix_audit_events_business_id_id", "business_id", "id"),
     )
