@@ -132,9 +132,7 @@ def get_restaurant_for_member(
 
 def activate(db: Session, actor: ActorContext, restaurant_id: uuid.UUID) -> RestaurantSummary:
     """provisioning → active. Requires at least one owner (decision 6)."""
-    return _transition(
-        db, actor, restaurant_id, target=RestaurantStatus.ACTIVE, require_owner=True
-    )
+    return _transition(db, actor, restaurant_id, target=RestaurantStatus.ACTIVE, require_owner=True)
 
 
 def suspend(db: Session, actor: ActorContext, restaurant_id: uuid.UUID) -> RestaurantSummary:
@@ -167,9 +165,7 @@ def _transition(
         raise ResourceNotFoundError("Restaurant not found.")
     current = RestaurantStatus(restaurant.status)
     if not can_transition(current, target):
-        raise InvalidStateError(
-            f"cannot transition a {current.value} restaurant to {target.value}"
-        )
+        raise InvalidStateError(f"cannot transition a {current.value} restaurant to {target.value}")
     if require_owner and memberships.count_owners(db, restaurant_id=restaurant_id) == 0:
         raise InvalidStateError("cannot activate a restaurant without an owner")
 
@@ -192,9 +188,7 @@ def _transition(
         restaurant_id=restaurant.id,
         target_type="restaurant",
         target_id=str(restaurant.id),
-        details=TenantStatusChangedDetails(
-            previous_status=current.value, new_status=target.value
-        ),
+        details=TenantStatusChangedDetails(previous_status=current.value, new_status=target.value),
     )
     db.commit()
     db.refresh(restaurant)

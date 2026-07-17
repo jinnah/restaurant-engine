@@ -29,9 +29,7 @@ class Restaurant(Base):
     # schema; the DB CHECK is the final integrity boundary.
     slug: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="provisioning")
-    timezone: Mapped[str] = mapped_column(
-        Text, nullable=False, server_default="America/New_York"
-    )
+    timezone: Mapped[str] = mapped_column(Text, nullable=False, server_default="America/New_York")
     currency: Mapped[str] = mapped_column(String(3), nullable=False, server_default="USD")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
