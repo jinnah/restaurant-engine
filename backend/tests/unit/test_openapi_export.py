@@ -25,6 +25,8 @@ EXPECTED_OPERATION_IDS = {
     "platform_business_reactivate",
     "platform_business_close",
     "business_get",
+    # M2C (ADR-013): public host-resolved storefront surface.
+    "public_site_get",
 }
 
 

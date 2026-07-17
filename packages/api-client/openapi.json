@@ -344,6 +344,35 @@
         "title": "MembershipSummary",
         "type": "object"
       },
+      "PublicSiteSummary": {
+        "description": "Minimal public projection returned for a resolved active business\n(M2C, ADR-013).\n\nDeliberately narrow: a 200 already proves the business is active, so no\n``status`` field is needed, and no id/timestamps/management data are\nexposed on the unauthenticated surface.",
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "slug",
+          "timezone",
+          "currency"
+        ],
+        "title": "PublicSiteSummary",
+        "type": "object"
+      },
       "ReadinessResponse": {
         "properties": {
           "checks": {
@@ -1281,6 +1310,38 @@
         "summary": "Platform Business Suspend",
         "tags": [
           "platform"
+        ]
+      }
+    },
+    "/api/v1/public/site": {
+      "get": {
+        "description": "Minimal public summary of the Business resolved from the Host.",
+        "operationId": "public_site_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicSiteSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "summary": "Public Site Get",
+        "tags": [
+          "public"
         ]
       }
     },
