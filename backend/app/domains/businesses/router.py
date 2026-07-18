@@ -15,8 +15,8 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_session
 from app.core.errors import ErrorEnvelope
-from app.domains.businesses import service
-from app.domains.businesses.schemas import BusinessSummary
+from app.domains.businesses import entitlements, service
+from app.domains.businesses.schemas import BusinessSummary, EntitlementsResponse
 from app.domains.identity.actor import ActorContext
 from app.domains.identity.dependencies import current_actor
 
@@ -40,3 +40,19 @@ def business_get(
 ) -> BusinessSummary:
     """Read the caller's own business (requires membership)."""
     return service.get_business_for_member(db, actor, business_id)
+
+
+@business_router.get(
+    "/{business_id}/entitlements",
+    operation_id="business_entitlements_get",
+    responses=_ENVELOPES,
+)
+def business_entitlements_get(
+    business_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_session)],
+    actor: Annotated[ActorContext, Depends(current_actor)],
+) -> EntitlementsResponse:
+    """The business's enabled features (M2D; any member may read)."""
+    return EntitlementsResponse(
+        features=entitlements.get_effective_features(db, actor, business_id)
+    )

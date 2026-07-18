@@ -7,11 +7,14 @@ Response schemas are explicit — never serialized ORM objects.
 import uuid
 import zoneinfo
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from app.core.security import PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH
+from app.domains.businesses.features import FeatureKey
 from app.domains.businesses.slugs import is_reserved, is_slug_shaped
+from app.domains.identity.policies import Role
 
 
 class BusinessCreate(BaseModel):
@@ -118,3 +121,123 @@ class PublicSiteSummary(BaseModel):
 
 PaginationLimit = Annotated[int, Field(ge=1, le=100)]
 PaginationOffset = Annotated[int, Field(ge=0)]
+
+
+class InvitationCreate(BaseModel):
+    """Command to invite a member (business-scoped or platform route)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr = Field(max_length=254)
+    role: Role
+
+
+class InvitationIssueResponse(BaseModel):
+    """One-time issuance result (ADR-014).
+
+    ``token`` is the raw secret, returned exactly once to the authorized
+    issuer for out-of-band delivery — never a URL, never stored, never
+    logged, never shown again.
+    """
+
+    token: str
+    invitation_id: uuid.UUID
+    expires_at: datetime
+    email: str
+    role: Role
+
+
+class InvitationSummary(BaseModel):
+    """One pending invitation (operational list; no token, no hash)."""
+
+    invitation_id: uuid.UUID
+    email: str
+    role: Role
+    created_at: datetime
+    expires_at: datetime
+    state: Literal["pending", "expired"]
+    invited_by_user_id: uuid.UUID
+
+
+class InvitationPage(BaseModel):
+    items: list[InvitationSummary]
+    total: int
+    limit: int
+    offset: int
+
+
+class InvitationPreviewRequest(BaseModel):
+    """Public preview lookup — the token travels in the body, never a URL."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(min_length=1, max_length=128)
+
+
+class InvitationPreviewResponse(BaseModel):
+    """PII-minimized accept-page context (correction E)."""
+
+    business_name: str
+    role: Role
+    email_hint: str
+
+
+class InvitationAcceptRequest(BaseModel):
+    """Public acceptance creating a new account (no auto-login)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(min_length=1, max_length=128)
+    display_name: str = Field(min_length=1, max_length=120)
+    password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH)
+
+    @field_validator("display_name")
+    @classmethod
+    def _trim_display_name(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            msg = "display_name must not be blank"
+            raise ValueError(msg)
+        return trimmed
+
+
+class InvitationAcceptExistingRequest(BaseModel):
+    """Authenticated acceptance adding a membership to the caller."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(min_length=1, max_length=128)
+
+
+class InvitationAcceptedResponse(BaseModel):
+    status: Literal["accepted"]
+    business_id: uuid.UUID
+    email: str
+    role: Role
+
+
+class InvitationRevokedResponse(BaseModel):
+    status: Literal["revoked"]
+
+
+class EntitlementSet(BaseModel):
+    """Platform command: the complete desired feature set (idempotent).
+
+    Unknown keys fail schema validation (422) — the registry is the closed
+    value set.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    features: list[FeatureKey]
+
+    @field_validator("features")
+    @classmethod
+    def _deduplicate(cls, value: list[FeatureKey]) -> list[FeatureKey]:
+        return sorted(set(value))
+
+
+class EntitlementsResponse(BaseModel):
+    """The effective (recognized, enabled) feature set of a business."""
+
+    features: list[FeatureKey]

@@ -65,7 +65,8 @@ def test_upgrade_head_runs_on_empty_database(empty_database_url: str) -> None:
     engine = create_engine(empty_database_url, connect_args={"connect_timeout": 3})
     try:
         tables = set(inspect(engine).get_table_names())
-        # M2B schema: identity/audit (M2A) + tenancy (businesses, memberships).
+        # M2A identity/audit + M2B tenancy + M2D onboarding/recovery/
+        # entitlements.
         assert tables == {
             "alembic_version",
             "users",
@@ -73,6 +74,9 @@ def test_upgrade_head_runs_on_empty_database(empty_database_url: str) -> None:
             "audit_events",
             "businesses",
             "memberships",
+            "business_invitations",
+            "password_reset_tokens",
+            "feature_entitlements",
         }
         with engine.connect() as connection:
             version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar()
@@ -212,5 +216,130 @@ def test_model_metadata_matches_migrated_schema(empty_database_url: str) -> None
             )
             diffs = compare_metadata(context, Base.metadata)
         assert diffs == [], f"ORM metadata and migrated schema differ: {diffs}"
+    finally:
+        engine.dispose()
+
+
+# The M2C-era revision (down_revision of the M2D migration).
+_M2C_ERA_REVISION = "116b4abf9a40"
+
+_SHA_A = "a" * 64
+_SHA_B = "b" * 64
+_SHA_C = "c" * 64
+
+
+def test_m2d_constraints_and_round_trip_with_real_rows(empty_database_url: str) -> None:
+    """M2D tables behave with real data, not only empty walks (ADR-014).
+
+    Exercises the partial uniques, foreign-key behavior (RESTRICT and
+    CASCADE), and the token-shape CHECK against seeded rows; then proves
+    the downgrade drops the three tables and the chain re-applies.
+    Scratch database only.
+    """
+    config = _config(empty_database_url)
+    command.upgrade(config, "head")
+
+    engine = create_engine(empty_database_url, connect_args={"connect_timeout": 3})
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO users (id, email, email_normalized, display_name,"
+                    " password_hash, is_platform_admin, is_active, failed_login_count)"
+                    " VALUES (gen_random_uuid(), 'a@x.com', 'a@x.com', 'A', 'h', true,"
+                    " true, 0) RETURNING id"
+                )
+            )
+            user_id = connection.execute(text("SELECT id FROM users LIMIT 1")).scalar_one()
+            business_id = connection.execute(
+                text(
+                    "INSERT INTO businesses (id, name, slug, status) VALUES"
+                    " (gen_random_uuid(), 'Fixture', 'fixture', 'active') RETURNING id"
+                )
+            ).scalar_one()
+            connection.execute(
+                text(
+                    "INSERT INTO business_invitations (id, business_id, email,"
+                    " email_normalized, role, token_hash, invited_by_user_id, expires_at)"
+                    " VALUES (gen_random_uuid(), :bid, 'b@x.com', 'b@x.com', 'staff',"
+                    " :th, :uid, now() + interval '7 days')"
+                ),
+                {"bid": business_id, "uid": user_id, "th": _SHA_A},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO password_reset_tokens (id, user_id, token_hash,"
+                    " issued_by_user_id, expires_at) VALUES (gen_random_uuid(), :uid,"
+                    " :th, :uid, now() + interval '60 minutes')"
+                ),
+                {"uid": user_id, "th": _SHA_B},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO feature_entitlements (id, business_id, feature_key)"
+                    " VALUES (gen_random_uuid(), :bid, 'online_ordering')"
+                ),
+                {"bid": business_id},
+            )
+
+        def _rejected(statement: str, params: dict[str, object]) -> bool:
+            with engine.begin() as connection:
+                try:
+                    connection.execute(text(statement), params)
+                except Exception:
+                    return True
+            return False
+
+        # Partial unique: a second live invitation for the same business+email.
+        assert _rejected(
+            "INSERT INTO business_invitations (id, business_id, email,"
+            " email_normalized, role, token_hash, invited_by_user_id, expires_at)"
+            " VALUES (gen_random_uuid(), :bid, 'b@x.com', 'b@x.com', 'staff',"
+            " :th, :uid, now() + interval '7 days')",
+            {"bid": business_id, "uid": user_id, "th": _SHA_C},
+        ), "second live invitation for the same business+email must violate"
+        # Partial unique: a second live reset token for the same user.
+        assert _rejected(
+            "INSERT INTO password_reset_tokens (id, user_id, token_hash,"
+            " issued_by_user_id, expires_at) VALUES (gen_random_uuid(), :uid,"
+            " :th, :uid, now() + interval '60 minutes')",
+            {"uid": user_id, "th": _SHA_C},
+        ), "second live reset token for the same user must violate"
+        # Token-shape CHECK: a raw (non-hex) token must never be storable.
+        assert _rejected(
+            "INSERT INTO password_reset_tokens (id, user_id, token_hash,"
+            " issued_by_user_id, expires_at) VALUES (gen_random_uuid(), :uid,"
+            " 'raw-token-value', :uid, now() + interval '60 minutes')",
+            {"uid": user_id},
+        ), "non-SHA-256 token_hash must violate the shape CHECK"
+        # Entitlement tenant-leading unique.
+        assert _rejected(
+            "INSERT INTO feature_entitlements (id, business_id, feature_key)"
+            " VALUES (gen_random_uuid(), :bid, 'online_ordering')",
+            {"bid": business_id},
+        ), "duplicate entitlement must violate the unique constraint"
+        # RESTRICT: the inviter cannot be deleted while referenced...
+        assert _rejected("DELETE FROM users WHERE id = :uid", {"uid": user_id}), (
+            "deleting a referenced inviter must be RESTRICTed"
+        )
+        # ...but after the invitation row is gone, user deletion CASCADES the
+        # reset token (sessions-style lifecycle).
+        with engine.begin() as connection:
+            connection.execute(text("DELETE FROM business_invitations"))
+            connection.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": user_id})
+            remaining = connection.execute(
+                text("SELECT count(*) FROM password_reset_tokens")
+            ).scalar_one()
+        assert remaining == 0, "reset tokens must CASCADE with their user"
+
+        # Round trip with remaining data present (business + entitlement).
+        command.downgrade(config, _M2C_ERA_REVISION)
+        tables = set(inspect(engine).get_table_names())
+        assert "business_invitations" not in tables
+        assert "password_reset_tokens" not in tables
+        assert "feature_entitlements" not in tables
+        assert "businesses" in tables  # earlier schema untouched
+        command.upgrade(config, "head")
+        assert "feature_entitlements" in set(inspect(engine).get_table_names())
     finally:
         engine.dispose()

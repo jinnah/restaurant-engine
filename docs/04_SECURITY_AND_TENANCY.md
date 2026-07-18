@@ -71,17 +71,30 @@ tenant-unscoped query must name which sanctioned exception it belongs to,
 or be rejected in review:
 
 1. **Public slug/host resolution** — establishes tenant identity (M2C).
-2. **Single-use token resolution** — invitation/reset tokens (M2D);
-   authorized by possession of a high-entropy secret.
+2. **Single-use token resolution** — invitation/reset tokens (implemented
+   in M2D, ADR-014); authorized by possession of a high-entropy secret.
+   Tokens are 256-bit, stored only as SHA-256 digests, travel only in
+   POST bodies, expire on the database clock, and are single-use under
+   row locks; password-setting flows prevalidate the token before any
+   Argon2 work, and every invalid-token condition returns one uniform
+   neutral 404 per surface.
 3. **Self/session scope** — the session-token lookup, and
    `list_for_user(user_id=actor.id)` which spans the caller's own tenants
    (bound to the authenticated actor's own id, never a supplied id).
 4. **Platform-capability-gated queries** — cross-tenant reads (business
-   list/get) reachable only through services that first pass
-   `platform.businesses.manage`.
+   list/get, entitlement assignment, reset issuance, the platform audit
+   stream) reachable only through services that first pass the named
+   platform capability. `platform.users.recover` is documented
+   account-takeover-equivalent authority: audited on every issuance, no
+   public path (ADR-014).
 
-M2B uses exceptions 3 and 4. `businesses` is the tenant root; a lookup by
-its own primary key is a "which tenant" query, not a tenant-owned-data leak.
+M2B uses exceptions 3 and 4; M2D adds exception 2 and extends 4.
+`businesses` is the tenant root; a lookup by its own primary key is a
+"which tenant" query, not a tenant-owned-data leak. Business-scoped audit
+reads apply both tenant predicates explicitly (`business_id = ?` AND
+`business_id IS NOT NULL`) so platform-level events are structurally
+excluded, and audit `details` pass through typed read-time projections —
+stored JSON is never returned verbatim (ADR-014).
 
 ### Permanent isolation test matrix
 

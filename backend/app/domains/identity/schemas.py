@@ -7,9 +7,12 @@ additively.
 """
 
 import uuid
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+from app.core.security import PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH
 
 
 class LoginRequest(BaseModel):
@@ -37,3 +40,38 @@ class SessionResponse(BaseModel):
 
 class LogoutResponse(BaseModel):
     status: Literal["logged_out"]
+
+
+class PasswordResetIssueRequest(BaseModel):
+    """Platform command: issue a reset token for an account (M2D)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr = Field(max_length=254)
+
+
+class PasswordResetIssueResponse(BaseModel):
+    """One-time issuance result (ADR-014).
+
+    ``token`` is the raw secret, returned exactly once to the authorized
+    issuer for out-of-band delivery — never a URL, never stored, never
+    logged, never shown again.
+    """
+
+    token: str
+    expires_at: datetime
+    email: str
+
+
+class PasswordResetRedeemRequest(BaseModel):
+    """Public command: redeem a reset token and set a new password (M2D)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(min_length=1, max_length=128)
+    # Password policy applies when *setting* passwords (docs/03).
+    new_password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH)
+
+
+class PasswordResetRedeemResponse(BaseModel):
+    status: Literal["password_reset"]

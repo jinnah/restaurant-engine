@@ -335,6 +335,44 @@ def _email_exists(db: Session, email_normalized: str) -> bool:
     )
 
 
+def find_user_id_by_email(db: Session, *, email_normalized: str) -> uuid.UUID | None:
+    """The account id for a normalized email, or None (M2D, ADR-014).
+
+    Narrow read for the businesses onboarding service (already-a-member and
+    registered-since-issuance checks). The caller must never let this
+    lookup's outcome change an unauthenticated response shape — account
+    existence is not disclosed publicly.
+    """
+    return db.execute(
+        select(User.id).where(User.email_normalized == email_normalized)
+    ).scalar_one_or_none()
+
+
+def create_user_from_invitation(
+    db: Session, *, email: str, email_normalized: str, display_name: str, password_hash: str
+) -> uuid.UUID:
+    """Add a member account inside the caller's transaction (M2D, ADR-014).
+
+    Identity remains the sole owner of user writes; the businesses
+    onboarding service calls this during invitation acceptance. The Argon2
+    hash is computed by the caller *before* its write transaction (two-phase
+    design) and arrives ready to store. Never commits; never auto-logs-in.
+    The email unique constraint backstops the registered-since-issuance
+    race; the caller converts that ``IntegrityError`` into its uniform
+    invalid-token response.
+    """
+    user = User(
+        email=email,
+        email_normalized=email_normalized,
+        display_name=display_name.strip(),
+        password_hash=password_hash,
+        is_platform_admin=False,
+    )
+    db.add(user)
+    db.flush()
+    return user.id
+
+
 def _is_email_unique_violation(exc: IntegrityError) -> bool:
     diag = getattr(exc.orig, "diag", None)
     return getattr(diag, "constraint_name", None) == "uq_users_email_normalized"

@@ -30,6 +30,22 @@ class UserMembership:
     role: Role
 
 
+def create(db: Session, *, business_id: uuid.UUID, user_id: uuid.UUID, role: Role) -> uuid.UUID:
+    """Add a membership row inside the caller's transaction (M2D, ADR-014).
+
+    Identity remains the sole owner of membership writes; the businesses
+    onboarding service calls this narrow function during invitation
+    acceptance instead of touching identity's ORM model. Never commits —
+    the calling application service owns the transaction. The tenant-leading
+    unique constraint backstops duplicate races; the caller converts that
+    ``IntegrityError``.
+    """
+    membership = Membership(business_id=business_id, user_id=user_id, role=role.value)
+    db.add(membership)
+    db.flush()
+    return membership.id
+
+
 def get_role(db: Session, *, business_id: uuid.UUID, user_id: uuid.UUID) -> Role | None:
     """The user's role in the given business, or None if not a member."""
     value = db.execute(

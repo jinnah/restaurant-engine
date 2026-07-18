@@ -27,6 +27,22 @@ EXPECTED_OPERATION_IDS = {
     "business_get",
     # M2C (ADR-013): public host-resolved storefront surface.
     "public_site_get",
+    # M2D (ADR-014): onboarding, recovery, entitlements, audit access.
+    "business_invitation_create",
+    "business_invitations_list",
+    "business_invitation_revoke",
+    "platform_invitation_create",
+    "platform_invitations_list",
+    "platform_invitation_revoke",
+    "invitation_preview",
+    "invitation_accept",
+    "invitation_accept_existing",
+    "platform_password_reset_issue",
+    "password_reset_redeem",
+    "platform_business_entitlements_set",
+    "business_entitlements_get",
+    "platform_audit_events_list",
+    "business_audit_events_list",
 }
 
 

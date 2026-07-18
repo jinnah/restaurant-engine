@@ -105,6 +105,14 @@ automatically. Non-browser clients calling unsafe endpoints — curl,
 scripts, tests — must send an allowlisted `Origin` header (fail-closed
 CSRF, ADR-010); the security-test fixtures do this centrally.
 
+From M2D (ADR-014), invitation and password-reset tokens are returned
+**once**, raw, in the issuance response for out-of-band delivery (no
+email exists yet, and the backend never builds URLs from them). In
+development, exercise the flows with API tools: issue via the platform
+endpoints, then redeem via `POST /api/v1/invitations/accept` /
+`POST /api/v1/password-resets/redeem` with the token in the JSON body —
+never in a URL. The M2E control center adds the human pages.
+
 ### Identity commands (from Milestone 2A)
 
 | Command                                                                   | Purpose                                                                                        |

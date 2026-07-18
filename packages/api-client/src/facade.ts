@@ -7,6 +7,11 @@ import { createInternalClient, type ApiClientOptions } from './client';
 import { createAuthApi, type AuthApi } from './auth';
 import { createBusinessesApi, type BusinessesApi } from './businesses';
 import { createHealthMethods, type HealthMethods } from './health';
+import { createInvitationsApi, type InvitationsApi } from './invitations';
+import {
+  createPasswordResetsApi,
+  type PasswordResetsApi,
+} from './passwordResets';
 import { createPlatformApi, type PlatformApi } from './platform';
 import { createPublicApi, type PublicApi } from './public';
 
@@ -15,6 +20,8 @@ export interface ApiClient extends HealthMethods {
   platform: PlatformApi;
   businesses: BusinessesApi;
   public: PublicApi;
+  invitations: InvitationsApi;
+  passwordResets: PasswordResetsApi;
 }
 
 export function createApiClient(options: ApiClientOptions): ApiClient {
@@ -25,5 +32,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     platform: createPlatformApi(client),
     businesses: createBusinessesApi(client),
     public: createPublicApi(client),
+    invitations: createInvitationsApi(client),
+    passwordResets: createPasswordResetsApi(client),
   };
 }
