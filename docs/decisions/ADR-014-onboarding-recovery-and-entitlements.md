@@ -41,7 +41,7 @@ Shared foundations fixed by this ADR:
   transaction); the write transaction then re-locks and revalidates every
   condition authoritatively. Invalid tokens provably never invoke the KDF.
 - **Deterministic lock order** `Business → Invitation → User →
-  ResetToken`. Every M2D workflow (and the M2B lifecycle transitions)
+ResetToken`. Every M2D workflow (and the M2B lifecycle transitions)
   acquires row locks in this order, so issuance, replacement, revocation,
   acceptance, reset issuance, reset redemption, and entitlement
   replacement serialize instead of deadlocking. Partial unique indexes
@@ -79,7 +79,7 @@ narrow no-commit functions (`create_user_from_invitation`,
   CSRF-protected endpoint whose normalized email must match the
   invitation — this is the supported path to multi-business membership
   (ADR-012). Pending-only operational lists (limit/offset, `created_at
-  DESC, id DESC`) carry no token material; history lives in the audit
+DESC, id DESC`) carry no token material; history lives in the audit
   trail.
 
 **Recovery** is identity-domain. Self-service reset stays deferred to the
@@ -97,9 +97,9 @@ redemption atomically sets the password, clears the login-backoff pair,
 
 ## Entitlements
 
-Entitlements answer *which product capability a Business has enabled* —
-deliberately separate from identity capabilities (*what an actor may
-do*). The registry is an append-only code enum seeded with exactly
+Entitlements answer _which product capability a Business has enabled_ —
+deliberately separate from identity capabilities (_what an actor may
+do_). The registry is an append-only code enum seeded with exactly
 `online_ordering` (enforcement arrives with checkout, M6 — **no unused
 enforcement helper or error code ships now**; that design happens with
 its first real consumer). Presence-model table, tenant-leading unique,
@@ -155,7 +155,7 @@ Adversarial tests insert hostile payloads directly into
   resets share one policy and column conventions but are separate domain
   concepts with different lifecycles.
 - **Key-name-allowlist audit projection copying stored values verbatim:**
-  rejected (binding clarification) — a stored *value* can smuggle nested
+  rejected (binding clarification) — a stored _value_ can smuggle nested
   secrets; only typed extractors are acceptable.
 - **`require_feature` helper + `feature_not_enabled` code in M2D:**
   rejected (revised ruling) — dead security code exercised only by tests.
