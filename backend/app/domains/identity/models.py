@@ -120,6 +120,60 @@ class UserSession(Base):
     )
 
 
+class PasswordResetToken(Base):
+    """A single-use, admin-issued password-reset credential (M2D, ADR-014).
+
+    Platform-global (docs/04): recovery is an account concern. Only the
+    SHA-256 digest of the token is stored; the raw value exists solely in
+    the issuance response and the redeemer's request. Lifecycle timestamps
+    are decided on the database clock (ADR-014): ``expires_at`` is computed
+    in SQL at insert and validity always compares against ``now()`` in SQL.
+    ``platform.users.recover`` is account-takeover-equivalent authority —
+    every issuance is audited and there is no public issuance path.
+    """
+
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    # CASCADE mirrors sessions: reset credentials die with the account.
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    issued_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        # Exactly a SHA-256 hex digest — never a raw token.
+        CheckConstraint(r"token_hash ~ '^[0-9a-f]{64}$'", name="token_hash_shape"),
+        CheckConstraint("expires_at > created_at", name="expires_after_creation"),
+        CheckConstraint("used_at IS NULL OR used_at >= created_at", name="used_after_creation"),
+        CheckConstraint(
+            "revoked_at IS NULL OR revoked_at >= created_at",
+            name="revoked_after_creation",
+        ),
+        CheckConstraint(
+            "NOT (used_at IS NOT NULL AND revoked_at IS NOT NULL)",
+            name="used_not_revoked",
+        ),
+        # One live token per user (approved M2A addendum). Backstop only:
+        # issuance revokes the predecessor under the user row lock.
+        Index(
+            "uq_password_reset_tokens_live",
+            "user_id",
+            unique=True,
+            postgresql_where=text("used_at IS NULL AND revoked_at IS NULL"),
+        ),
+    )
+
+
 class Membership(Base):
     """A user's role in one business (M2B; identity owns memberships).
 
