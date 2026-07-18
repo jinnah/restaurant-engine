@@ -45,6 +45,13 @@ export function sessionQueryOptions(client: ApiClient) {
   return {
     queryKey: SESSION_KEY,
     queryFn: () => fetchSessionState(client),
+    // Session revalidation is always explicit (login establishment,
+    // logout, a user-triggered retry, or invalidateQueries) — a cached
+    // value must never be refetched merely because a guard remounted.
+    // In particular, after clearAuthenticatedState sets `anonymous`, an
+    // automatic mount refetch would race the redirect and could loop
+    // (the binding M2E ruling forbids exactly that).
+    staleTime: Infinity,
   };
 }
 
