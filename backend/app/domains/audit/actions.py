@@ -29,6 +29,6 @@ class AuditAction(StrEnum):
     BUSINESS_INVITATION_ACCEPTED = "business.invitation_accepted"
     BUSINESS_ENTITLEMENT_GRANTED = "business.entitlement_granted"
     BUSINESS_ENTITLEMENT_REVOKED = "business.entitlement_revoked"
-    # noqa comments: S105 misreads these event *names* as passwords.
+    # S105 suppressions: these are event names, not credentials.
     AUTH_PASSWORD_RESET_ISSUED = "auth.password_reset_issued"  # noqa: S105
     AUTH_PASSWORD_RESET_COMPLETED = "auth.password_reset_completed"  # noqa: S105
