@@ -214,10 +214,10 @@ class TestArgonPrevalidation:
             calls.append("hash")
             return original(password)
 
-        # Patch where redemption resolves it (the recovery module).
-        from app.domains.identity import recovery
-
-        monkeypatch.setattr(recovery.security, "hash_password", counting)
+        # The recovery module resolves security.hash_password at call time,
+        # so patching the source module intercepts exactly its KDF calls
+        # (login uses verify_password, which is untouched).
+        monkeypatch.setattr("app.core.security.hash_password", counting)
         return calls
 
     def test_invalid_expired_revoked_used_tokens_skip_argon2(
