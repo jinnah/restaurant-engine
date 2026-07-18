@@ -8,6 +8,7 @@ orchestrate more than one domain. The router establishes the permanent
 
 from fastapi import APIRouter
 
+from app.api.audit_router import audit_business_router, audit_platform_router
 from app.api.session_router import session_router
 from app.domains.businesses.router import business_router
 from app.domains.businesses.router_invitations import invitations_router
@@ -37,3 +38,6 @@ api_v1_router.include_router(recovery_public_router)
 # redemption. Platform invitation routes live on the platform router.
 api_v1_router.include_router(invitations_router)
 api_v1_router.include_router(onboarding_router)
+# Audit lists (M2D): application composition — authz here, audit stays pure.
+api_v1_router.include_router(audit_platform_router)
+api_v1_router.include_router(audit_business_router)
