@@ -5,6 +5,7 @@ Runs against real PostgreSQL (locks, partial uniques, and SQL-clock expiry
 are the subject under test).
 """
 
+import threading
 from typing import Any
 
 import pytest
@@ -200,6 +201,113 @@ class TestRedemption:
         assert _redeem(client, token, password="short").status_code == 422
         # The failed attempt consumed nothing.
         assert _redeem(client, token).status_code == 200
+
+
+class TestConcurrentRedemption:
+    """Genuinely overlapping double-redemption of one token (addendum
+    requirement).
+
+    A barrier inside ``hash_password`` — which both requests reach only
+    after passing phase-1 prevalidation, at the point where no transaction
+    or row lock is held (phase 1 was rolled back, phase 2 has not begun) —
+    deterministically holds both requests past eligibility before either
+    enters the authoritative locked phase. The User → ResetToken locking
+    must then let exactly one win.
+    """
+
+    def test_concurrent_double_redeem_one_winner_one_neutral_404(
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        migrated_engine: Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        create_user(TARGET, failed_login_count=3, last_failed_seconds_ago=10.0)
+        csrf = _admin_csrf(client, create_user)
+        token = _issue(client, csrf).json()["token"]
+        passwords = {"Racer One": "racer one password 1!", "Racer Two": "racer two password 2!"}
+
+        barrier = threading.Barrier(2)
+        real_hash = security.hash_password
+
+        def synchronized_hash(password: str) -> str:
+            # Rendezvous between the two phases: a broken barrier (one side
+            # never arrived) raises and fails the request loudly rather
+            # than hanging the test.
+            barrier.wait(timeout=15)
+            return real_hash(password)
+
+        responses: dict[str, Any] = {}
+        failures: dict[str, Exception] = {}
+
+        def attempt(name: str, public: TestClient) -> None:
+            try:
+                responses[name] = _redeem(public, token, password=passwords[name])
+            except Exception as exc:  # surfaced as a test failure below
+                failures[name] = exc
+
+        # Each request runs on its own TestClient (own portal/event loop)
+        # and therefore its own request-scoped SQLAlchemy session; nothing
+        # database-facing is shared between the two threads. The victim
+        # session exists before the race and must be revoked by the winner.
+        with (
+            TestClient(client.app) as victim,
+            TestClient(client.app) as first,
+            TestClient(client.app) as second,
+        ):
+            assert login(victim, email=TARGET).status_code == 200
+            assert victim.get("/api/v1/auth/session").status_code == 200
+
+            monkeypatch.setattr("app.core.security.hash_password", synchronized_hash)
+            threads = [
+                threading.Thread(target=attempt, args=("Racer One", first), daemon=True),
+                threading.Thread(target=attempt, args=("Racer Two", second), daemon=True),
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=30)
+            assert not any(t.is_alive() for t in threads), "concurrent redeems did not finish"
+            assert not failures, f"request thread raised: {failures}"
+            monkeypatch.setattr("app.core.security.hash_password", real_hash)
+
+            # Exactly one contractual success, exactly one neutral 404.
+            assert sorted(r.status_code for r in responses.values()) == [200, 404], {
+                name: response.text for name, response in responses.items()
+            }
+            winner_name = next(n for n, r in responses.items() if r.status_code == 200)
+            loser_name = next(n for n, r in responses.items() if r.status_code == 404)
+            loser_body = responses[loser_name].json()["error"]
+            assert loser_body["message"] == "Reset token is not valid or has expired."
+
+            # Every pre-existing session was revoked by the winning redeem.
+            assert victim.get("/api/v1/auth/session").status_code == 401
+
+        with migrated_engine.connect() as connection:
+            row = connection.execute(
+                text(
+                    "SELECT password_hash, failed_login_count, last_failed_login_at"
+                    " FROM users WHERE email_normalized = :email"
+                ),
+                {"email": TARGET},
+            ).one()
+            consumed = connection.execute(
+                text(
+                    "SELECT count(*) FILTER (WHERE used_at IS NOT NULL) AS used, count(*) AS total"
+                    " FROM password_reset_tokens"
+                )
+            ).one()
+        # The token was consumed exactly once; no partial rows appeared.
+        assert (consumed.used, consumed.total) == (1, 1)
+        # The winner's password is the final one; the loser's never landed.
+        assert security.verify_password(row.password_hash, passwords[winner_name])
+        assert not security.verify_password(row.password_hash, passwords[loser_name])
+        # Backoff pair cleared atomically with the reset.
+        assert row.failed_login_count == 0
+        assert row.last_failed_login_at is None
+        # Behavioral proof: the winning password authenticates.
+        with TestClient(client.app) as fresh:
+            assert login(fresh, email=TARGET, password=passwords[winner_name]).status_code == 200
 
 
 class TestArgonPrevalidation:

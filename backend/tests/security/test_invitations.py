@@ -5,6 +5,7 @@ Real PostgreSQL throughout — locks, partial uniques, and SQL-clock expiry
 are the subject under test.
 """
 
+import threading
 import uuid
 from typing import Any
 
@@ -292,7 +293,7 @@ class TestAcceptanceNewUser:
         assert row.role == "manager"
         assert row.accepted_at is not None
 
-    def test_single_use_and_concurrent_second_accept_fails(
+    def test_single_use_sequential_second_accept_fails(
         self, client: TestClient, active_business: uuid.UUID
     ) -> None:
         csrf = login_as(client, OWNER)
@@ -377,6 +378,99 @@ class TestAcceptanceNewUser:
                 {"email": INVITEE},
             ).all()
         assert [row.business_id for row in rows] == [active_business]
+
+
+class TestConcurrentAcceptance:
+    """Genuinely overlapping double-accept of one token (addendum requirement).
+
+    A barrier inside ``hash_password`` — which both requests reach only
+    after passing phase-1 prevalidation, at the point where no transaction
+    or row lock is held (phase 1 was rolled back, phase 2 has not begun) —
+    deterministically holds both requests past eligibility before either
+    enters the authoritative locked phase. The ``FOR UPDATE`` + locked
+    revalidation design must then let exactly one win.
+    """
+
+    def test_concurrent_double_accept_one_winner_one_neutral_404(
+        self,
+        client: TestClient,
+        active_business: uuid.UUID,
+        migrated_engine: Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        csrf = login_as(client, OWNER)
+        token = _issue(client, csrf, active_business, role="staff").json()["token"]
+
+        barrier = threading.Barrier(2)
+        real_hash = security.hash_password
+
+        def synchronized_hash(password: str) -> str:
+            # Rendezvous between the two phases: a broken barrier (one side
+            # never arrived) raises and fails the request loudly rather
+            # than hanging the test.
+            barrier.wait(timeout=15)
+            return real_hash(password)
+
+        monkeypatch.setattr("app.core.security.hash_password", synchronized_hash)
+
+        responses: dict[str, Any] = {}
+        failures: dict[str, Exception] = {}
+
+        def attempt(name: str, public: TestClient) -> None:
+            try:
+                responses[name] = _accept(public, token, display_name=name)
+            except Exception as exc:  # surfaced as a test failure below
+                failures[name] = exc
+
+        # Each request runs on its own TestClient (own portal/event loop)
+        # and therefore its own request-scoped SQLAlchemy session; nothing
+        # database-facing is shared between the two threads.
+        with TestClient(client.app) as first, TestClient(client.app) as second:
+            threads = [
+                threading.Thread(target=attempt, args=("Racer One", first), daemon=True),
+                threading.Thread(target=attempt, args=("Racer Two", second), daemon=True),
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=30)
+            assert not any(t.is_alive() for t in threads), "concurrent accepts did not finish"
+        assert not failures, f"request thread raised: {failures}"
+        monkeypatch.setattr("app.core.security.hash_password", real_hash)
+
+        # Exactly one contractual success, exactly one neutral 404.
+        assert sorted(r.status_code for r in responses.values()) == [201, 404], {
+            name: response.text for name, response in responses.items()
+        }
+        winner = next(r for r in responses.values() if r.status_code == 201)
+        loser = next(r for r in responses.values() if r.status_code == 404)
+        assert winner.json()["status"] == "accepted"
+        assert loser.json()["error"]["message"] == _INVALID_MESSAGE
+        # No auto-login on either outcome.
+        assert "set-cookie" not in winner.headers
+        assert "set-cookie" not in loser.headers
+
+        with migrated_engine.connect() as connection:
+            users = connection.execute(
+                text("SELECT id FROM users WHERE email_normalized = :email"),
+                {"email": INVITEE},
+            ).all()
+            assert len(users) == 1, "the race must not create a duplicate account"
+            user_id = users[0].id
+            membership_rows = connection.execute(
+                text("SELECT business_id FROM memberships WHERE user_id = :uid"),
+                {"uid": user_id},
+            ).all()
+            assert [row.business_id for row in membership_rows] == [active_business]
+            invitation = connection.execute(
+                text("SELECT accepted_at, accepted_user_id FROM business_invitations")
+            ).one()  # .one() doubles as the no-duplicate-invitation assertion
+            assert invitation.accepted_at is not None
+            assert invitation.accepted_user_id == user_id
+            sessions = connection.execute(
+                text("SELECT count(*) FROM sessions WHERE user_id = :uid"), {"uid": user_id}
+            ).scalar_one()
+            assert sessions == 0, "acceptance must never create a session"
 
 
 class TestAcceptanceExistingUser:
