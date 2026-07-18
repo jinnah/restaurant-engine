@@ -121,6 +121,15 @@ CI. Operation IDs are explicit contracts, validated at application
 composition time. Applications consume only the facade — the first real
 consumers, and with them the CORS origin decision, arrive in Milestone 2.
 
+**Control-center API consumption (M2E, ADR-015):** the control center is
+the facade's first application consumer, with an origin-relative base URL
+(`/api/...` under the page origin). Development uses a same-origin Vite
+proxy to the API; production serves both behind one reverse-proxy origin.
+The deferred CORS decision is thereby resolved: **no CORS middleware
+exists** — there is no cross-origin surface. Session state lives solely
+in a TanStack Query cache (opaque cookie session + in-memory CSRF token,
+ADR-010/ADR-015).
+
 **Frontend workspace conventions (M1B):** one root ESLint flat config and one
 root `tsconfig.base.json` own shared configuration as plain files — a shared
 package (`frontend-config`, `design-tokens`, `admin-ui`) is created only when
