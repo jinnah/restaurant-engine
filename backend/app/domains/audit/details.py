@@ -54,3 +54,30 @@ class BusinessStatusChangedDetails(AuditDetails):
 
     previous_status: str
     new_status: str
+
+
+class InvitationDetails(AuditDetails):
+    """A membership invitation was issued, revoked, or accepted (M2D).
+
+    Never the token or its hash — only the invited identity and role.
+    """
+
+    email_normalized: str
+    role: str
+
+
+class EntitlementDetails(AuditDetails):
+    """A product feature was granted to or revoked from a business (M2D)."""
+
+    feature_key: str
+
+
+class PasswordResetDetails(AuditDetails):
+    """A recovery token was issued or redeemed (M2D).
+
+    Never the token or its hash. The issuing administrator is the event's
+    actor; the affected account is the target and its email is recorded
+    here (platform-user emails are allowed operational identifiers).
+    """
+
+    email_normalized: str

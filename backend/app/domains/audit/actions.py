@@ -23,3 +23,12 @@ class AuditAction(StrEnum):
     BUSINESS_SUSPENDED = "business.suspended"
     BUSINESS_REACTIVATED = "business.reactivated"
     BUSINESS_CLOSED = "business.closed"
+    # M2D: onboarding, recovery, and entitlements (ADR-014).
+    BUSINESS_INVITATION_ISSUED = "business.invitation_issued"
+    BUSINESS_INVITATION_REVOKED = "business.invitation_revoked"
+    BUSINESS_INVITATION_ACCEPTED = "business.invitation_accepted"
+    BUSINESS_ENTITLEMENT_GRANTED = "business.entitlement_granted"
+    BUSINESS_ENTITLEMENT_REVOKED = "business.entitlement_revoked"
+    # noqa comments: S105 misreads these event *names* as passwords.
+    AUTH_PASSWORD_RESET_ISSUED = "auth.password_reset_issued"  # noqa: S105
+    AUTH_PASSWORD_RESET_COMPLETED = "auth.password_reset_completed"  # noqa: S105

@@ -69,6 +69,14 @@ class Settings(BaseSettings):
     # labels (api/admin/www) are the reserved-slug set and are never tenants.
     platform_base_domain: str = "localhost"
 
+    # --- Onboarding and recovery tokens (M2D, ADR-014) ---------------------
+    # Single-use token lifetimes. Both are decided on the DATABASE clock:
+    # expires_at is computed in SQL at insert and validity always compares
+    # against now() in SQL, so application-clock skew cannot change an
+    # expiry decision. Bounds keep a typo from minting near-immortal tokens.
+    invitation_expiry_days: int = Field(default=7, ge=1, le=30)
+    password_reset_expiry_minutes: int = Field(default=60, ge=5, le=1440)
+
     @field_validator("platform_base_domain")
     @classmethod
     def _valid_base_domain(cls, value: str) -> str:

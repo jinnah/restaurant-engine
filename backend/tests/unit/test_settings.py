@@ -200,3 +200,25 @@ class TestLogLevel:
     def test_unknown_level_is_rejected(self) -> None:
         with pytest.raises(ValidationError):
             build(database_url=VALID_URL, log_level="verbose")
+
+
+class TestM2dTokenExpirySettings:
+    """ADR-014: bounded single-use token lifetimes."""
+
+    def test_defaults(self) -> None:
+        settings = build(database_url=VALID_URL)
+        assert settings.invitation_expiry_days == 7
+        assert settings.password_reset_expiry_minutes == 60
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("invitation_expiry_days", 0),
+            ("invitation_expiry_days", 31),
+            ("password_reset_expiry_minutes", 4),
+            ("password_reset_expiry_minutes", 1441),
+        ],
+    )
+    def test_out_of_bounds_lifetimes_are_rejected(self, field: str, value: int) -> None:
+        with pytest.raises(ValidationError):
+            build(database_url=VALID_URL, **{field: value})

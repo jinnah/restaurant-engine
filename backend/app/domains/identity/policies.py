@@ -32,29 +32,62 @@ class Role(StrEnum):
 
 
 class Capability(StrEnum):
-    """Named capabilities enforced in M2B.
+    """Named capabilities enforced in M2B/M2D.
 
     Append-only, like the error and audit registries: capabilities are
-    added in the change that first enforces them. M2B enforces exactly two
-    — catalog/order/entitlement capabilities arrive with their milestones.
+    added in the change that first enforces them.
     """
 
     # Platform-scoped (conferred by is_platform_admin).
     PLATFORM_BUSINESSES_MANAGE = "platform.businesses.manage"
+    # Account recovery is account-takeover-equivalent authority (ADR-014):
+    # audited on every issuance, and there is no public issuance path.
+    PLATFORM_USERS_RECOVER = "platform.users.recover"
+    PLATFORM_AUDIT_READ = "platform.audit.read"
     # Business-scoped (conferred by a membership role).
     BUSINESS_VIEW = "business.view"
+    BUSINESS_MEMBERS_INVITE = "business.members.invite"
+    BUSINESS_AUDIT_READ = "business.audit.read"
 
 
-PLATFORM_CAPABILITIES: frozenset[Capability] = frozenset({Capability.PLATFORM_BUSINESSES_MANAGE})
+PLATFORM_CAPABILITIES: frozenset[Capability] = frozenset(
+    {
+        Capability.PLATFORM_BUSINESSES_MANAGE,
+        Capability.PLATFORM_USERS_RECOVER,
+        Capability.PLATFORM_AUDIT_READ,
+    }
+)
 
 # Every role maps to a capability set; every business role can view its
-# business. No role differentiates further in M2B (no catalog/order
-# surface exists yet), so the map is deliberately uniform here.
+# business. Owners and managers may invite members and read the business
+# audit trail (ADR-014 rulings); staff may not.
 CAPABILITIES_BY_ROLE: dict[Role, frozenset[Capability]] = {
-    Role.OWNER: frozenset({Capability.BUSINESS_VIEW}),
-    Role.MANAGER: frozenset({Capability.BUSINESS_VIEW}),
+    Role.OWNER: frozenset(
+        {
+            Capability.BUSINESS_VIEW,
+            Capability.BUSINESS_MEMBERS_INVITE,
+            Capability.BUSINESS_AUDIT_READ,
+        }
+    ),
+    Role.MANAGER: frozenset(
+        {
+            Capability.BUSINESS_VIEW,
+            Capability.BUSINESS_MEMBERS_INVITE,
+            Capability.BUSINESS_AUDIT_READ,
+        }
+    ),
     Role.STAFF: frozenset({Capability.BUSINESS_VIEW}),
 }
+
+# Rank order for the invitation role ceiling (ADR-014): an actor may only
+# issue, replace, or revoke an invitation whose role does not outrank their
+# own. Platform administrators bypass rank through the platform route only.
+_ROLE_RANK: dict[Role, int] = {Role.OWNER: 3, Role.MANAGER: 2, Role.STAFF: 1}
+
+
+def role_outranks(role: Role, other: Role) -> bool:
+    """True when ``role`` strictly outranks ``other``."""
+    return _ROLE_RANK[role] > _ROLE_RANK[other]
 
 
 def role_has_capability(role: Role, capability: Capability) -> bool:

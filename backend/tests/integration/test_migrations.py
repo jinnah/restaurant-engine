@@ -262,17 +262,17 @@ def test_m2d_constraints_and_round_trip_with_real_rows(empty_database_url: str) 
                     "INSERT INTO business_invitations (id, business_id, email,"
                     " email_normalized, role, token_hash, invited_by_user_id, expires_at)"
                     " VALUES (gen_random_uuid(), :bid, 'b@x.com', 'b@x.com', 'staff',"
-                    f" '{_SHA_A}', :uid, now() + interval '7 days')"
+                    " :th, :uid, now() + interval '7 days')"
                 ),
-                {"bid": business_id, "uid": user_id},
+                {"bid": business_id, "uid": user_id, "th": _SHA_A},
             )
             connection.execute(
                 text(
                     "INSERT INTO password_reset_tokens (id, user_id, token_hash,"
                     " issued_by_user_id, expires_at) VALUES (gen_random_uuid(), :uid,"
-                    f" '{_SHA_B}', :uid, now() + interval '60 minutes')"
+                    " :th, :uid, now() + interval '60 minutes')"
                 ),
-                {"uid": user_id},
+                {"uid": user_id, "th": _SHA_B},
             )
             connection.execute(
                 text(
@@ -295,15 +295,15 @@ def test_m2d_constraints_and_round_trip_with_real_rows(empty_database_url: str) 
             "INSERT INTO business_invitations (id, business_id, email,"
             " email_normalized, role, token_hash, invited_by_user_id, expires_at)"
             " VALUES (gen_random_uuid(), :bid, 'b@x.com', 'b@x.com', 'staff',"
-            f" '{_SHA_C}', :uid, now() + interval '7 days')",
-            {"bid": business_id, "uid": user_id},
+            " :th, :uid, now() + interval '7 days')",
+            {"bid": business_id, "uid": user_id, "th": _SHA_C},
         ), "second live invitation for the same business+email must violate"
         # Partial unique: a second live reset token for the same user.
         assert _rejected(
             "INSERT INTO password_reset_tokens (id, user_id, token_hash,"
             " issued_by_user_id, expires_at) VALUES (gen_random_uuid(), :uid,"
-            f" '{_SHA_C}', :uid, now() + interval '60 minutes')",
-            {"uid": user_id},
+            " :th, :uid, now() + interval '60 minutes')",
+            {"uid": user_id, "th": _SHA_C},
         ), "second live reset token for the same user must violate"
         # Token-shape CHECK: a raw (non-hex) token must never be storable.
         assert _rejected(
