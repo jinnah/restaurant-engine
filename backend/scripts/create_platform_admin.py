@@ -26,6 +26,12 @@ from sqlalchemy.orm import Session
 
 from app.core.database import create_database_engine
 from app.core.settings import load_settings
+
+# Standalone scripts must load the COMPLETE model registry, exactly like
+# migrations/env.py: audit_events references businesses.id, so a partial
+# registry cannot flush (NoReferencedTableError). The service import
+# below pulls in identity and audit; businesses must be explicit.
+from app.domains.businesses import models as _businesses_models  # noqa: F401
 from app.domains.identity.service import create_platform_admin
 
 
