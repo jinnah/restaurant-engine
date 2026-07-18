@@ -16,6 +16,7 @@ from app.core.cache_control import NoStoreApiMiddleware
 from app.core.correlation import CorrelationIdMiddleware
 from app.core.database import create_database_engine, create_session_factory
 from app.core.errors import register_error_handlers
+from app.core.host_guard import KnownHostGuardMiddleware
 from app.core.logging import RequestLoggingMiddleware, configure_logging
 from app.core.openapi import assert_contract_operation_ids
 from app.core.settings import Settings, load_settings
@@ -50,8 +51,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
 
-    # Outermost middleware runs first: the correlation ID must exist before
-    # the request log event is emitted.
+    # add_middleware wraps outward, so the LAST call is the OUTERMOST layer.
+    # Resulting order, outer → inner:
+    #   NoStore → CorrelationId → RequestLogging → KnownHostGuard → app
+    # so the host guard runs with a bound correlation id (its ADR-008 400
+    # carries it), is logged like any request, and its /api/v1 rejections are
+    # stamped no-store — while never running for exempt public/health paths.
+    app.add_middleware(KnownHostGuardMiddleware, settings=settings)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(CorrelationIdMiddleware)
     # API responses carry session/CSRF/account data: never cached (ADR-010).

@@ -7,15 +7,28 @@ bind every implementation milestone; none is implemented during Milestone 0.
 
 ### Tenant resolution
 
-Public resolution order:
+**Implemented in M2C (ADR-013).** A public request is resolved to a Business
+from the request **Host only** — the single subdomain label directly under
+`PLATFORM_BASE_DOMAIN` is the candidate slug, matched to an **active**
+Business by canonical slug. Host normalization is parser-level and
+fail-closed; IP literals and the bare apex never resolve; there is **no**
+development header/query/cookie override, in any environment (development
+uses `{slug}.localhost`). Approved custom-domain exact match is the eventual
+first step in the resolution order but remains **deferred** (blueprint §17.2)
+until domain-ownership verification and certificate automation exist.
 
-1. approved custom-domain exact match, when that capability is enabled;
-2. canonical subdomain slug;
-3. explicit development-only header or query parameter, never in production.
+The reserved labels `api`, `admin`, and `www` are platform infrastructure
+hosts and are never tenants: one policy source rejects them at Business
+creation (422) and treats them as unresolved during public resolution.
 
 Administrative tenant selection comes from an authenticated membership plus a
 route tenant identifier. The server validates the membership; it never trusts
 a tenant header by itself.
+
+Forwarded headers (`X-Forwarded-*`) are never consulted for resolution
+(proxy trust remains an M8 decision). A non-exempt API route whose Host is
+not a recognized platform host family is rejected with an ADR-008 400 — Host
+validation is routing hardening, not tenant authentication.
 
 ### Data rules
 

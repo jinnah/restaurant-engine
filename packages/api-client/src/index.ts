@@ -25,6 +25,7 @@ export type {
   PlatformApi,
 } from './platform';
 export type { BusinessesApi } from './businesses';
+export type { PublicApi, PublicSiteSummary } from './public';
 export { isErrorEnvelope } from './errors';
 export type {
   ErrorCode,

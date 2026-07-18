@@ -11,6 +11,7 @@ from fastapi import APIRouter
 from app.api.session_router import session_router
 from app.domains.businesses.router import business_router
 from app.domains.businesses.router_platform import platform_router
+from app.domains.businesses.router_public import public_router
 from app.domains.identity.router import auth_router
 
 api_v1_router = APIRouter()
@@ -21,3 +22,5 @@ api_v1_router.include_router(session_router)
 # Businesses: platform lifecycle management + the business-scoped member read.
 api_v1_router.include_router(platform_router)
 api_v1_router.include_router(business_router)
+# Public, host-resolved storefront surface (M2C); unauthenticated.
+api_v1_router.include_router(public_router)

@@ -206,6 +206,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/site": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public Site Get
+         * @description Minimal public summary of the Business resolved from the Host.
+         */
+        get: operations["public_site_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health/live": {
         parameters: {
             query?: never;
@@ -422,6 +442,25 @@ export interface components {
             business_status: string;
             /** Role */
             role: string;
+        };
+        /**
+         * PublicSiteSummary
+         * @description Minimal public projection returned for a resolved active business
+         *     (M2C, ADR-013).
+         *
+         *     Deliberately narrow: a 200 already proves the business is active, so no
+         *     ``status`` field is needed, and no id/timestamps/management data are
+         *     exposed on the unauthenticated surface.
+         */
+        PublicSiteSummary: {
+            /** Currency */
+            currency: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Timezone */
+            timezone: string;
         };
         /** ReadinessResponse */
         ReadinessResponse: {
@@ -1109,6 +1148,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    public_site_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicSiteSummary"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
         };

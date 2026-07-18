@@ -8,11 +8,13 @@ import { createAuthApi, type AuthApi } from './auth';
 import { createBusinessesApi, type BusinessesApi } from './businesses';
 import { createHealthMethods, type HealthMethods } from './health';
 import { createPlatformApi, type PlatformApi } from './platform';
+import { createPublicApi, type PublicApi } from './public';
 
 export interface ApiClient extends HealthMethods {
   auth: AuthApi;
   platform: PlatformApi;
   businesses: BusinessesApi;
+  public: PublicApi;
 }
 
 export function createApiClient(options: ApiClientOptions): ApiClient {
@@ -22,5 +24,6 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     auth: createAuthApi(client),
     platform: createPlatformApi(client),
     businesses: createBusinessesApi(client),
+    public: createPublicApi(client),
   };
 }
