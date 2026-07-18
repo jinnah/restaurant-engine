@@ -12,6 +12,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.core.security import PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH
+from app.domains.businesses.features import FeatureKey
 from app.domains.businesses.slugs import is_reserved, is_slug_shaped
 from app.domains.identity.policies import Role
 
@@ -217,3 +218,26 @@ class InvitationAcceptedResponse(BaseModel):
 
 class InvitationRevokedResponse(BaseModel):
     status: Literal["revoked"]
+
+
+class EntitlementSet(BaseModel):
+    """Platform command: the complete desired feature set (idempotent).
+
+    Unknown keys fail schema validation (422) — the registry is the closed
+    value set.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    features: list[FeatureKey]
+
+    @field_validator("features")
+    @classmethod
+    def _deduplicate(cls, value: list[FeatureKey]) -> list[FeatureKey]:
+        return sorted(set(value))
+
+
+class EntitlementsResponse(BaseModel):
+    """The effective (recognized, enabled) feature set of a business."""
+
+    features: list[FeatureKey]

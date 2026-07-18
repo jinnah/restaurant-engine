@@ -16,13 +16,15 @@ from sqlalchemy.orm import Session
 from app.core.database import get_session
 from app.core.errors import ErrorEnvelope
 from app.core.settings import Settings
-from app.domains.businesses import invitations, service
+from app.domains.businesses import entitlements, invitations, service
 from app.domains.businesses.router_invitations import invitation_page, issue_response
 from app.domains.businesses.schemas import (
     BusinessCreate,
     BusinessPage,
     BusinessSummary,
     EmptyCommand,
+    EntitlementSet,
+    EntitlementsResponse,
     InvitationCreate,
     InvitationIssueResponse,
     InvitationPage,
@@ -211,3 +213,24 @@ def platform_invitation_revoke(
     """Revoke any pending invitation (any business status)."""
     invitations.revoke_invitation(db, actor, business_id, invitation_id, via_platform=True)
     return InvitationRevokedResponse(status="revoked")
+
+
+# --- Entitlements (M2D, ADR-014) --------------------------------------------
+
+
+@platform_router.put(
+    "/{business_id}/entitlements",
+    operation_id="platform_business_entitlements_set",
+    responses=_ENVELOPES_STATE,
+)
+def platform_business_entitlements_set(
+    business_id: uuid.UUID,
+    payload: EntitlementSet,
+    db: Annotated[Session, Depends(get_session)],
+    actor: Annotated[ActorContext, Depends(csrf_protected_actor)],
+) -> EntitlementsResponse:
+    """Replace the business's feature set (idempotent; diff is audited)."""
+    effective = entitlements.set_entitlements(
+        db, actor, business_id, features=set(payload.features)
+    )
+    return EntitlementsResponse(features=effective)
