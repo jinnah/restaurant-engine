@@ -13,6 +13,10 @@ from app.domains.businesses.router import business_router
 from app.domains.businesses.router_platform import platform_router
 from app.domains.businesses.router_public import public_router
 from app.domains.identity.router import auth_router
+from app.domains.identity.router_recovery import (
+    recovery_platform_router,
+    recovery_public_router,
+)
 
 api_v1_router = APIRouter()
 # Identity credential operations (login/logout).
@@ -24,3 +28,6 @@ api_v1_router.include_router(platform_router)
 api_v1_router.include_router(business_router)
 # Public, host-resolved storefront surface (M2C); unauthenticated.
 api_v1_router.include_router(public_router)
+# Recovery (M2D): platform-issued reset tokens + public redemption.
+api_v1_router.include_router(recovery_platform_router)
+api_v1_router.include_router(recovery_public_router)
