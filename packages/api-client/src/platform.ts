@@ -7,12 +7,43 @@
 
 import type { Client } from 'openapi-fetch';
 
+import type {
+  AuditEventPage,
+  EntitlementsResponse,
+  InvitationCreate,
+  InvitationIssueResponse,
+  InvitationPage,
+  InvitationRevokedResponse,
+} from './businesses';
 import type { components, paths } from './generated/schema';
 import { toResult, type ApiResult } from './result';
 
 type GeneratedBusinessCreate = components['schemas']['BusinessCreate'];
 export type BusinessSummary = components['schemas']['BusinessSummary'];
 export type BusinessPage = components['schemas']['BusinessPage'];
+// M2D (ADR-014): onboarding, recovery, entitlements, audit access.
+export type PasswordResetIssueRequest =
+  components['schemas']['PasswordResetIssueRequest'];
+export type PasswordResetIssueResponse =
+  components['schemas']['PasswordResetIssueResponse'];
+export type EntitlementSet = components['schemas']['EntitlementSet'];
+export type FeatureKey = components['schemas']['FeatureKey'];
+
+type PlatformAuditQuery = NonNullable<
+  paths['/api/v1/platform/audit-events']['get']['parameters']['query']
+>;
+/** Registered audit-action names (unknown values are rejected with 422). */
+export type AuditAction = NonNullable<PlatformAuditQuery['action']>;
+
+/** Shared audit cursor/filter parameters (camelCase facade ergonomics). */
+export interface AuditListParams {
+  limit?: number;
+  beforeId?: number;
+  action?: AuditAction;
+  /** UTC-aware ISO-8601 (naive datetimes are rejected with 422). */
+  occurredAfter?: string;
+  occurredBefore?: string;
+}
 
 /**
  * Fields the backend supplies server-side defaults for. The OpenAPI
@@ -65,6 +96,39 @@ export interface PlatformApi {
     businessId: string,
     csrfToken: string,
   ): Promise<ApiResult<BusinessSummary>>;
+  /** Invite a member of any role — owner bootstrap included (M2D). */
+  createInvitation(
+    businessId: string,
+    body: InvitationCreate,
+    csrfToken: string,
+  ): Promise<ApiResult<InvitationIssueResponse>>;
+  listInvitations(
+    businessId: string,
+    params?: { limit?: number; offset?: number },
+  ): Promise<ApiResult<InvitationPage>>;
+  revokeInvitation(
+    businessId: string,
+    invitationId: string,
+    csrfToken: string,
+  ): Promise<ApiResult<InvitationRevokedResponse>>;
+  /** Replace the business's feature set (idempotent full-set PUT). */
+  setEntitlements(
+    businessId: string,
+    body: EntitlementSet,
+    csrfToken: string,
+  ): Promise<ApiResult<EntitlementsResponse>>;
+  /**
+   * Issue a single-use password-reset token (account-takeover-equivalent
+   * authority; audited). The raw token is returned exactly once.
+   */
+  issuePasswordReset(
+    body: PasswordResetIssueRequest,
+    csrfToken: string,
+  ): Promise<ApiResult<PasswordResetIssueResponse>>;
+  /** Platform-wide audit stream (cursor on id DESC). */
+  listAuditEvents(
+    params?: AuditListParams & { actorUserId?: string; businessId?: string },
+  ): Promise<ApiResult<AuditEventPage>>;
 }
 
 export function createPlatformApi(client: Client<paths>): PlatformApi {
@@ -158,6 +222,101 @@ export function createPlatformApi(client: Client<paths>): PlatformApi {
         const { data, error, response } = await client.POST(
           '/api/v1/platform/businesses/{business_id}/close',
           { ...path(businessId), body: {}, headers: csrf(csrfToken) },
+        );
+        return toResult(data, error, response);
+      } catch {
+        return { ok: false, status: null, envelope: null };
+      }
+    },
+
+    async createInvitation(businessId, body, csrfToken) {
+      try {
+        const { data, error, response } = await client.POST(
+          '/api/v1/platform/businesses/{business_id}/invitations',
+          { ...path(businessId), body, headers: csrf(csrfToken) },
+        );
+        return toResult(data, error, response);
+      } catch {
+        return { ok: false, status: null, envelope: null };
+      }
+    },
+
+    async listInvitations(businessId, params) {
+      try {
+        const { data, error, response } = await client.GET(
+          '/api/v1/platform/businesses/{business_id}/invitations',
+          {
+            params: {
+              path: { business_id: businessId },
+              query: { limit: params?.limit, offset: params?.offset },
+            },
+          },
+        );
+        return toResult(data, error, response);
+      } catch {
+        return { ok: false, status: null, envelope: null };
+      }
+    },
+
+    async revokeInvitation(businessId, invitationId, csrfToken) {
+      try {
+        const { data, error, response } = await client.POST(
+          '/api/v1/platform/businesses/{business_id}/invitations/{invitation_id}/revoke',
+          {
+            params: {
+              path: { business_id: businessId, invitation_id: invitationId },
+            },
+            body: {},
+            headers: csrf(csrfToken),
+          },
+        );
+        return toResult(data, error, response);
+      } catch {
+        return { ok: false, status: null, envelope: null };
+      }
+    },
+
+    async setEntitlements(businessId, body, csrfToken) {
+      try {
+        const { data, error, response } = await client.PUT(
+          '/api/v1/platform/businesses/{business_id}/entitlements',
+          { ...path(businessId), body, headers: csrf(csrfToken) },
+        );
+        return toResult(data, error, response);
+      } catch {
+        return { ok: false, status: null, envelope: null };
+      }
+    },
+
+    async issuePasswordReset(body, csrfToken) {
+      try {
+        const { data, error, response } = await client.POST(
+          '/api/v1/platform/password-resets',
+          { body, headers: csrf(csrfToken) },
+        );
+        return toResult(data, error, response);
+      } catch {
+        return { ok: false, status: null, envelope: null };
+      }
+    },
+
+    async listAuditEvents(params) {
+      try {
+        const { data, error, response } = await client.GET(
+          '/api/v1/platform/audit-events',
+          {
+            params: {
+              query: {
+                limit: params?.limit,
+                before_id: params?.beforeId,
+                action: params?.action,
+                occurred_after: params?.occurredAfter,
+                occurred_before: params?.occurredBefore,
+                actor_user_id: params?.actorUserId,
+                business_id: params?.businessId,
+              },
+            },
+          },
         );
         return toResult(data, error, response);
       } catch {

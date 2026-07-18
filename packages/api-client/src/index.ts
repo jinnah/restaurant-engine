@@ -19,12 +19,41 @@ export type {
   UserSummary,
 } from './auth';
 export type {
+  AuditAction,
+  AuditListParams,
   BusinessCreate,
   BusinessPage,
   BusinessSummary,
+  EntitlementSet,
+  FeatureKey,
+  PasswordResetIssueRequest,
+  PasswordResetIssueResponse,
   PlatformApi,
 } from './platform';
-export type { BusinessesApi } from './businesses';
+export type {
+  AuditEventPage,
+  AuditEventSummary,
+  BusinessesApi,
+  EntitlementsResponse,
+  InvitationCreate,
+  InvitationIssueResponse,
+  InvitationPage,
+  InvitationRevokedResponse,
+  InvitationSummary,
+} from './businesses';
+export type {
+  InvitationAcceptedResponse,
+  InvitationAcceptExistingRequest,
+  InvitationAcceptRequest,
+  InvitationPreviewRequest,
+  InvitationPreviewResponse,
+  InvitationsApi,
+} from './invitations';
+export type {
+  PasswordResetRedeemRequest,
+  PasswordResetRedeemResponse,
+  PasswordResetsApi,
+} from './passwordResets';
 export type { PublicApi, PublicSiteSummary } from './public';
 export { isErrorEnvelope } from './errors';
 export type {
