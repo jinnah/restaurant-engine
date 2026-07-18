@@ -7,6 +7,7 @@ import { ErrorPage } from './routes/ErrorPage';
 import { LoginPage } from './routes/LoginPage';
 import { MembershipsHome } from './routes/MembershipsHome';
 import { NotFoundPage } from './routes/NotFoundPage';
+import { PasswordResetPage } from './routes/PasswordResetPage';
 import { RootLayout } from './routes/RootLayout';
 
 // Exported separately so tests exercise the real route table through a
@@ -32,6 +33,7 @@ export const routes: RouteObject[] = [
         children: [{ path: 'login', element: <LoginPage /> }],
       },
       { path: 'invitations/accept', element: <AcceptInvitationPage /> },
+      { path: 'password-reset', element: <PasswordResetPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
