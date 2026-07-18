@@ -1,6 +1,10 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { ClientProvider } from './api/ClientProvider';
+import { createBrowserClient } from './api/client';
+import { createQueryClient } from './api/queryClient';
 import { router } from './router';
 import './globals.css';
 
@@ -11,6 +15,10 @@ if (container === null) {
 
 createRoot(container).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <ClientProvider client={createBrowserClient()}>
+      <QueryClientProvider client={createQueryClient()}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </ClientProvider>
   </StrictMode>,
 );
