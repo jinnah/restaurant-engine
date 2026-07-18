@@ -102,7 +102,7 @@ export function PasswordResetPage() {
       <p className={styles.lede}>
         Paste the reset token you received and choose a new password.
       </p>
-      {failure !== null && <ErrorSummary message={failure.summary} />}
+      {failure !== null && <ErrorSummary failure={failure} />}
       <form noValidate onSubmit={onSubmit}>
         <TokenField
           id="reset-token"

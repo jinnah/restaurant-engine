@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import type { FormFailure } from './formErrors';
 import styles from './panels.module.css';
 
 /** Neutral session-bootstrap placeholder: renders while session state is
@@ -27,15 +28,18 @@ export function BootstrapErrorPanel({ retry }: { retry: () => void }) {
 }
 
 /** Focused error summary: receives focus when a submission fails so the
- * failure is announced and reachable by keyboard. */
-export function ErrorSummary({ message }: { message: string }) {
+ * failure is announced and reachable by keyboard. Focus keys off the
+ * failure object's identity — every failed submission produces a fresh
+ * object — so a repeated failure with the identical visible message is
+ * still re-focused and re-announced. */
+export function ErrorSummary({ failure }: { failure: FormFailure }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     ref.current?.focus();
-  }, [message]);
+  }, [failure]);
   return (
     <div ref={ref} tabIndex={-1} role="alert" className={styles.errorSummary}>
-      {message}
+      {failure.summary}
     </div>
   );
 }

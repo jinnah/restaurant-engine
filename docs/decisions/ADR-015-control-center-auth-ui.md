@@ -51,6 +51,15 @@ never race an automatic mount refetch into a loop. No second
 independently writable session or CSRF store exists. React peer range
 `^18 || ^19` is satisfied by the workspace's exact React 19.2.7.
 
+Direct establishment responses are generation-guarded: every
+`clearAuthenticatedState` and every `establishSession` attempt advances
+an internal session generation, and an establishment may write to the
+cache only if it is still the newest attempt when its response arrives.
+A response made stale by logout, password-reset success, a privileged
+401, or a later establishment attempt is discarded (a typed retryable
+failure), so it can neither restore cleared authenticated state nor
+overwrite a newer session result.
+
 ### 3. Authoritative session establishment after login
 
 `POST /auth/login` returns the lean `SessionResponse`; the enriched
@@ -140,7 +149,21 @@ stays app-local (CSS modules over the existing custom properties,
 mobile-first, 44px minimum targets); no `admin-ui` or `design-tokens`
 package exists until a second real consumer does.
 
-### 11. Live verification is a separately authorized step
+### 11. Accepted workspace dependency
+
+Consuming the facade required declaring
+`"@restaurant-engine/api-client": "workspace:*"` in
+`apps/control-center` — under pnpm's strict isolated resolution a
+workspace package must directly declare what it imports, and every
+alternative (deep generated-client imports, path aliases, raw fetch, a
+root-level declaration) violates ADR-009. The declaration was formally
+accepted after review as required and correct dependency architecture;
+it resolves as a workspace link and introduces no registry package. This
+acceptance is not a precedent: any future dependency need beyond an
+approved list still triggers the stop-and-ask rule before
+implementation.
+
+### 12. Live verification is a separately authorized step
 
 Component tests (mocked injected client) prove the flows; the literal
 proxy behavior — cookie round-trip, Host/Origin acceptance, relative

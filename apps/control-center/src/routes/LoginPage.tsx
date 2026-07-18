@@ -88,7 +88,7 @@ export function LoginPage() {
     <section className={styles.card} aria-labelledby="login-title">
       <h1 id="login-title">Sign in</h1>
       <p className={styles.lede}>Control center for Restaurant Engine.</p>
-      {failure !== null && <ErrorSummary message={failure.summary} />}
+      {failure !== null && <ErrorSummary failure={failure} />}
       <form noValidate onSubmit={onSubmit}>
         <div className={styles.field}>
           <label htmlFor="login-email">Email</label>

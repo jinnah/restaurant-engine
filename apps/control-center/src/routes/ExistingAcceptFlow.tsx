@@ -199,7 +199,7 @@ export function ExistingAcceptFlow({ session }: { session: SessionView }) {
           join <strong>{preview.data.business_name}</strong> as{' '}
           <strong>{preview.data.role}</strong> with this account.
         </p>
-        {failure !== null && <ErrorSummary message={failure.summary} />}
+        {failure !== null && <ErrorSummary failure={failure} />}
         <div className={styles.actions}>
           <button
             type="button"
@@ -236,7 +236,7 @@ export function ExistingAcceptFlow({ session }: { session: SessionView }) {
         You are signed in as <strong>{session.user.email}</strong>. Paste the
         invitation token to add its business to this account.
       </p>
-      {failure !== null && <ErrorSummary message={failure.summary} />}
+      {failure !== null && <ErrorSummary failure={failure} />}
       <form noValidate onSubmit={submitToken}>
         <TokenField
           id="accept-existing-token"

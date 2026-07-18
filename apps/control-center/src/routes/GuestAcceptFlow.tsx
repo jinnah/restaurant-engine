@@ -113,7 +113,7 @@ export function GuestAcceptFlow() {
       <section className={styles.card} aria-labelledby="accept-details-title">
         <h1 id="accept-details-title">Create your account</h1>
         <InvitationPreviewCard preview={preview.data} />
-        {failure !== null && <ErrorSummary message={failure.summary} />}
+        {failure !== null && <ErrorSummary failure={failure} />}
         <form noValidate onSubmit={submitDetails}>
           <div className={styles.field}>
             <label htmlFor="accept-display-name">Your name</label>
@@ -205,7 +205,7 @@ export function GuestAcceptFlow() {
       <p className={styles.lede}>
         Paste the invitation token you received to see the details.
       </p>
-      {failure !== null && <ErrorSummary message={failure.summary} />}
+      {failure !== null && <ErrorSummary failure={failure} />}
       <form noValidate onSubmit={submitToken}>
         <TokenField
           id="accept-token"
