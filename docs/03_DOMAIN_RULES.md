@@ -36,7 +36,18 @@ is a user flag, not a membership. Accounts are created only by the
 policy (12–128 chars) applies when setting passwords, never at login.
 Self-service password reset is deferred to the first email channel (M6 at
 the earliest); the interim recovery path is a platform-admin-issued
-single-use reset link (M2D).
+single-use reset token (M2D).
+
+**Implemented in M2D (ADR-014):** invitation acceptance is the product
+path that creates member accounts (the CLI remains platform-admin
+bootstrap and break-glass). Identity owns `password_reset_tokens` —
+single-use, SHA-256-stored, database-clock expiry, one live token per
+user — issued only by `platform.users.recover` (account-takeover-
+equivalent authority: audited, no public issuance) and redeemed publicly
+with a two-phase Argon2 guard; successful redemption resets backoff
+state and revokes every session. Identity also exposes the narrow
+no-commit creation functions the businesses onboarding service uses, so
+identity stays the sole owner of user/membership writes.
 
 ## Businesses (the tenant aggregate)
 
@@ -69,6 +80,16 @@ operations require the `platform.businesses.manage` capability (conferred
 by `users.is_platform_admin`, never a membership); business-scoped reads
 require `business.view` (a membership role). Nonmember/nonexistent → 404
 (existence non-disclosure); member lacking capability → 403.
+
+**Implemented in M2D (ADR-014):** businesses owns `business_invitations`
+(onboarding state: one live invitation per business + normalized email,
+role ceiling on issue/replace/revoke, platform bootstraps the first
+owner, revocation works in any status, uniform neutral 404 for every
+invalid public redemption, no auto-login) and `feature_entitlements`
+(append-only code registry seeded `online_ordering`; platform-only
+full-set PUT, closed businesses immutable; members read their effective
+set; unknown stored keys are fail-closed). Existing users join additional
+businesses through the authenticated, email-bound acceptance endpoint.
 
 ## Catalog
 
@@ -152,6 +173,13 @@ First actions: `auth.login_succeeded`, `auth.login_failed`,
 M2B adds the business lifecycle actions `business.created`,
 `business.activated`, `business.suspended`, `business.reactivated`,
 `business.closed`, tenant-scoped via `audit_events.business_id`.
+M2D adds invitation (`business.invitation_issued/revoked/accepted`),
+entitlement (`business.entitlement_granted/revoked`), and recovery
+(`auth.password_reset_issued/completed`) actions, plus the read APIs
+(ADR-014): a platform stream (`platform.audit.read`) and a business
+trail (`business.audit.read`, owner/manager) with exclusive-cursor
+pagination and **typed read-time detail projections** — stored JSON is
+never returned verbatim.
 
 ## Data model policies (blueprint §9)
 
