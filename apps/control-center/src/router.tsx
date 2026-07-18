@@ -1,6 +1,7 @@
 import { createBrowserRouter, type RouteObject } from 'react-router';
 import { GuestOnly } from './auth/GuestOnly';
 import { RequireAuth } from './auth/RequireAuth';
+import { AcceptInvitationPage } from './routes/AcceptInvitationPage';
 import { AppLayout } from './routes/AppLayout';
 import { ErrorPage } from './routes/ErrorPage';
 import { LoginPage } from './routes/LoginPage';
@@ -30,6 +31,7 @@ export const routes: RouteObject[] = [
         element: <GuestOnly />,
         children: [{ path: 'login', element: <LoginPage /> }],
       },
+      { path: 'invitations/accept', element: <AcceptInvitationPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
