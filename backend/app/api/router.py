@@ -10,6 +10,8 @@ from fastapi import APIRouter
 
 from app.api.session_router import session_router
 from app.domains.businesses.router import business_router
+from app.domains.businesses.router_invitations import invitations_router
+from app.domains.businesses.router_onboarding import onboarding_router
 from app.domains.businesses.router_platform import platform_router
 from app.domains.businesses.router_public import public_router
 from app.domains.identity.router import auth_router
@@ -31,3 +33,7 @@ api_v1_router.include_router(public_router)
 # Recovery (M2D): platform-issued reset tokens + public redemption.
 api_v1_router.include_router(recovery_platform_router)
 api_v1_router.include_router(recovery_public_router)
+# Onboarding (M2D): business-scoped invitation management + public
+# redemption. Platform invitation routes live on the platform router.
+api_v1_router.include_router(invitations_router)
+api_v1_router.include_router(onboarding_router)

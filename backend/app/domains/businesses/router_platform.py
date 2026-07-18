@@ -10,17 +10,23 @@ contracts (ADR-009).
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
 from app.core.errors import ErrorEnvelope
-from app.domains.businesses import service
+from app.core.settings import Settings
+from app.domains.businesses import invitations, service
+from app.domains.businesses.router_invitations import invitation_page, issue_response
 from app.domains.businesses.schemas import (
     BusinessCreate,
     BusinessPage,
     BusinessSummary,
     EmptyCommand,
+    InvitationCreate,
+    InvitationIssueResponse,
+    InvitationPage,
+    InvitationRevokedResponse,
 )
 from app.domains.identity.actor import ActorContext
 from app.domains.identity.dependencies import csrf_protected_actor, current_actor
@@ -137,3 +143,71 @@ def platform_business_close(
 ) -> BusinessSummary:
     """suspended → closed (terminal)."""
     return service.close(db, actor, business_id)
+
+
+# --- Invitations (M2D, ADR-014) ---------------------------------------------
+# The platform bootstraps the first owner (platform admins hold no
+# membership, and activation requires one) and may manage any role.
+
+
+@platform_router.post(
+    "/{business_id}/invitations",
+    operation_id="platform_invitation_create",
+    status_code=status.HTTP_201_CREATED,
+    responses=_ENVELOPES_STATE,
+)
+def platform_invitation_create(
+    business_id: uuid.UUID,
+    payload: InvitationCreate,
+    request: Request,
+    db: Annotated[Session, Depends(get_session)],
+    actor: Annotated[ActorContext, Depends(csrf_protected_actor)],
+) -> InvitationIssueResponse:
+    """Invite a member of any role (token returned once)."""
+    settings: Settings = request.app.state.settings
+    issued = invitations.issue_invitation(
+        db,
+        settings,
+        actor,
+        business_id,
+        email=payload.email,
+        role=payload.role,
+        via_platform=True,
+    )
+    return issue_response(issued)
+
+
+@platform_router.get(
+    "/{business_id}/invitations",
+    operation_id="platform_invitations_list",
+    responses=_ENVELOPES_404,
+)
+def platform_invitations_list(
+    business_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_session)],
+    actor: Annotated[ActorContext, Depends(current_actor)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> InvitationPage:
+    """Pending invitations for any business."""
+    items, total = invitations.list_pending_invitations(
+        db, actor, business_id, limit=limit, offset=offset, via_platform=True
+    )
+    return invitation_page(items, total, limit, offset)
+
+
+@platform_router.post(
+    "/{business_id}/invitations/{invitation_id}/revoke",
+    operation_id="platform_invitation_revoke",
+    responses=_ENVELOPES_404,
+)
+def platform_invitation_revoke(
+    business_id: uuid.UUID,
+    invitation_id: uuid.UUID,
+    _command: EmptyCommand,
+    db: Annotated[Session, Depends(get_session)],
+    actor: Annotated[ActorContext, Depends(csrf_protected_actor)],
+) -> InvitationRevokedResponse:
+    """Revoke any pending invitation (any business status)."""
+    invitations.revoke_invitation(db, actor, business_id, invitation_id, via_platform=True)
+    return InvitationRevokedResponse(status="revoked")
