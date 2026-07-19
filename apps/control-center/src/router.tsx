@@ -1,6 +1,9 @@
 import { createBrowserRouter, type RouteObject } from 'react-router';
 import { GuestOnly } from './auth/GuestOnly';
 import { RequireAuth } from './auth/RequireAuth';
+import { PlatformLayout } from './platform/PlatformLayout';
+import { PlatformOverview } from './platform/PlatformOverview';
+import { RequirePlatformAdmin } from './platform/RequirePlatformAdmin';
 import { AcceptInvitationPage } from './routes/AcceptInvitationPage';
 import { AppLayout } from './routes/AppLayout';
 import { ErrorPage } from './routes/ErrorPage';
@@ -24,7 +27,23 @@ export const routes: RouteObject[] = [
         children: [
           {
             element: <AppLayout />,
-            children: [{ index: true, element: <MembershipsHome /> }],
+            children: [
+              { index: true, element: <MembershipsHome /> },
+              {
+                path: 'platform',
+                element: <RequirePlatformAdmin />,
+                children: [
+                  {
+                    element: <PlatformLayout />,
+                    children: [
+                      { index: true, element: <PlatformOverview /> },
+                      // Businesses, recovery, and audit pages land in the
+                      // following M2F slices; unknown children 404 below.
+                    ],
+                  },
+                ],
+              },
+            ],
           },
         ],
       },

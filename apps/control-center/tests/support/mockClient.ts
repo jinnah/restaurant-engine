@@ -66,6 +66,22 @@ export function sessionView(overrides: Partial<SessionView> = {}): SessionView {
   };
 }
 
+/** An authenticated platform administrator with no memberships. */
+export function adminSessionView(
+  overrides: Partial<SessionView> = {},
+): SessionView {
+  return sessionView({
+    user: {
+      id: '9c1e5b7a-3d2f-4a6b-8c0d-1e2f3a4b5c6d',
+      email: 'admin@example.com',
+      display_name: 'Platform Admin',
+      is_platform_admin: true,
+    },
+    memberships: [],
+    ...overrides,
+  });
+}
+
 export interface ClientOverrides {
   auth?: Partial<ApiClient['auth']>;
   invitations?: Partial<ApiClient['invitations']>;
