@@ -20,14 +20,14 @@ sub-milestone appends its delivery record as it lands.
 
 Six independently reviewed sub-milestones, one gated PR each:
 
-| Sub | Scope | Depends on |
-| --- | ----- | ---------- |
-| M3A | Catalog core backend: categories, items, dietary tags, pricing, availability/hidden/featured, reorder, capabilities, admin APIs, audit, isolation matrix | — |
-| M3B | Modifiers backend: groups/options, selection rules, satisfiability | M3A |
-| M3C | Media backend: media domain, local storage adapter, upload pipeline, responsive variants, lifecycle, sweep, item image attachment | M3A |
-| M3D | Public menu API + public media delivery | M3A–M3C |
-| M3E | Menu administration UI (control-center business workspace) | M3A–M3C contracts (+ any M3D behavior it directly consumes) |
-| M3F | Playwright menu journey, verification, close-out | all earlier |
+| Sub | Scope                                                                                                                                                    | Depends on                                                  |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| M3A | Catalog core backend: categories, items, dietary tags, pricing, availability/hidden/featured, reorder, capabilities, admin APIs, audit, isolation matrix | —                                                           |
+| M3B | Modifiers backend: groups/options, selection rules, satisfiability                                                                                       | M3A                                                         |
+| M3C | Media backend: media domain, local storage adapter, upload pipeline, responsive variants, lifecycle, sweep, item image attachment                        | M3A                                                         |
+| M3D | Public menu API + public media delivery                                                                                                                  | M3A–M3C                                                     |
+| M3E | Menu administration UI (control-center business workspace)                                                                                               | M3A–M3C contracts (+ any M3D behavior it directly consumes) |
+| M3F | Playwright menu journey, verification, close-out                                                                                                         | all earlier                                                 |
 
 ## Decision: binding architectural rulings
 
@@ -198,5 +198,51 @@ requirement; catalog scale exceeding the approved bounds.
 
 ## Delivery record
 
-- **M3A — Catalog core backend:** in progress.
-- **M3B–M3F:** not started.
+### M3A — Catalog core backend: delivered (local), 2026-07-19
+
+One migration (`0c31eebbac66`) creates `menu_categories`, `menu_items`,
+and `menu_item_dietary_tags`: tenant-owned (`business_id` FK RESTRICT on
+every table), composite tenant-safe FKs (items → categories RESTRICT;
+tags → items CASCADE) over `UNIQUE (business_id, id)` targets,
+DEFERRABLE INITIALLY DEFERRED dense-position uniques, case-insensitive
+name uniqueness via `lower(name)` expression indexes, the
+canonical-lowercase dietary CHECK, non-negative price/position CHECKs,
+and the partial featured index serving the R1 count guard. Stepwise
+upgrade/downgrade proven; ORM metadata and migrated schema diff empty.
+
+The catalog service owns every transaction behind one write preamble —
+membership capability, then the businesses-owned
+`lock_business_status` `FOR UPDATE` (Business is the first lock), then
+the lifecycle gate — so count limits are race-safe and closed businesses
+are immutable while remaining readable. Positions stay dense 0..n-1:
+creation appends, deletion closes the gap, item movement appends at the
+destination and renormalizes the source, reorders are full-set,
+set-validating (inexact sets → 409), atomic, and naturally idempotent.
+Behavioral clarifications delivered as tested rules: sold-out
+(`is_available`) and hidden are independent states; hiding clears
+nothing (featured stays, inert publicly); no-op updates and same-value
+availability commands change nothing and record no audit event;
+uniqueness/limit/reorder violations and the DEFERRED-constraint commit
+window all convert to safe 409 `conflict` responses.
+
+Eleven admin routes under `/businesses/{business_id}/catalog` with the
+approved permanent operation ids (`catalog_admin_menu_get`,
+`catalog_category_create/update/delete`, `catalog_categories_reorder`,
+`catalog_item_create/get/update/delete`, `catalog_items_reorder`,
+`catalog_item_availability_set`); the aggregate menu read returns
+categories + items + dietary tags only (no modifier or media data).
+Capabilities landed per D4; audit landed as the nine registered actions
+with typed bounded details and read-time projections
+(`changed_fields` is a closed-set comma-joined string; price old/new
+recorded exactly on price change; audit rows commit and roll back with
+their mutation — proven through the deferred-constraint failure path).
+OpenAPI/client regenerated; `client.catalog` facade group added.
+Delivered with unit, migration/constraint, API, policy-boundary, and
+isolation-matrix coverage (cross-tenant 404s, staff/manager/platform
+role matrix, CSRF, no mutation or audit side effects on rejection), the
+full local gate, the existing Playwright suite, and clean-copy
+verification.
+
+### M3B–M3F
+
+Not started.

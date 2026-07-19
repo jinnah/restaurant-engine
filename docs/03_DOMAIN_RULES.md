@@ -103,6 +103,23 @@ businesses through the authenticated, email-bound acceptance endpoint.
 - Deleting an entity referenced by an order snapshot is safe because
   snapshots are immutable.
 
+**Implemented in M3A (ADR-017):** catalog owns `menu_categories`,
+`menu_items`, and `menu_item_dietary_tags` (registry seeded
+`halal`/`vegetarian`/`vegan`, canonical lowercase, fail-closed reads).
+Every write runs under the Business row lock after a membership
+capability check (`business.catalog.write` owner/manager; the separate
+availability command additionally reachable by staff via
+`business.catalog.availability`); provisioning/active/suspended
+businesses are editable, closed are immutable. Positions are dense
+0..n-1 per scope with DEFERRABLE DB uniques; reorders are full-set,
+exact-set-validated, atomic, idempotent. Names normalize
+(trim/collapse/NFC) with case-insensitive DB uniqueness (categories per
+business, items per category). Centralized limits: 50 categories, 300
+items/business, 100 items/category, 6 featured (hidden items count;
+hiding never clears the flag), 3 dietary tags/item. Categories delete
+only when empty. Nine audit actions record every mutation in its own
+transaction. Modifiers, media, and the public menu API are M3B–M3D.
+
 ## Storefront composition
 
 Versioned, schema-validated configuration:
