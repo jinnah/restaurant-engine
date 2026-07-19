@@ -154,6 +154,11 @@ PostgreSQL connections.
    and the control center on **5173**, with prefixed output under
    `concurrently`.
 
+The control-center dev server proxies `/api` to `127.0.0.1:8000`
+(ADR-015): use the UI at **http://localhost:5173** — `127.0.0.1:5173` is
+a different origin and is not a trusted browser context. Note step 2
+means `pnpm dev` migrates whatever database `DATABASE_URL` points at.
+
 Stopping it (Ctrl+C) tears down all three processes; only the database
 container keeps running (stop it with `docker compose stop db`).
 Prerequisites — all of them, nothing hidden:

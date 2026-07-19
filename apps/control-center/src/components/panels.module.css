@@ -1,0 +1,54 @@
+.pending {
+  color: var(--color-muted);
+  padding: var(--space-3) 0;
+  text-align: center;
+}
+
+.errorPanel {
+  max-width: 26rem;
+  margin: var(--space-3) auto;
+  padding: var(--space-2);
+  background: var(--color-danger-bg);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius);
+}
+
+.errorPanel h1 {
+  margin-top: 0;
+  font-size: 1.2rem;
+}
+
+.panelButton {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-danger);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.errorSummary {
+  padding: var(--space-1) var(--space-2);
+  margin-bottom: var(--space-2);
+  background: var(--color-danger-bg);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius);
+  color: var(--color-danger);
+  font-weight: 500;
+}
+
+.successPanel {
+  padding: var(--space-2);
+  background: var(--color-success-bg);
+  border: 1px solid var(--color-success);
+  border-radius: var(--radius);
+}
+
+.successPanel h2 {
+  margin-top: 0;
+  font-size: 1.15rem;
+}
