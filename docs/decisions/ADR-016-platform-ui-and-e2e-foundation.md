@@ -1,6 +1,6 @@
 # ADR-016: Platform Administration UI and End-to-End Testing Foundation
 
-- **Status:** Proposed (M2F in progress; finalized with the M2F delivery)
+- **Status:** Accepted
 - **Date:** 2026-07-19
 - **Deciders:** Product owner, principal architect
 
@@ -14,9 +14,8 @@ lifecycle. The approved architecture went through a source-grounded
 proposal and a binding E2E-lifecycle addendum; the decisions recorded
 here are the accepted rulings.
 
-This ADR is completed in the same milestone: sections below are filled
-in as the corresponding slices land, and the status moves to Accepted
-with the M2F review.
+All decisions below were accepted before implementation; the E2E
+lifecycle follows the binding architecture addendum verbatim.
 
 ## Decisions
 
@@ -61,16 +60,46 @@ URLs, history, storage, query keys, logs, or analytics.
 
 ### 4. E2E lifecycle: one orchestrator, one disposable database
 
-_Finalized with the E2E slice; the accepted addendum is binding:_
-top-level `e2e/` workspace; `@playwright/test` as the only new
-dependency; Chromium, one worker, `fullyParallel: false`, zero
-retries; a single cross-platform Node orchestrator (`pnpm e2e`) owning
-ports 8100/5273, database recreation, CLI admin bootstrap, child
-processes, readiness, Playwright execution, and guaranteed cleanup —
-Playwright `webServer`/`globalSetup` deliberately unused; the only
-disposable database is `restaurant_engine_e2e`, enforced by an exact
-allowlist in the reset script; per-spec independent namespaces with
-API fixtures that authenticate legitimately.
+A top-level `e2e/` workspace package carries `@playwright/test`
+(exact-pinned; the milestone's only new registry dependency) and runs
+Chromium-only, one worker, `fullyParallel: false`, zero retries —
+serial for determinism and resource control, never as permission for
+order coupling.
+
+One cross-platform Node entry point, `pnpm e2e`
+(`e2e/scripts/run-e2e.mjs` over an injectable orchestrator core), owns
+the complete lifecycle in order: signal/cleanup registration before any
+mutation; a both-loopback preflight of ports 8100 and 5273 that fails
+rather than attach to an existing server; recreation of the disposable
+`restaurant_engine_e2e` database at the migration head via
+`backend/scripts/reset_e2e_database.py`, which hard-refuses — before
+opening any connection — every database name except that exact literal
+(and drops its own half-made database if migration fails); seeding of
+the single universal fixture, a synthetic platform administrator,
+through the documented bootstrap CLI with the password on stdin;
+spawning and tracking the backend (`DATABASE_URL` constructed by the
+orchestrator, never inherited; `TRUSTED_ORIGINS` set to exactly the
+browser origin `http://localhost:5273`) and the control center (Vite
+strict port 5273, proxy target supplied by `CC_API_PROXY_TARGET`, dev
+default unchanged); bounded readiness polls; Playwright with selection
+arguments passed through; then termination of only the tracked child
+process trees (PID-scoped, never by port or name) and a guaranteed
+database drop in the cleanup path shared by success, failure, timeout,
+and SIGINT/SIGTERM. A cleanup failure is loudly reported and nonzero
+but never replaces the primary result. Playwright's `webServer`,
+`globalSetup`, and `globalTeardown` are deliberately unused — one
+lifecycle owner; a bare `playwright test` refuses without the
+orchestrator's sentinel. The orchestrator's failure paths are
+regression-tested (node:test, injected fakes); CI's `e2e` job invokes
+the identical `pnpm e2e` with deterministic Chromium installation and
+failure-only artifact upload.
+
+Test independence is structural: each spec owns a fixed namespace in
+the per-run database and builds its own prerequisites — through the UI
+when the setup _is_ the journey (onboarding), through authenticated
+API fixtures otherwise (real login, session-derived CSRF, exact
+trusted Origin, public invitation acceptance; no raw SQL for domain
+data, no bypassed authorization, tokens held in memory only).
 
 ### 5. Deep-import hardening completes the roadmap item
 
@@ -81,6 +110,17 @@ backend implementation modules.
 
 ## Consequences
 
-_To be completed with the delivery: verification evidence, artifact
-sensitivity policy, and the manual-smoke decision (deliberately left
-pending independent review)._
+- Platform administrators onboard businesses entirely through the
+  product (M2's exit criterion), with every consequential action
+  confirmed proportionately (typed-name confirmation for the terminal
+  close) and every issued credential shown exactly once.
+- E2E artifacts (traces/screenshots, failure-only, video off) contain
+  only synthetic credentials for a database that is dropped after every
+  run — and are still treated as sensitive test artifacts: gitignored
+  locally, uploaded only on failure in CI with bounded retention.
+- Parallel E2E execution (per-worker databases) is a documented later
+  step; nothing in the design depends on serial ordering.
+- Whether a separate manual browser smoke adds value beyond Playwright
+  is deliberately left open until the M2F independent review.
+- The entitlements administration UI returns together with a
+  platform-scope read API (see decision 1's triggers).

@@ -216,6 +216,41 @@ Rules:
 - Applications import **only** `@restaurant-engine/api-client` (the facade);
   deep imports of generated modules fail module resolution and lint.
 
+### End-to-end suite (from Milestone 2F, ADR-016)
+
+`corepack pnpm e2e` (from the root) is the **only** way to run the
+Playwright suite. One orchestrator owns the entire lifecycle: it
+verifies ports 8100 and 5273 are free (it never attaches to an existing
+server), recreates the disposable `restaurant_engine_e2e` database at
+the migration head, seeds the synthetic platform administrator through
+the documented bootstrap CLI (password via stdin), starts the backend
+(port 8100) and the control center (port 5273, strict) against it, runs
+Playwright, then stops exactly the processes it started and drops the
+database — on success, failure, timeout, or Ctrl-C alike. A cleanup
+failure is loud and nonzero but never masks the primary result.
+
+Requirements: the compose database must be up (`docker compose up -d
+db`) and ports 8100/5273 free. The development database is unreachable
+by construction — the reset script hard-refuses every database name
+except the literal `restaurant_engine_e2e`.
+
+Selection arguments pass straight through to Playwright:
+
+```text
+corepack pnpm e2e                                  # all journeys
+corepack pnpm e2e tests/onboarding.spec.ts         # one spec
+corepack pnpm e2e --grep "redirect"                # by title
+```
+
+A bare `playwright test` refuses to run (no orchestrator sentinel).
+The orchestrator's own failure-path behavior is regression-tested with
+`corepack pnpm --filter @restaurant-engine/e2e test` (node:test, no
+real stack). Failure artifacts (`e2e/playwright-report/`,
+`e2e/test-results/` — traces and screenshots, failure-only, video off)
+contain only synthetic E2E credentials for a dropped database, but are
+still treated as sensitive test artifacts: they are gitignored, and CI
+uploads them only on failure with bounded retention.
+
 ## Git workflow
 
 - Default branch: `main`. Never commit directly to `main` after the initial

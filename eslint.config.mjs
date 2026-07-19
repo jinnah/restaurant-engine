@@ -88,6 +88,31 @@ export default tseslint.config(
     },
   },
   {
+    // ADR-016 deep-import hardening: E2E code is black-box. It drives
+    // rendered UI and documented HTTP only — no workspace package (the
+    // facade included) and no application source may be imported.
+    files: ['e2e/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@restaurant-engine/*'],
+              message:
+                'E2E tests are black-box (ADR-016): drive the UI and documented HTTP, never import workspace packages.',
+            },
+            {
+              group: ['**/apps/*', '**/packages/*', '**/backend/*'],
+              message:
+                'E2E tests are black-box (ADR-016): application source must not be imported.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['apps/storefront/**/*.{ts,tsx}'],
     plugins: {
       '@next/next': next,

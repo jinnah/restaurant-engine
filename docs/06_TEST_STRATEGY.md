@@ -2,7 +2,29 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (Milestone 2A)
+## Current state (Milestone 2F)
+
+The end-to-end layer exists (ADR-016): four Playwright journeys —
+onboarding (the blueprint's mandatory journey #1: create → honest
+missing-owner conflict → owner invitation with one-time token → guest
+acceptance → activation), negative authorization, the anonymous
+redirect round-trip, and lifecycle-plus-audit — run Chromium-only,
+one worker, `fullyParallel: false`, zero retries. Every spec is
+order-independent: it owns a fixed namespace (`e2e-onb`, `e2e-authz`,
+`e2e-lc`) inside a database recreated fresh each run, creates its own
+prerequisites (through the UI when that is the journey, through
+authenticated API fixtures otherwise), and filters audit assertions to
+its own business. A single Node orchestrator (`pnpm e2e`, docs/05) owns
+ports, the disposable `restaurant_engine_e2e` database (exact-allowlist
+reset script; the development database is unreachable by construction),
+CLI admin seeding, both servers, Playwright, and guaranteed cleanup;
+its failure paths are covered by a node:test regression suite with
+injected fakes. CI runs the identical entry point in a fifth `e2e` job
+and uploads failure-only artifacts with bounded retention. Component
+tests (Vitest, injected client) own the platform UI's states and a11y
+behavior; Playwright exercises only real cross-stack journeys.
+
+## Earlier state (Milestone 2A)
 
 The security/tenancy layer began with M2A: a permanent `tests/security/`
 suite (PostgreSQL-backed, auto-marked `integration`) proves the ADR-010
