@@ -95,7 +95,7 @@ restaurant-engine/
 │   ├── migrations/
 │   ├── tests/                      # unit / integration / api / security
 │   └── pyproject.toml
-├── e2e/                            # Playwright journeys (when journeys exist)
+├── e2e/                            # Playwright journeys + lifecycle owner (M2F)
 ├── docs/                           # this handbook + decisions/
 ├── scripts/                        # repeatable developer and ops commands
 └── .github/workflows/

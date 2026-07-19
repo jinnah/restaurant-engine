@@ -121,6 +121,86 @@ jobs:
       - name: pytest (unit, API, and PostgreSQL integration)
         run: uv run pytest
 
+  # The end-to-end suite (ADR-016) runs the identical local entry point:
+  # `pnpm e2e` owns the whole lifecycle (isolated restaurant_engine_e2e
+  # database, backend on 8100, control center on 5273, Playwright,
+  # guaranteed cleanup) — no lifecycle logic is duplicated in YAML.
+  # Chromium installs deterministically for the exact pinned Playwright;
+  # caching is deliberately omitted for reproducibility.
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.10
+        env:
+          POSTGRES_USER: restaurant_dev
+          POSTGRES_PASSWORD: restaurant_dev_only
+          POSTGRES_DB: restaurant_engine
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U restaurant_dev -d restaurant_engine"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv (pinned)
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: '0.11.23'
+
+      - name: Install locked backend dependencies
+        run: uv sync --frozen --directory backend
+
+      - name: Enable Corepack (pinned pnpm)
+        run: corepack enable
+
+      - name: Set up Node.js with pnpm store cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Orchestrator regression tests
+        run: pnpm --filter @restaurant-engine/e2e test
+
+      - name: Install Chromium for the pinned Playwright
+        run: pnpm --filter @restaurant-engine/e2e exec playwright install --with-deps chromium
+
+      - name: End-to-end suite
+        run: pnpm e2e
+
+      # PUBLIC-REPOSITORY ARTIFACT POLICY (ADR-016): artifacts on a
+      # public repository are downloadable by anyone with a GitHub
+      # account. Playwright traces record fill() arguments and request
+      # bodies, screenshots can capture the one-time token reveal, and
+      # the HTML report embeds trace attachments — none of that may be
+      # uploaded. The sanitizer builds a fresh directory containing
+      # ONLY secret-scanned error-context.md files and fails closed
+      # (removing the directory) on any violation. Reduced diagnostics
+      # here are deliberate: reproduce failures locally with `pnpm e2e`
+      # for full traces. A later switch to a private repository does
+      # NOT loosen this policy by itself — that needs an explicit
+      # policy change.
+      - name: Prepare public-safe failure artifacts (secret-scanned)
+        if: failure()
+        run: node e2e/scripts/prepare-ci-artifacts.mjs
+
+      - name: Upload public-safe failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-context
+          path: e2e/ci-artifacts
+          retention-days: 7
+          if-no-files-found: ignore
+
   # The committed OpenAPI contract and generated TypeScript client must
   # match a fresh regeneration (ADR-009). `pnpm contract:check` generates
   # into a temporary directory and byte-compares — identical command

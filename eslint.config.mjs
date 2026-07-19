@@ -36,8 +36,12 @@ export default tseslint.config(
   },
   {
     // Repository automation scripts run under Node (contract pipeline,
-    // dev-stack smoke checks).
-    files: ['scripts/**/*.mjs', 'packages/*/scripts/**/*.mjs'],
+    // dev-stack smoke checks, the E2E orchestrator and its tests).
+    files: [
+      'scripts/**/*.mjs',
+      'packages/*/scripts/**/*.mjs',
+      'e2e/scripts/**/*.mjs',
+    ],
     languageOptions: {
       globals: {
         ...globals.node,
@@ -77,6 +81,31 @@ export default tseslint.config(
               group: ['@restaurant-engine/api-client/*', '**/api-client/src/*'],
               message:
                 'Import only from "@restaurant-engine/api-client" (the facade); generated modules are internal (ADR-009).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // ADR-016 deep-import hardening: E2E code is black-box. It drives
+    // rendered UI and documented HTTP only — no workspace package (the
+    // facade included) and no application source may be imported.
+    files: ['e2e/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@restaurant-engine/*'],
+              message:
+                'E2E tests are black-box (ADR-016): drive the UI and documented HTTP, never import workspace packages.',
+            },
+            {
+              group: ['**/apps/*', '**/packages/*', '**/backend/*'],
+              message:
+                'E2E tests are black-box (ADR-016): application source must not be imported.',
             },
           ],
         },

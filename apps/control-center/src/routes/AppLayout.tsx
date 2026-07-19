@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router';
+import { Link, Outlet } from 'react-router';
 import { useLogout } from '../auth/useLogout';
 import { useSession } from '../auth/useSession';
 import styles from './AppLayout.module.css';
@@ -20,6 +20,16 @@ export function AppLayout() {
   return (
     <>
       <div className={styles.bar}>
+        <nav aria-label="Primary" className={styles.primaryNav}>
+          <Link to="/" className={styles.navLink}>
+            Home
+          </Link>
+          {session.session.user.is_platform_admin && (
+            <Link to="/platform" className={styles.navLink}>
+              Platform
+            </Link>
+          )}
+        </nav>
         <p className={styles.identity}>
           Signed in as <strong>{session.session.user.display_name}</strong>{' '}
           <span className={styles.email}>({session.session.user.email})</span>

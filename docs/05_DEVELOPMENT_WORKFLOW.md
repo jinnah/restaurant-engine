@@ -216,6 +216,66 @@ Rules:
 - Applications import **only** `@restaurant-engine/api-client` (the facade);
   deep imports of generated modules fail module resolution and lint.
 
+### End-to-end suite (from Milestone 2F, ADR-016)
+
+`corepack pnpm e2e` (from the root) is the **only** way to run the
+Playwright suite. One orchestrator owns the entire lifecycle: it
+verifies ports 8100 and 5273 are free (it never attaches to an existing
+server), recreates the disposable `restaurant_engine_e2e` database at
+the migration head, seeds the synthetic platform administrator through
+the documented bootstrap CLI (password via stdin), starts the backend
+(port 8100) and the control center (port 5273, strict) against it, runs
+Playwright, then stops exactly the process trees it started (the
+recorded PID tree on Windows, each child's own detached process group
+elsewhere — never a port or name match) and drops the database — on
+success, failure, spawn error, timeout, or Ctrl-C alike. A child that
+fails to start is a controlled failure through the same single cleanup
+path, and a cleanup failure is loud and nonzero but never masks the
+primary result.
+
+Requirements: the compose database must be up (`docker compose up -d
+db`) and ports 8100/5273 free. The development database is unreachable
+by construction — the reset script hard-refuses every target except the
+exact canonical URL: driver `postgresql+psycopg`, host `127.0.0.1`,
+explicit port `5433`, database `restaurant_engine_e2e`, and no query
+parameters (libpq overrides, remote hosts, `localhost` aliases, and
+Unix sockets are all rejected before any connection).
+
+Selection arguments pass straight through to Playwright:
+
+```text
+corepack pnpm e2e                                  # all journeys
+corepack pnpm e2e tests/onboarding.spec.ts         # one spec
+corepack pnpm e2e --grep "redirect"                # by title
+```
+
+A bare `playwright test` refuses to run (no orchestrator sentinel).
+The orchestrator's own failure-path behavior is regression-tested with
+`corepack pnpm --filter @restaurant-engine/e2e test` (node:test, no
+real stack).
+
+**Artifacts (public-repository policy, ADR-016).** This repository is
+public, so anything CI uploads is downloadable by anyone with a GitHub
+account. Local failure artifacts (`e2e/playwright-report/`,
+`e2e/test-results/` — traces retained on failure, screenshots on
+failure, video off) contain synthetic E2E credentials and one-time
+tokens: they are sensitive, gitignored, never tracked, and the
+developer's responsibility to delete or protect. **CI never uploads
+traces, the HTML report, screenshots, videos, or request/response
+bodies.** On failure, `e2e/scripts/prepare-ci-artifacts.mjs` builds a
+fresh sanitized directory (`e2e/ci-artifacts/`) containing ONLY
+`error-context.md` files that pass a fail-closed secret scan (known
+synthetic passwords and issued-token shapes; a hit voids the entire
+upload without printing the value), and CI uploads only that directory
+(`if: failure()`, `retention-days: 7`, missing files ignored). The
+reduced diagnostics are a deliberate security trade-off: reproduce a
+CI failure locally with `corepack pnpm e2e` to get full traces. If the
+repository later becomes private, broader uploads still require an
+explicit policy change — nothing loosens automatically with
+visibility. A static regression in
+`e2e/scripts/prepare-ci-artifacts.test.mjs` fails if the workflow ever
+reintroduces trace/report/broad artifact paths.
+
 ## Git workflow
 
 - Default branch: `main`. Never commit directly to `main` after the initial
