@@ -18,8 +18,16 @@ export const E2E_DATABASE_URL =
 export const BACKEND_PORT = 8100;
 export const UI_PORT = 5273;
 export const UI_ORIGIN = `http://localhost:${UI_PORT}`;
-export const BACKEND_READY_URL = `http://127.0.0.1:${BACKEND_PORT}/health/ready`;
-export const UI_READY_URL = `${UI_ORIGIN}/`;
+export const BACKEND_READY_URLS = [
+  `http://127.0.0.1:${BACKEND_PORT}/health/ready`,
+];
+// Vite binds whichever loopback family `localhost` resolves to (the
+// M1C ::1 gotcha), and Node's fetch may try the other one — poll both
+// literals; the browser resolves localhost across families itself.
+export const UI_READY_URLS = [
+  `http://127.0.0.1:${UI_PORT}/`,
+  `http://[::1]:${UI_PORT}/`,
+];
 export const READY_TIMEOUT_MS = 120_000;
 
 // Synthetic, E2E-only credentials for a database that is dropped after
@@ -95,9 +103,10 @@ function messageOf(error) {
  *   runCommand(argv, {env, input}) -> Promise<exit code>   (foreground step)
  *   spawnChild(name, argv, {env}) -> handle                 (tracked server)
  *   killChild(handle) -> Promise<void>                      (bounded stop)
- *   pollReady(url, timeoutMs) -> Promise<boolean>
+ *   pollReady(urls, timeoutMs) -> Promise<boolean>  (any-of readiness)
  *   runTests(extraArgs, env) -> Promise<exit code>
  *   uiArgv -> string[]  (entry-resolved: node + vite script + port args)
+ *   uiCwd -> string     (the control-center app directory)
  *   log(text), logError(text)
  */
 export function createOrchestrator(deps) {
@@ -199,17 +208,20 @@ export function createOrchestrator(deps) {
           },
         }),
       );
-      if (!(await pollReady(BACKEND_READY_URL, READY_TIMEOUT_MS))) {
+      if (!(await pollReady(BACKEND_READY_URLS, READY_TIMEOUT_MS))) {
         throw new Error('backend did not become ready in time');
       }
 
-      // 6–7. Control center through the same-origin proxy.
+      // 6–7. Control center through the same-origin proxy. Vite must
+      // run from the app directory so it serves the app and loads its
+      // config (index.html, proxy) — not the repository root.
       children.push(
         spawnChild('control-center', deps.uiArgv, {
           env: { CC_API_PROXY_TARGET: `http://127.0.0.1:${BACKEND_PORT}` },
+          cwd: deps.uiCwd,
         }),
       );
-      if (!(await pollReady(UI_READY_URL, READY_TIMEOUT_MS))) {
+      if (!(await pollReady(UI_READY_URLS, READY_TIMEOUT_MS))) {
         throw new Error('control center did not become ready in time');
       }
 

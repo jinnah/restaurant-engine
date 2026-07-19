@@ -25,8 +25,23 @@ const requireFromControlCenter = createRequire(
   join(CONTROL_CENTER_DIR, 'package.json'),
 );
 const requireFromE2e = createRequire(join(E2E_DIR, 'package.json'));
-const VITE_SCRIPT = requireFromControlCenter.resolve('vite/bin/vite.js');
-const PLAYWRIGHT_CLI = requireFromE2e.resolve('@playwright/test/cli.js');
+
+// Vite's exports map blocks deep subpaths, but './package.json' is
+// always exported: resolve the manifest, then follow its bin field.
+function resolveBinScript(resolver, packageName, binName) {
+  const manifestPath = resolver.resolve(`${packageName}/package.json`);
+  const manifest = resolver(`${packageName}/package.json`);
+  const bin =
+    typeof manifest.bin === 'string' ? manifest.bin : manifest.bin[binName];
+  return join(dirname(manifestPath), bin);
+}
+
+const VITE_SCRIPT = resolveBinScript(requireFromControlCenter, 'vite', 'vite');
+const PLAYWRIGHT_CLI = resolveBinScript(
+  requireFromE2e,
+  '@playwright/test',
+  'playwright',
+);
 
 function listenProbe(port, host) {
   return new Promise((resolve) => {
@@ -73,9 +88,9 @@ function runCommand(argv, { env = {}, input } = {}) {
   });
 }
 
-function spawnChild(name, argv, { env = {} } = {}) {
+function spawnChild(name, argv, { env = {}, cwd = REPO_ROOT } = {}) {
   const child = spawn(argv[0], argv.slice(1), {
-    cwd: REPO_ROOT,
+    cwd,
     env: { ...process.env, ...env },
     stdio: ['ignore', 'inherit', 'inherit'],
     shell: false,
@@ -111,18 +126,20 @@ async function killChild({ child, exited }) {
   }
 }
 
-async function pollReady(url, timeoutMs) {
+async function pollReady(urls, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    try {
-      const response = await fetch(url, {
-        signal: AbortSignal.timeout(2000),
-      });
-      if (response.ok) {
-        return true;
+    for (const url of urls) {
+      try {
+        const response = await fetch(url, {
+          signal: AbortSignal.timeout(2000),
+        });
+        if (response.ok) {
+          return true;
+        }
+      } catch {
+        // Not up yet (or the wrong loopback family); keep polling.
       }
-    } catch {
-      // Not up yet; keep polling until the bounded deadline.
     }
     await sleep(500);
   }
@@ -156,6 +173,7 @@ const orchestrator = createOrchestrator({
   pollReady,
   runTests,
   uiArgv: buildUiArgv(process.execPath, VITE_SCRIPT),
+  uiCwd: CONTROL_CENTER_DIR,
   log: (text) => {
     console.log(`[e2e] ${text}`);
   },

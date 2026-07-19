@@ -43,7 +43,11 @@ export function OneTimeTokenReveal({
         directly to the recipient over a channel you trust.
       </p>
       <p>
-        <code className={styles.token}>{token}</code>
+        {/* data-testid: the token's value is what tests must read, so no
+            semantic (role/name) selector can address it. */}
+        <code className={styles.token} data-testid="one-time-token">
+          {token}
+        </code>
       </p>
       <div className={styles.actions}>
         <button

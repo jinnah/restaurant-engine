@@ -68,8 +68,8 @@ function fakeWorld(overrides = {}) {
         throw new Error('kill failed');
       }
     },
-    pollReady: async (url) => {
-      if (url.includes(String(BACKEND_PORT))) {
+    pollReady: async (urls) => {
+      if (urls.some((url) => url.includes(String(BACKEND_PORT)))) {
         return overrides.backendReady ?? true;
       }
       return overrides.uiReady ?? true;
@@ -79,6 +79,7 @@ function fakeWorld(overrides = {}) {
       return overrides.testsExit ?? 0;
     },
     uiArgv: UI_ARGV,
+    uiCwd: '/resolved/control-center',
     log: (text) => calls.logs.push(text),
     logError: (text) => calls.errors.push(text),
   };
@@ -240,6 +241,7 @@ test('10. commands and children target only the approved ports and database', as
 
   const ui = calls.spawns.find((handle) => handle.name === 'control-center');
   assert.deepEqual(ui.argv, UI_ARGV);
+  assert.equal(ui.options.cwd, '/resolved/control-center');
   assert.equal(
     ui.options.env.CC_API_PROXY_TARGET,
     `http://127.0.0.1:${BACKEND_PORT}`,
