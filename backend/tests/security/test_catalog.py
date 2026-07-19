@@ -11,13 +11,21 @@ Bulk policy-limit fixtures are seeded with set-based SQL (docs/06 advice:
 direct policy evidence over hundreds of slow HTTP calls).
 """
 
+import threading
+import time
 import uuid
 from typing import Any
 
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
+from sqlalchemy.orm import sessionmaker
 
+from app.core.errors import ApiError
+from app.domains.businesses.queries import lock_business_status
 from app.domains.catalog import policies
+from app.domains.catalog import service as catalog_service
+from app.domains.catalog.schemas import CategoryCreate
+from app.domains.identity.actor import ActorContext, AuthenticatedUser
 from tests.security.conftest import (
     CreateBusiness,
     CreateMembership,
@@ -411,6 +419,38 @@ class TestItems:
             ).scalar_one()
         assert tags_left == 0, "tags must cascade with the item"
         assert client.get(f"{_base(business)}/items/{item['id']}").status_code == 404
+
+    def test_dietary_tag_order_is_canonical_across_create_read_and_menu(
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        """Review F4: the create response must sort tags exactly as every
+        subsequent read does — never echo request order."""
+        business = create_business()
+        create_membership(business, create_user(OWNER))
+        csrf = login_as(client, OWNER)
+        category = _create_category(client, csrf, business)
+        created = _create_item(
+            client,
+            csrf,
+            business,
+            category["id"],
+            name="Thali",
+            dietary_tags=["vegetarian", "halal"],  # deliberately unsorted
+        )
+        assert created["dietary_tags"] == ["halal", "vegetarian"]
+
+        read = client.get(f"{_base(business)}/items/{created['id']}")
+        assert read.json()["dietary_tags"] == ["halal", "vegetarian"]
+
+        menu = _menu(client, business)
+        assert menu["categories"][0]["items"][0]["dietary_tags"] == [
+            "halal",
+            "vegetarian",
+        ]
 
     def test_duplicate_names_per_category_only(
         self,
@@ -1217,3 +1257,141 @@ class TestAuthorizationMatrix:
 
 def _menu_is_empty(client: TestClient, business_id: uuid.UUID) -> bool:
     return bool(_menu(client, business_id)["categories"] == [])
+
+
+class TestBusinessLockSerialization:
+    """Review F3: real two-session evidence that the business-row lock
+    serializes count-boundary mutations (not a sequential simulation)."""
+
+    def test_concurrent_creates_at_the_category_limit_serialize(
+        self,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
+    ) -> None:
+        """Transaction A locks the business row and creates category #50
+        without committing; transaction B runs the production service path
+        and must block on the lock (observed via pg_stat_activity, not a
+        sleep), then — after A commits — re-evaluate authoritative state
+        and return the approved 409 without creating a row or an audit
+        event.
+
+        A uses lock + direct insert because the production service commits
+        internally and therefore cannot be held open mid-transaction; B is
+        the untouched production service. The serialization property under
+        test — B's count check cannot read stale state while A holds the
+        Business lock — is exercised exactly.
+        """
+        business = create_business()
+        owner_id = create_user(OWNER)
+        create_membership(business, owner_id)
+        with migrated_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO menu_categories (id, business_id, name, position,"
+                    " is_visible) SELECT gen_random_uuid(), :bid, 'bulk-cat-' || n, n,"
+                    " true FROM generate_series(0, 48) AS n"
+                ),
+                {"bid": business},
+            )  # 49 committed categories
+
+        actor = ActorContext(
+            user=AuthenticatedUser(
+                id=owner_id,
+                email=OWNER,
+                display_name="Test User",
+                is_platform_admin=False,
+            ),
+            session_id=uuid.uuid4(),
+            csrf_token="test-csrf",
+        )
+        session_factory = sessionmaker(bind=migrated_engine)
+        session_a = session_factory()
+        outcome: dict[str, Any] = {}
+        b_started = threading.Event()
+
+        def run_b() -> None:
+            session_b = session_factory()
+            try:
+                b_started.set()
+                catalog_service.create_category(
+                    session_b, actor, business, CategoryCreate(name="Fifty First")
+                )
+                outcome["result"] = "created"
+            except ApiError as exc:
+                outcome["result"] = (exc.status_code, exc.code.value, exc.details)
+            except Exception as exc:  # pragma: no cover - diagnostic only
+                outcome["result"] = ("unexpected", type(exc).__name__)
+            finally:
+                session_b.rollback()
+                session_b.close()
+
+        thread = threading.Thread(target=run_b)
+        try:
+            # A: lock the business row, then create category #50 uncommitted.
+            assert lock_business_status(session_a, business) == "provisioning"
+            session_a.execute(
+                text(
+                    "INSERT INTO menu_categories (id, business_id, name, position,"
+                    " is_visible) VALUES (gen_random_uuid(), :bid, 'Fiftieth', 49, true)"
+                ),
+                {"bid": business},
+            )
+            thread.start()
+            assert b_started.wait(timeout=5), "worker thread must start"
+
+            # Deterministic evidence of blocking: B's backend must appear in
+            # pg_stat_activity waiting on a lock for the FOR UPDATE select
+            # (bounded poll — the wait state is the proof, not a sleep).
+            deadline = time.monotonic() + 10
+            observed_lock_wait = False
+            while time.monotonic() < deadline:
+                with migrated_engine.connect() as probe:
+                    waiting = probe.execute(
+                        text(
+                            "SELECT count(*) FROM pg_stat_activity"
+                            " WHERE datname = current_database()"
+                            " AND wait_event_type = 'Lock'"
+                            " AND query LIKE '%FOR UPDATE%'"
+                        )
+                    ).scalar_one()
+                if waiting:
+                    observed_lock_wait = True
+                    break
+                time.sleep(0.05)
+            assert observed_lock_wait, "B must block on the business-row lock"
+            assert "result" not in outcome, "B must not complete while A holds the lock"
+
+            session_a.commit()  # releases the lock; B proceeds
+        finally:
+            session_a.close()
+        thread.join(timeout=10)
+        assert not thread.is_alive(), "B must finish once the lock is released"
+
+        # B re-evaluated authoritative state: exactly the approved 409, no row.
+        assert outcome["result"] == (
+            409,
+            "conflict",
+            {"limit": policies.MAX_CATEGORIES_PER_BUSINESS},
+        )
+        with migrated_engine.begin() as connection:
+            count = connection.execute(
+                text("SELECT count(*) FROM menu_categories WHERE business_id = :bid"),
+                {"bid": business},
+            ).scalar_one()
+            stray = connection.execute(
+                text("SELECT count(*) FROM menu_categories WHERE name = 'Fifty First'")
+            ).scalar_one()
+            idle_in_transaction = connection.execute(
+                text(
+                    "SELECT count(*) FROM pg_stat_activity"
+                    " WHERE datname = current_database()"
+                    " AND state = 'idle in transaction'"
+                )
+            ).scalar_one()
+        assert count == 50, "A's committed 50th category is the final state"
+        assert stray == 0, "B's rejected category must not exist"
+        # A inserted via fixture SQL and B was rejected: no audit events.
+        assert _audit_rows(migrated_engine, business, "catalog.category_created") == []
+        assert idle_in_transaction == 0, "no connection may leak a transaction"

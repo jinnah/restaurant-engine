@@ -395,7 +395,9 @@ def create_item(
         ),
     )
     _commit(db)
-    return _item_summary(item, payload.dietary_tags)
+    # Canonical tag order (review F4): the create response sorts exactly as
+    # every subsequent read does — never request order.
+    return _item_summary(item, sorted(payload.dietary_tags))
 
 
 def update_item(
