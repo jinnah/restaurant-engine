@@ -14,6 +14,7 @@ is rejected.
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -291,3 +292,11 @@ class AdminMenu(BaseModel):
     """
 
     categories: list[CategoryWithItems]
+
+
+class DeletedResponse(BaseModel):
+    """Explicit confirmation body for delete commands (the M2D
+    ``InvitationRevokedResponse`` pattern — commands return a clear result,
+    blueprint §10.4)."""
+
+    status: Literal["deleted"] = "deleted"

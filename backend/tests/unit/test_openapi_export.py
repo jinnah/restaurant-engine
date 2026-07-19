@@ -43,6 +43,18 @@ EXPECTED_OPERATION_IDS = {
     "business_entitlements_get",
     "platform_audit_events_list",
     "business_audit_events_list",
+    # M3A (ADR-017): catalog core administration.
+    "catalog_admin_menu_get",
+    "catalog_category_create",
+    "catalog_category_update",
+    "catalog_category_delete",
+    "catalog_categories_reorder",
+    "catalog_item_create",
+    "catalog_item_get",
+    "catalog_item_update",
+    "catalog_item_delete",
+    "catalog_items_reorder",
+    "catalog_item_availability_set",
 }
 
 
