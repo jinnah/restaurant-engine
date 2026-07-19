@@ -58,7 +58,17 @@ function fakeWorld(overrides = {}) {
       return 0;
     },
     spawnChild: (name, argv, options = {}) => {
-      const handle = { name, argv, options };
+      const handle = {
+        name,
+        argv,
+        options,
+        // Resolves with an Error for a scripted spawn failure; stays
+        // pending otherwise (the real contract).
+        spawnFailed:
+          overrides.spawnFails === name
+            ? Promise.resolve(new Error(name + ' spawn ENOENT'))
+            : new Promise(() => {}),
+      };
       calls.spawns.push(handle);
       return handle;
     },
@@ -69,7 +79,14 @@ function fakeWorld(overrides = {}) {
       }
     },
     pollReady: async (urls) => {
-      if (urls.some((url) => url.includes(String(BACKEND_PORT)))) {
+      const isBackend = urls.some((url) => url.includes(String(BACKEND_PORT)));
+      const target = isBackend ? 'backend' : 'control-center';
+      if (overrides.spawnFails === target) {
+        // A child that failed to spawn can never become ready; the
+        // spawnFailed race must win, exactly as in the real world.
+        return new Promise(() => {});
+      }
+      if (isBackend) {
         return overrides.backendReady ?? true;
       }
       return overrides.uiReady ?? true;
@@ -276,5 +293,91 @@ test('a kill failure marks cleanup failed but still attempts the drop', async ()
   assert.equal(
     calls.commands.filter(({ argv }) => isReset(argv, '--drop')).length,
     1,
+  );
+});
+
+test('14. a backend spawn failure becomes a controlled failure with cleanup', async () => {
+  const { deps, calls } = fakeWorld({ spawnFails: 'backend' });
+  const exit = await createOrchestrator(deps).run();
+
+  assert.notEqual(exit, 0);
+  assert.ok(
+    calls.errors.some((text) => text.includes('backend failed to start')),
+  );
+  assert.equal(calls.testRuns.length, 0);
+  // The tracked (failed) child is handed to cleanup; the drop still runs.
+  assert.deepEqual(
+    calls.kills.map((handle) => handle.name),
+    ['backend'],
+  );
+  assert.equal(
+    calls.commands.filter(({ argv }) => isReset(argv, '--drop')).length,
+    1,
+  );
+});
+
+test('15. a frontend spawn failure stops both children and cleans up', async () => {
+  const { deps, calls } = fakeWorld({ spawnFails: 'control-center' });
+  const exit = await createOrchestrator(deps).run();
+
+  assert.notEqual(exit, 0);
+  assert.ok(
+    calls.errors.some((text) =>
+      text.includes('control-center failed to start'),
+    ),
+  );
+  assert.deepEqual(
+    calls.kills.map((handle) => handle.name),
+    ['control-center', 'backend'],
+  );
+  assert.equal(
+    calls.commands.filter(({ argv }) => isReset(argv, '--drop')).length,
+    1,
+  );
+  assert.equal(calls.testRuns.length, 0);
+});
+
+test('16. a Playwright spawn failure is a controlled failure with cleanup', async () => {
+  const { deps, calls } = fakeWorld();
+  deps.runTests = async () => {
+    throw new Error('playwright spawn ENOENT');
+  };
+  const exit = await createOrchestrator(deps).run();
+
+  assert.notEqual(exit, 0);
+  assert.ok(
+    calls.errors.some((text) => text.includes('playwright spawn ENOENT')),
+  );
+  assert.deepEqual(
+    calls.kills.map((handle) => handle.name),
+    ['control-center', 'backend'],
+  );
+  assert.equal(
+    calls.commands.filter(({ argv }) => isReset(argv, '--drop')).length,
+    1,
+  );
+});
+
+test('17. a cleanup failure alongside a spawn failure reports both, once', async () => {
+  const { deps, calls } = fakeWorld({ spawnFails: 'backend', dropExit: 1 });
+  const exit = await createOrchestrator(deps).run();
+
+  assert.notEqual(exit, 0);
+  assert.ok(
+    calls.errors.some((text) => text.includes('backend failed to start')),
+  );
+  assert.ok(
+    calls.errors.some((text) =>
+      text.includes('FAILED to drop ' + E2E_DATABASE_NAME),
+    ),
+  );
+  // Single-shot cleanup: one drop attempt, each child killed once.
+  assert.equal(
+    calls.commands.filter(({ argv }) => isReset(argv, '--drop')).length,
+    1,
+  );
+  assert.deepEqual(
+    calls.kills.map((handle) => handle.name),
+    ['backend'],
   );
 });

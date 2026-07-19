@@ -225,9 +225,13 @@ server), recreates the disposable `restaurant_engine_e2e` database at
 the migration head, seeds the synthetic platform administrator through
 the documented bootstrap CLI (password via stdin), starts the backend
 (port 8100) and the control center (port 5273, strict) against it, runs
-Playwright, then stops exactly the processes it started and drops the
-database — on success, failure, timeout, or Ctrl-C alike. A cleanup
-failure is loud and nonzero but never masks the primary result.
+Playwright, then stops exactly the process trees it started (the
+recorded PID tree on Windows, each child's own detached process group
+elsewhere — never a port or name match) and drops the database — on
+success, failure, spawn error, timeout, or Ctrl-C alike. A child that
+fails to start is a controlled failure through the same single cleanup
+path, and a cleanup failure is loud and nonzero but never masks the
+primary result.
 
 Requirements: the compose database must be up (`docker compose up -d
 db`) and ports 8100/5273 free. The development database is unreachable

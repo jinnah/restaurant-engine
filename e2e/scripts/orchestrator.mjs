@@ -101,7 +101,9 @@ function messageOf(error) {
  * @param deps injectable primitives:
  *   checkPortFree(port) -> Promise<boolean>
  *   runCommand(argv, {env, input}) -> Promise<exit code>   (foreground step)
- *   spawnChild(name, argv, {env}) -> handle                 (tracked server)
+ *   spawnChild(name, argv, {env, cwd}) -> handle            (tracked server;
+ *     handle.spawnFailed is a promise that RESOLVES with an Error if the
+ *     process could not be started, and stays pending otherwise)
  *   killChild(handle) -> Promise<void>                      (bounded stop)
  *   pollReady(urls, timeoutMs) -> Promise<boolean>  (any-of readiness)
  *   runTests(extraArgs, env) -> Promise<exit code>
@@ -171,6 +173,26 @@ export function createOrchestrator(deps) {
     }
   }
 
+  // Readiness raced against spawn failure (correction F4): a child that
+  // could not start becomes a controlled primary failure immediately —
+  // never an uncaught EventEmitter error, never a full readiness
+  // timeout. Resolve-style racing keeps abandoned branches from ever
+  // turning into unhandled rejections.
+  async function awaitReady(handle, urls) {
+    const outcome = await Promise.race([
+      pollReady(urls, READY_TIMEOUT_MS).then((ready) => ({ ready })),
+      handle.spawnFailed.then((error) => ({ failed: error })),
+    ]);
+    if ('failed' in outcome) {
+      throw new Error(
+        `${handle.name} failed to start: ${messageOf(outcome.failed)}`,
+      );
+    }
+    if (!outcome.ready) {
+      throw new Error(`${handle.name} did not become ready in time`);
+    }
+  }
+
   async function run(extraArgs = []) {
     let primaryExit = 1;
     try {
@@ -200,30 +222,24 @@ export function createOrchestrator(deps) {
       });
 
       // 4–5. Backend, readiness-gated (readiness proves the database).
-      children.push(
-        spawnChild('backend', BACKEND_ARGV, {
-          env: {
-            DATABASE_URL: E2E_DATABASE_URL,
-            TRUSTED_ORIGINS: UI_ORIGIN,
-          },
-        }),
-      );
-      if (!(await pollReady(BACKEND_READY_URLS, READY_TIMEOUT_MS))) {
-        throw new Error('backend did not become ready in time');
-      }
+      const backend = spawnChild('backend', BACKEND_ARGV, {
+        env: {
+          DATABASE_URL: E2E_DATABASE_URL,
+          TRUSTED_ORIGINS: UI_ORIGIN,
+        },
+      });
+      children.push(backend);
+      await awaitReady(backend, BACKEND_READY_URLS);
 
       // 6–7. Control center through the same-origin proxy. Vite must
       // run from the app directory so it serves the app and loads its
       // config (index.html, proxy) — not the repository root.
-      children.push(
-        spawnChild('control-center', deps.uiArgv, {
-          env: { CC_API_PROXY_TARGET: `http://127.0.0.1:${BACKEND_PORT}` },
-          cwd: deps.uiCwd,
-        }),
-      );
-      if (!(await pollReady(UI_READY_URLS, READY_TIMEOUT_MS))) {
-        throw new Error('control center did not become ready in time');
-      }
+      const ui = spawnChild('control-center', deps.uiArgv, {
+        env: { CC_API_PROXY_TARGET: `http://127.0.0.1:${BACKEND_PORT}` },
+        cwd: deps.uiCwd,
+      });
+      children.push(ui);
+      await awaitReady(ui, UI_READY_URLS);
 
       // 8. Playwright. Selection args pass through unchanged so single
       // files and --grep work via pnpm e2e.

@@ -6,8 +6,9 @@
 // `shell: false`. `uv` resolves as a native executable on PATH on both
 // platforms; vite and the Playwright CLI are launched as
 // `node <resolved-script>` so no Windows .cmd shim is ever executed.
-// Child termination targets only tracked PIDs (taskkill /T on Windows,
-// SIGTERM-then-SIGKILL elsewhere) — never a port or a process name.
+// Child termination targets only tracked process trees — the recorded
+// PID tree via taskkill /T on Windows, the child's own detached process
+// group elsewhere (processControl.mjs) — never a port or process name.
 
 import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -16,6 +17,7 @@ import { dirname, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { buildUiArgv, createOrchestrator } from './orchestrator.mjs';
+import { createChildTerminator } from './processControl.mjs';
 
 const E2E_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
 const REPO_ROOT = dirname(E2E_DIR);
@@ -94,37 +96,37 @@ function spawnChild(name, argv, { env = {}, cwd = REPO_ROOT } = {}) {
     env: { ...process.env, ...env },
     stdio: ['ignore', 'inherit', 'inherit'],
     shell: false,
+    // POSIX: each long-lived child leads its own process group so
+    // cleanup can signal exactly that tracked tree (processControl.mjs).
+    detached: process.platform !== 'win32',
+  });
+  // Both settle idempotently: an 'error' (spawn failure) resolves the
+  // exit promise too, so no wait can hang, no EventEmitter 'error' goes
+  // unhandled, and error-then-exit cannot double-settle anything.
+  let reportSpawnFailure = () => {};
+  const spawnFailed = new Promise((resolve) => {
+    reportSpawnFailure = resolve;
   });
   const exited = new Promise((resolve) => {
-    child.once('exit', () => {
-      resolve();
-    });
+    child.once('exit', resolve);
+    child.once('error', resolve);
   });
-  return { name, child, exited };
+  child.once('error', (error) => {
+    reportSpawnFailure(error);
+  });
+  return { name, child, exited, spawnFailed };
 }
 
-async function killChild({ child, exited }) {
-  if (child.exitCode !== null || child.signalCode !== null) {
-    return;
-  }
-  if (process.platform === 'win32') {
-    // Kill exactly this tracked process tree by PID; never by port or name.
-    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
-      stdio: 'ignore',
-      shell: false,
-    });
-  } else {
-    child.kill('SIGTERM');
-  }
-  const grace = await Promise.race([
-    exited.then(() => 'exited'),
-    sleep(5000).then(() => 'timeout'),
-  ]);
-  if (grace === 'timeout') {
-    child.kill('SIGKILL');
-    await Promise.race([exited, sleep(5000)]);
-  }
-}
+const killChild = createChildTerminator({
+  platform: process.platform,
+  signalProcess: (pid, signal) => {
+    process.kill(pid, signal);
+  },
+  runTaskkill: (args) => {
+    spawnSync('taskkill', args, { stdio: 'ignore', shell: false });
+  },
+  wait: sleep,
+});
 
 async function pollReady(urls, timeoutMs) {
   const deadline = Date.now() + timeoutMs;

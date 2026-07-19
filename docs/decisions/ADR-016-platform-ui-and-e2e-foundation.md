@@ -84,9 +84,13 @@ spawning and tracking the backend (`DATABASE_URL` constructed by the
 orchestrator, never inherited; `TRUSTED_ORIGINS` set to exactly the
 browser origin `http://localhost:5273`) and the control center (Vite
 strict port 5273, proxy target supplied by `CC_API_PROXY_TARGET`, dev
-default unchanged); bounded readiness polls; Playwright with selection
-arguments passed through; then termination of only the tracked child
-process trees (PID-scoped, never by port or name) and a guaranteed
+default unchanged); bounded readiness polls raced against spawn
+failure, so a child that cannot start is a controlled primary failure
+through the same cleanup; Playwright with selection arguments passed
+through; then termination of only the tracked child process trees (the
+recorded PID tree on Windows via taskkill /T, each child's own
+detached process group on POSIX — never by port or name) and a
+guaranteed
 database drop in the cleanup path shared by success, failure, timeout,
 and SIGINT/SIGTERM. A cleanup failure is loudly reported and nonzero
 but never replaces the primary result. Playwright's `webServer`,
