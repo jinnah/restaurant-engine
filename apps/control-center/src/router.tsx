@@ -5,6 +5,7 @@ import { BusinessDetailPage } from './platform/BusinessDetailPage';
 import { BusinessesListPage } from './platform/BusinessesListPage';
 import { PlatformLayout } from './platform/PlatformLayout';
 import { PlatformOverview } from './platform/PlatformOverview';
+import { RecoveryPage } from './platform/RecoveryPage';
 import { RequirePlatformAdmin } from './platform/RequirePlatformAdmin';
 import { AcceptInvitationPage } from './routes/AcceptInvitationPage';
 import { AppLayout } from './routes/AppLayout';
@@ -44,8 +45,9 @@ export const routes: RouteObject[] = [
                         path: 'businesses/:businessId',
                         element: <BusinessDetailPage />,
                       },
-                      // Recovery and audit pages land in the following M2F
-                      // slices; unknown children 404 below.
+                      { path: 'recovery', element: <RecoveryPage /> },
+                      // The audit page lands in the following M2F slice;
+                      // unknown children 404 below.
                     ],
                   },
                 ],
