@@ -347,3 +347,170 @@ def test_m2d_constraints_and_round_trip_with_real_rows(empty_database_url: str) 
         assert "feature_entitlements" in set(inspect(engine).get_table_names())
     finally:
         engine.dispose()
+
+
+# The M2D revision (down_revision of the M3A catalog migration).
+_M2D_REVISION = "6fbce030db33"
+
+
+def test_m3a_constraints_and_round_trip_with_real_rows(empty_database_url: str) -> None:
+    """M3A catalog tables behave with real data (ADR-017).
+
+    Exercises the case-insensitive expression uniques, the tenant-safe
+    composite FKs (cross-tenant parents are database errors), the dietary
+    canonical-lowercase CHECK, non-negative price/position CHECKs, and the
+    DEFERRABLE position uniques (transient permutation inside one
+    transaction, violation surfaced at commit); then proves the downgrade
+    drops the three tables with earlier data intact and the chain
+    re-applies. Scratch database only.
+    """
+    config = _config(empty_database_url)
+    command.upgrade(config, "head")
+
+    engine = create_engine(empty_database_url, connect_args={"connect_timeout": 3})
+    try:
+        with engine.begin() as connection:
+            business_a = connection.execute(
+                text(
+                    "INSERT INTO businesses (id, name, slug, status) VALUES"
+                    " (gen_random_uuid(), 'A', 'biz-a', 'active') RETURNING id"
+                )
+            ).scalar_one()
+            business_b = connection.execute(
+                text(
+                    "INSERT INTO businesses (id, name, slug, status) VALUES"
+                    " (gen_random_uuid(), 'B', 'biz-b', 'active') RETURNING id"
+                )
+            ).scalar_one()
+            category_a = connection.execute(
+                text(
+                    "INSERT INTO menu_categories (id, business_id, name, position,"
+                    " is_visible) VALUES (gen_random_uuid(), :bid, 'Curries', 0, true)"
+                    " RETURNING id"
+                ),
+                {"bid": business_a},
+            ).scalar_one()
+            item_a = connection.execute(
+                text(
+                    "INSERT INTO menu_items (id, business_id, category_id, name,"
+                    " price_minor, position, is_available, is_hidden, is_featured)"
+                    " VALUES (gen_random_uuid(), :bid, :cid, 'Samosa', 350, 0, true,"
+                    " false, false) RETURNING id"
+                ),
+                {"bid": business_a, "cid": category_a},
+            ).scalar_one()
+            connection.execute(
+                text(
+                    "INSERT INTO menu_item_dietary_tags (id, business_id, item_id, tag)"
+                    " VALUES (gen_random_uuid(), :bid, :iid, 'halal')"
+                ),
+                {"bid": business_a, "iid": item_a},
+            )
+
+        def _rejected(statement: str, params: dict[str, object]) -> bool:
+            # The whole transaction is inside the try: DEFERRED constraints
+            # raise at commit (transaction exit), not at statement time.
+            try:
+                with engine.begin() as connection:
+                    connection.execute(text(statement), params)
+            except Exception:
+                return True
+            return False
+
+        # Case-insensitive category-name unique per business.
+        assert _rejected(
+            "INSERT INTO menu_categories (id, business_id, name, position, is_visible)"
+            " VALUES (gen_random_uuid(), :bid, 'CURRIES', 1, true)",
+            {"bid": business_a},
+        ), "case-variant duplicate category name must violate the expression index"
+        # ...but the same name under another business is allowed.
+        assert not _rejected(
+            "INSERT INTO menu_categories (id, business_id, name, position, is_visible)"
+            " VALUES (gen_random_uuid(), :bid, 'Curries', 0, true)",
+            {"bid": business_b},
+        )
+        # Case-insensitive item-name unique per category.
+        assert _rejected(
+            "INSERT INTO menu_items (id, business_id, category_id, name, price_minor,"
+            " position, is_available, is_hidden, is_featured) VALUES"
+            " (gen_random_uuid(), :bid, :cid, 'SAMOSA', 350, 1, true, false, false)",
+            {"bid": business_a, "cid": category_a},
+        ), "case-variant duplicate item name in one category must violate"
+        # Cross-tenant composite FK: business B cannot parent an item under
+        # business A's category — the (business_id, category_id) pair fails.
+        assert _rejected(
+            "INSERT INTO menu_items (id, business_id, category_id, name, price_minor,"
+            " position, is_available, is_hidden, is_featured) VALUES"
+            " (gen_random_uuid(), :bid, :cid, 'Intruder', 100, 0, true, false, false)",
+            {"bid": business_b, "cid": category_a},
+        ), "cross-tenant item parenting must be a database error"
+        # Cross-tenant composite FK: B cannot tag A's item.
+        assert _rejected(
+            "INSERT INTO menu_item_dietary_tags (id, business_id, item_id, tag)"
+            " VALUES (gen_random_uuid(), :bid, :iid, 'vegan')",
+            {"bid": business_b, "iid": item_a},
+        ), "cross-tenant dietary tagging must be a database error"
+        # Dietary canonical-lowercase CHECK.
+        assert _rejected(
+            "INSERT INTO menu_item_dietary_tags (id, business_id, item_id, tag)"
+            " VALUES (gen_random_uuid(), :bid, :iid, 'Vegan')",
+            {"bid": business_a, "iid": item_a},
+        ), "non-canonical tag casing must violate the CHECK"
+        # Non-negative price and position CHECKs.
+        assert _rejected(
+            "INSERT INTO menu_items (id, business_id, category_id, name, price_minor,"
+            " position, is_available, is_hidden, is_featured) VALUES"
+            " (gen_random_uuid(), :bid, :cid, 'Negative', -1, 1, true, false, false)",
+            {"bid": business_a, "cid": category_a},
+        ), "negative price must violate the CHECK"
+        assert _rejected(
+            "INSERT INTO menu_categories (id, business_id, name, position, is_visible)"
+            " VALUES (gen_random_uuid(), :bid, 'Sweets', -1, true)",
+            {"bid": business_a},
+        ), "negative position must violate the CHECK"
+
+        # DEFERRABLE position unique: a transient duplicate inside one
+        # transaction is legal when resolved before commit...
+        with engine.begin() as connection:
+            second = connection.execute(
+                text(
+                    "INSERT INTO menu_categories (id, business_id, name, position,"
+                    " is_visible) VALUES (gen_random_uuid(), :bid, 'Sweets', 1, true)"
+                    " RETURNING id"
+                ),
+                {"bid": business_a},
+            ).scalar_one()
+            connection.execute(
+                text("UPDATE menu_categories SET position = 0 WHERE id = :cid"),
+                {"cid": second},
+            )  # transient duplicate with category_a's position 0
+            connection.execute(
+                text("UPDATE menu_categories SET position = 1 WHERE id = :cid"),
+                {"cid": second},
+            )  # resolved before commit
+        # ...but an unresolved duplicate is rejected at commit.
+        assert _rejected(
+            "UPDATE menu_categories SET position = 0 WHERE id = :cid",
+            {"cid": second},
+        ), "an unresolved duplicate position must violate at commit"
+
+        # Item deletion cascades its dietary tags.
+        with engine.begin() as connection:
+            connection.execute(text("DELETE FROM menu_items WHERE id = :iid"), {"iid": item_a})
+            remaining = connection.execute(
+                text("SELECT count(*) FROM menu_item_dietary_tags")
+            ).scalar_one()
+        assert remaining == 0, "dietary tags must CASCADE with their item"
+
+        # Round trip: downgrade drops the catalog tables, earlier data
+        # survives, and the chain re-applies.
+        command.downgrade(config, _M2D_REVISION)
+        tables = set(inspect(engine).get_table_names())
+        assert "menu_categories" not in tables
+        assert "menu_items" not in tables
+        assert "menu_item_dietary_tags" not in tables
+        assert "businesses" in tables
+        command.upgrade(config, "head")
+        assert "menu_items" in set(inspect(engine).get_table_names())
+    finally:
+        engine.dispose()
