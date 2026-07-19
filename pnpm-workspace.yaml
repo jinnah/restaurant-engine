@@ -1,8 +1,10 @@
 # Workspace globs; apps/ gained its first members in Milestone 1B,
-# packages/ gains its first member (the generated API client) in M1C.
+# packages/ gained its first member (the generated API client) in M1C,
+# and e2e/ joined with the Playwright foundation in M2F (ADR-016).
 packages:
   - apps/*
   - packages/*
+  - e2e
 
 # Dependency build scripts are blocked by default; every allowance is a
 # deliberate, reviewed decision.

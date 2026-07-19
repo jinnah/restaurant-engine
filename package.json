@@ -14,6 +14,7 @@
     "build": "corepack pnpm -r build",
     "generate:client": "uv run --directory backend python -m scripts.export_openapi && corepack pnpm --filter @restaurant-engine/api-client generate",
     "contract:check": "node scripts/contract-check.mjs",
+    "e2e": "node e2e/scripts/run-e2e.mjs",
     "dev": "docker compose up -d --wait db && uv run --directory backend alembic upgrade head && concurrently -n api,store,cc -c blue,green,magenta --kill-others-on-fail \"uv run --directory backend uvicorn app.main:create_app --factory --reload --port 8000\" \"corepack pnpm --filter @restaurant-engine/storefront dev\" \"corepack pnpm --filter @restaurant-engine/control-center dev\"",
     "smoke:dev": "node scripts/smoke-dev.mjs"
   },

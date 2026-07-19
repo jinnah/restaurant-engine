@@ -36,8 +36,12 @@ export default tseslint.config(
   },
   {
     // Repository automation scripts run under Node (contract pipeline,
-    // dev-stack smoke checks).
-    files: ['scripts/**/*.mjs', 'packages/*/scripts/**/*.mjs'],
+    // dev-stack smoke checks, the E2E orchestrator and its tests).
+    files: [
+      'scripts/**/*.mjs',
+      'packages/*/scripts/**/*.mjs',
+      'e2e/scripts/**/*.mjs',
+    ],
     languageOptions: {
       globals: {
         ...globals.node,
