@@ -1,6 +1,7 @@
 import { createBrowserRouter, type RouteObject } from 'react-router';
 import { GuestOnly } from './auth/GuestOnly';
 import { RequireAuth } from './auth/RequireAuth';
+import { AuditPage } from './platform/AuditPage';
 import { BusinessDetailPage } from './platform/BusinessDetailPage';
 import { BusinessesListPage } from './platform/BusinessesListPage';
 import { PlatformLayout } from './platform/PlatformLayout';
@@ -46,8 +47,9 @@ export const routes: RouteObject[] = [
                         element: <BusinessDetailPage />,
                       },
                       { path: 'recovery', element: <RecoveryPage /> },
-                      // The audit page lands in the following M2F slice;
-                      // unknown children 404 below.
+                      { path: 'audit', element: <AuditPage /> },
+                      // Unknown platform children fall through to the
+                      // root catch-all not-found route.
                     ],
                   },
                 ],
