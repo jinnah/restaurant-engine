@@ -57,10 +57,81 @@ def test_refuses_every_non_allowlisted_database(target: str) -> None:
         assert target in result.stderr
 
 
+# The allowlist is the WHOLE target, not just the database name. Exit
+# code 2 is validation-specific: a connection attempt would surface as
+# an unhandled OperationalError (exit 1, traceback), so 2 plus the
+# refusal message proves no connection or destructive action happened.
+@pytest.mark.parametrize(
+    ("label", "raw_url", "expected"),
+    [
+        (
+            "remote hostname",
+            f"postgresql+psycopg://u:p@db.prod.example:5433/{E2E_DB}",
+            "refusing host",
+        ),
+        (
+            "remote IP",
+            f"postgresql+psycopg://u:p@203.0.113.7:5433/{E2E_DB}",
+            "refusing host",
+        ),
+        (
+            "wrong port",
+            f"postgresql+psycopg://u:p@127.0.0.1:5432/{E2E_DB}",
+            "refusing port",
+        ),
+        (
+            "missing port",
+            f"postgresql+psycopg://u:p@127.0.0.1/{E2E_DB}",
+            "refusing port",
+        ),
+        (
+            "libpq host override",
+            f"postgresql+psycopg://u:p@127.0.0.1:5433/{E2E_DB}?host=evil.example",
+            "query parameters",
+        ),
+        (
+            "any query parameter",
+            f"postgresql+psycopg://u:p@127.0.0.1:5433/{E2E_DB}?sslmode=disable",
+            "query parameters",
+        ),
+        (
+            "localhost alias",
+            f"postgresql+psycopg://u:p@localhost:5433/{E2E_DB}",
+            "refusing host",
+        ),
+        (
+            "ipv6 loopback alias",
+            f"postgresql+psycopg://u:p@[::1]:5433/{E2E_DB}",
+            "refusing host",
+        ),
+        (
+            "unix socket (hostless)",
+            f"postgresql+psycopg:///{E2E_DB}",
+            "refusing host",
+        ),
+        (
+            "wrong driver",
+            f"postgresql://u:p@127.0.0.1:5433/{E2E_DB}",
+            "refusing driver",
+        ),
+    ],
+)
+def test_refuses_every_non_canonical_server(label: str, raw_url: str, expected: str) -> None:
+    for mode in ("--recreate", "--drop"):
+        result = _run(mode, raw_url)
+        assert result.returncode == 2, f"{label}: {result.stderr}"
+        assert expected in result.stderr, f"{label}: {result.stderr}"
+        assert "Traceback" not in result.stderr, label
+
+
 def test_refuses_missing_and_malformed_database_url() -> None:
     missing = _run("--recreate", None)
     assert missing.returncode == 2
     assert "must be set explicitly" in missing.stderr
+
+    empty = _run("--drop", "")
+    assert empty.returncode == 2
+    assert "must be set explicitly" in empty.stderr
 
     malformed = _run("--drop", "not a database url ::")
     assert malformed.returncode == 2

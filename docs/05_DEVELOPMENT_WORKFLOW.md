@@ -231,8 +231,11 @@ failure is loud and nonzero but never masks the primary result.
 
 Requirements: the compose database must be up (`docker compose up -d
 db`) and ports 8100/5273 free. The development database is unreachable
-by construction — the reset script hard-refuses every database name
-except the literal `restaurant_engine_e2e`.
+by construction — the reset script hard-refuses every target except the
+exact canonical URL: driver `postgresql+psycopg`, host `127.0.0.1`,
+explicit port `5433`, database `restaurant_engine_e2e`, and no query
+parameters (libpq overrides, remote hosts, `localhost` aliases, and
+Unix sockets are all rejected before any connection).
 
 Selection arguments pass straight through to Playwright:
 
