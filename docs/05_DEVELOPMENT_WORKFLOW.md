@@ -252,11 +252,29 @@ corepack pnpm e2e --grep "redirect"                # by title
 A bare `playwright test` refuses to run (no orchestrator sentinel).
 The orchestrator's own failure-path behavior is regression-tested with
 `corepack pnpm --filter @restaurant-engine/e2e test` (node:test, no
-real stack). Failure artifacts (`e2e/playwright-report/`,
-`e2e/test-results/` — traces and screenshots, failure-only, video off)
-contain only synthetic E2E credentials for a dropped database, but are
-still treated as sensitive test artifacts: they are gitignored, and CI
-uploads them only on failure with bounded retention.
+real stack).
+
+**Artifacts (public-repository policy, ADR-016).** This repository is
+public, so anything CI uploads is downloadable by anyone with a GitHub
+account. Local failure artifacts (`e2e/playwright-report/`,
+`e2e/test-results/` — traces retained on failure, screenshots on
+failure, video off) contain synthetic E2E credentials and one-time
+tokens: they are sensitive, gitignored, never tracked, and the
+developer's responsibility to delete or protect. **CI never uploads
+traces, the HTML report, screenshots, videos, or request/response
+bodies.** On failure, `e2e/scripts/prepare-ci-artifacts.mjs` builds a
+fresh sanitized directory (`e2e/ci-artifacts/`) containing ONLY
+`error-context.md` files that pass a fail-closed secret scan (known
+synthetic passwords and issued-token shapes; a hit voids the entire
+upload without printing the value), and CI uploads only that directory
+(`if: failure()`, `retention-days: 7`, missing files ignored). The
+reduced diagnostics are a deliberate security trade-off: reproduce a
+CI failure locally with `corepack pnpm e2e` to get full traces. If the
+repository later becomes private, broader uploads still require an
+explicit policy change — nothing loosens automatically with
+visibility. A static regression in
+`e2e/scripts/prepare-ci-artifacts.test.mjs` fails if the workflow ever
+reintroduces trace/report/broad artifact paths.
 
 ## Git workflow
 

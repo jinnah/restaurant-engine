@@ -176,14 +176,28 @@ jobs:
       - name: End-to-end suite
         run: pnpm e2e
 
-      - name: Upload failure artifacts (sensitive test artifacts)
+      # PUBLIC-REPOSITORY ARTIFACT POLICY (ADR-016): artifacts on a
+      # public repository are downloadable by anyone with a GitHub
+      # account. Playwright traces record fill() arguments and request
+      # bodies, screenshots can capture the one-time token reveal, and
+      # the HTML report embeds trace attachments — none of that may be
+      # uploaded. The sanitizer builds a fresh directory containing
+      # ONLY secret-scanned error-context.md files and fails closed
+      # (removing the directory) on any violation. Reduced diagnostics
+      # here are deliberate: reproduce failures locally with `pnpm e2e`
+      # for full traces. A later switch to a private repository does
+      # NOT loosen this policy by itself — that needs an explicit
+      # policy change.
+      - name: Prepare public-safe failure artifacts (secret-scanned)
+        if: failure()
+        run: node e2e/scripts/prepare-ci-artifacts.mjs
+
+      - name: Upload public-safe failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-failure-artifacts
-          path: |
-            e2e/playwright-report
-            e2e/test-results
+          name: e2e-failure-context
+          path: e2e/ci-artifacts
           retention-days: 7
           if-no-files-found: ignore
 

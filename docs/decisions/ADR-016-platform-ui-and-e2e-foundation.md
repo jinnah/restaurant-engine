@@ -125,10 +125,21 @@ backend implementation modules.
   product (M2's exit criterion), with every consequential action
   confirmed proportionately (typed-name confirmation for the terminal
   close) and every issued credential shown exactly once.
-- E2E artifacts (traces/screenshots, failure-only, video off) contain
-  only synthetic credentials for a database that is dropped after every
-  run — and are still treated as sensitive test artifacts: gitignored
-  locally, uploaded only on failure in CI with bounded retention.
+- **Public-repository artifact policy.** The repository is public, so
+  CI never uploads Playwright traces, the HTML report, screenshots,
+  videos, or request/response bodies — traces record fill() arguments
+  and request bodies, and a failure screenshot can capture the one-time
+  token reveal, so no screenshot allowlist can be made enforceable. On
+  failure CI uploads only a sanitized directory of `error-context.md`
+  files that pass a fail-closed secret scan (`prepare-ci-artifacts.mjs`;
+  known synthetic passwords and issued-token shapes; detected values are
+  never printed), failure-only, retention at most seven days. Local
+  artifacts keep full traces (failure-only, video off): they contain
+  synthetic credentials only, are gitignored and untracked, and are the
+  developer's responsibility — CI failures are reproduced locally for
+  full diagnostics. The reduced CI diagnostics are deliberate; a later
+  switch to a private repository does not loosen this policy by itself
+  — that requires an explicit policy change.
 - Parallel E2E execution (per-worker databases) is a documented later
   step; nothing in the design depends on serial ordering.
 - Whether a separate manual browser smoke adds value beyond Playwright

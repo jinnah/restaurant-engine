@@ -27,6 +27,7 @@ build/
 # --- Test and tool output ---
 playwright-report/
 test-results/
+ci-artifacts/
 
 # --- IDEs and editors ---
 .idea/
