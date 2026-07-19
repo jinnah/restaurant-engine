@@ -5,6 +5,7 @@ import { vi } from 'vitest';
 import type {
   ApiClient,
   ApiResult,
+  BusinessSummary,
   ErrorEnvelope,
   MembershipSummary,
   SessionView,
@@ -82,10 +83,27 @@ export function adminSessionView(
   });
 }
 
+export function business(
+  overrides: Partial<BusinessSummary> = {},
+): BusinessSummary {
+  return {
+    id: '5f0d2c9a-7f5e-4c1b-9a37-0b8a52a9c001',
+    name: 'Shalik',
+    slug: 'shalik',
+    status: 'provisioning',
+    currency: 'USD',
+    timezone: 'America/New_York',
+    created_at: '2026-07-19T00:00:00Z',
+    updated_at: '2026-07-19T00:00:00Z',
+    ...overrides,
+  };
+}
+
 export interface ClientOverrides {
   auth?: Partial<ApiClient['auth']>;
   invitations?: Partial<ApiClient['invitations']>;
   passwordResets?: Partial<ApiClient['passwordResets']>;
+  platform?: Partial<ApiClient['platform']>;
 }
 
 /**
@@ -122,10 +140,34 @@ export function makeClient(overrides: ClientOverrides = {}): ApiClient {
       ),
       ...overrides.passwordResets,
     },
-    // Surfaces M2E never touches; present so accidental use fails loudly.
-    platform: {},
+    platform: {
+      // Neutral denial defaults: success paths must be scripted per test.
+      createBusiness: vi.fn(async () => deniedPlatform()),
+      listBusinesses: vi.fn(async () => deniedPlatform()),
+      getBusiness: vi.fn(async () => deniedPlatform()),
+      activate: vi.fn(async () => deniedPlatform()),
+      suspend: vi.fn(async () => deniedPlatform()),
+      reactivate: vi.fn(async () => deniedPlatform()),
+      close: vi.fn(async () => deniedPlatform()),
+      createInvitation: vi.fn(async () => deniedPlatform()),
+      listInvitations: vi.fn(async () => deniedPlatform()),
+      revokeInvitation: vi.fn(async () => deniedPlatform()),
+      setEntitlements: vi.fn(async () => deniedPlatform()),
+      issuePasswordReset: vi.fn(async () => deniedPlatform()),
+      listAuditEvents: vi.fn(async () => deniedPlatform()),
+      ...overrides.platform,
+    },
+    // Surfaces the control center never touches as an admin; present so
+    // accidental use fails loudly.
     businesses: {},
     public: {},
   };
   return fake as unknown as ApiClient;
+}
+
+function deniedPlatform(): ApiResult<never> {
+  return apiError(
+    403,
+    envelope('permission_denied', 'You do not have permission to do that.'),
+  );
 }
