@@ -42,6 +42,21 @@ export type {
   InvitationSummary,
 } from './businesses';
 export type {
+  AdminMenu,
+  CatalogApi,
+  CatalogDeletedResponse,
+  CategoryCreate,
+  CategoryReorder,
+  CategorySummary,
+  CategoryUpdate,
+  CategoryWithItems,
+  ItemAvailabilitySet,
+  ItemCreate,
+  ItemReorder,
+  ItemSummary,
+  ItemUpdate,
+} from './catalog';
+export type {
   InvitationAcceptedResponse,
   InvitationAcceptExistingRequest,
   InvitationAcceptRequest,
