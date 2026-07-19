@@ -66,7 +66,7 @@ def test_upgrade_head_runs_on_empty_database(empty_database_url: str) -> None:
     try:
         tables = set(inspect(engine).get_table_names())
         # M2A identity/audit + M2B tenancy + M2D onboarding/recovery/
-        # entitlements.
+        # entitlements + M3A catalog core.
         assert tables == {
             "alembic_version",
             "users",
@@ -77,6 +77,9 @@ def test_upgrade_head_runs_on_empty_database(empty_database_url: str) -> None:
             "business_invitations",
             "password_reset_tokens",
             "feature_entitlements",
+            "menu_categories",
+            "menu_items",
+            "menu_item_dietary_tags",
         }
         with engine.connect() as connection:
             version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar()
@@ -202,6 +205,7 @@ def test_model_metadata_matches_migrated_schema(empty_database_url: str) -> None
     from app.core.database import Base
     from app.domains.audit import models as _audit_models  # noqa: F401
     from app.domains.businesses import models as _businesses_models  # noqa: F401
+    from app.domains.catalog import models as _catalog_models  # noqa: F401
     from app.domains.identity import models as _identity_models  # noqa: F401
 
     config = _config(empty_database_url)
