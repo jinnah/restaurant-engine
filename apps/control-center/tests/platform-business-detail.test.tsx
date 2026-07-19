@@ -18,6 +18,14 @@ function adminClient(overrides: Parameters<typeof makeClient>[0] = {}) {
   return makeClient({
     auth: { getSession: vi.fn(async () => ok(adminSessionView())) },
     ...overrides,
+    platform: {
+      // The invitations panel loads on every detail render; default it
+      // to an empty page so lifecycle tests stay single-concern.
+      listInvitations: vi.fn(async () =>
+        ok({ items: [], total: 0, limit: 10, offset: 0 }),
+      ),
+      ...overrides.platform,
+    },
   });
 }
 

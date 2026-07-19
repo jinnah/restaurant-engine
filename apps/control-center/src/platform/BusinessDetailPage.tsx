@@ -10,6 +10,7 @@ import {
   type LifecycleAction,
 } from './businessData';
 import { ConfirmDialog } from './ConfirmDialog';
+import { InvitationsPanel } from './InvitationsPanel';
 import { statusBadgeClass } from './statusBadge';
 import styles from './platform.module.css';
 
@@ -202,6 +203,11 @@ export function BusinessDetailPage() {
           </div>
         )}
       </section>
+
+      <InvitationsPanel
+        businessId={businessId}
+        businessStatus={business.status}
+      />
 
       {confirming !== null && (
         <ConfirmDialog
