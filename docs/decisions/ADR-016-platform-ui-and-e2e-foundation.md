@@ -142,7 +142,32 @@ backend implementation modules.
   — that requires an explicit policy change.
 - Parallel E2E execution (per-worker databases) is a documented later
   step; nothing in the design depends on serial ordering.
-- Whether a separate manual browser smoke adds value beyond Playwright
-  is deliberately left open until the M2F independent review.
+- **Manual browser verification — resolved (passed).** After the
+  correction series re-review, a live browser smoke was run against the
+  real backend, the same-origin Vite proxy, and Chromium, using only the
+  dedicated `restaurant_engine_e2e` database. It covered desktop
+  (1280×720) and mobile (375×812) and confirmed: platform routing and
+  authorization (anonymous → sanitized-`next` login round-trip; admin
+  navigation; a non-admin's `/platform/**` renders NotFound and issues
+  no platform API request); business list, pagination, creation, and
+  detail; lifecycle actions with dialog focus-trap, Escape, and
+  focus-return, and typed-name terminal close; invitation and recovery
+  one-time reveals (token absent from URL/local/session storage, cleared
+  on new attempt/dismissal/navigation, failure-after-success clears the
+  prior token); audit cursor pagination (no duplicates) and filtering
+  (stale rows cleared); accessible semantics (one h1, landmarks, labels,
+  alert/status roles), minimum 44px targets, no horizontal overflow at
+  either width, and computed contrast ratios all above the WCAG AA 4.5:1
+  threshold. No console, CORS, Host, Origin, CSRF, cookie,
+  duplicate-request, token-in-URL, or unexpected non-admin platform-
+  request failure occurred. Clipboard **write** succeeded; clipboard
+  **read-back** was unavailable in the headless harness. No axe-core
+  scan was run — the accessibility tree, computed geometry, and computed
+  contrast were inspected instead, so this is engineering evidence, not
+  a formal WCAG certification. The dedicated database and all smoke
+  processes were cleaned up afterward, and no actionable browser finding
+  remained. The earlier open question is therefore closed: the manual
+  smoke was worthwhile and is not a standing requirement for every
+  change — Playwright remains the automated gate.
 - The entitlements administration UI returns together with a
   platform-scope read API (see decision 1's triggers).
