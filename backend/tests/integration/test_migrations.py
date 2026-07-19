@@ -456,13 +456,39 @@ def test_m3a_constraints_and_round_trip_with_real_rows(empty_database_url: str) 
             " VALUES (gen_random_uuid(), :bid, :iid, 'Vegan')",
             {"bid": business_a, "iid": item_a},
         ), "non-canonical tag casing must violate the CHECK"
-        # Non-negative price and position CHECKs.
+        # Price-range CHECKs (F1 ruling: 0 <= price_minor <= 10,000,000).
         assert _rejected(
             "INSERT INTO menu_items (id, business_id, category_id, name, price_minor,"
             " position, is_available, is_hidden, is_featured) VALUES"
             " (gen_random_uuid(), :bid, :cid, 'Negative', -1, 1, true, false, false)",
             {"bid": business_a, "cid": category_a},
         ), "negative price must violate the CHECK"
+        try:
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "INSERT INTO menu_items (id, business_id, category_id, name,"
+                        " price_minor, position, is_available, is_hidden, is_featured)"
+                        " VALUES (gen_random_uuid(), :bid, :cid, 'Too Expensive',"
+                        " 10000001, 1, true, false, false)"
+                    ),
+                    {"bid": business_a, "cid": category_a},
+                )
+            raise AssertionError("price above the approved maximum must be rejected")
+        except AssertionError:
+            raise
+        except Exception as exc:
+            assert "ck_menu_items_price_maximum" in str(exc), (
+                "the named price_maximum CHECK must be the violated constraint"
+            )
+        # The exact maximum is storable.
+        assert not _rejected(
+            "INSERT INTO menu_items (id, business_id, category_id, name, price_minor,"
+            " position, is_available, is_hidden, is_featured) VALUES"
+            " (gen_random_uuid(), :bid, :cid, 'Banquet Package', 10000000, 1, true,"
+            " false, false)",
+            {"bid": business_a, "cid": category_a},
+        ), "the exact approved maximum price must be storable"
         assert _rejected(
             "INSERT INTO menu_categories (id, business_id, name, position, is_visible)"
             " VALUES (gen_random_uuid(), :bid, 'Sweets', -1, true)",

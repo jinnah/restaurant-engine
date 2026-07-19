@@ -603,6 +603,82 @@ class TestAvailabilityCommand:
         assert response.json()["is_available"] is False
 
 
+class TestPriceBound:
+    """F1 ruling: 0 <= price_minor <= 10,000,000, enforced at 422 by the
+    schemas, by the named DB CHECK, and faithfully retained by audit."""
+
+    def test_exact_maximum_accepted_and_retained_in_audit(
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business = create_business()
+        create_membership(business, create_user(OWNER))
+        csrf = login_as(client, OWNER)
+        category = _create_category(client, csrf, business)
+        item = _create_item(
+            client, csrf, business, category["id"], name="Banquet", price_minor=1000
+        )
+        updated = client.patch(
+            f"{_base(business)}/items/{item['id']}",
+            json={"price_minor": policies.MAX_PRICE_MINOR},
+            headers=csrf_headers(csrf),
+        )
+        assert updated.status_code == 200
+        assert updated.json()["price_minor"] == 10_000_000
+
+        # The business audit trail (real read API, typed projection) must
+        # retain the exact maximum — never silently drop a valid price.
+        trail = client.get(f"/api/v1/businesses/{business}/audit-events")
+        assert trail.status_code == 200
+        price_events = [
+            event for event in trail.json()["items"] if event["action"] == "catalog.item_updated"
+        ]
+        assert price_events, "the price change must be audited"
+        details = price_events[0]["details"]
+        assert details["price_minor_old"] == 1000
+        assert details["price_minor_new"] == 10_000_000
+
+    def test_above_maximum_rejected_safely_with_no_side_effects(
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
+    ) -> None:
+        business = create_business()
+        create_membership(business, create_user(OWNER))
+        csrf = login_as(client, OWNER)
+        category = _create_category(client, csrf, business)
+        item = _create_item(client, csrf, business, category["id"], name="Samosa", price_minor=350)
+        before = _audit_count(migrated_engine)
+
+        over_create = client.post(
+            f"{_base(business)}/categories/{category['id']}/items",
+            json={"name": "Too Expensive", "price_minor": policies.MAX_PRICE_MINOR + 1},
+            headers=csrf_headers(csrf),
+        )
+        assert over_create.status_code == 422
+        assert _error_code(over_create) == "validation_error"
+
+        over_update = client.patch(
+            f"{_base(business)}/items/{item['id']}",
+            json={"price_minor": policies.MAX_PRICE_MINOR + 1},
+            headers=csrf_headers(csrf),
+        )
+        assert over_update.status_code == 422
+        assert _error_code(over_update) == "validation_error"
+
+        assert _audit_count(migrated_engine) == before, (
+            "rejected price mutations must not create audit events"
+        )
+        unchanged = client.get(f"{_base(business)}/items/{item['id']}")
+        assert unchanged.json()["price_minor"] == 350
+
+
 class TestFeaturedPolicy:
     def test_limit_is_six_per_business_hidden_included(
         self,

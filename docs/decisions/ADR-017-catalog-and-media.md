@@ -68,6 +68,20 @@ scope limit. Count-dependent checks run under the business-row lock. M3A
 implements the category/item/dietary/featured/text/reorder bounds; the
 modifier and media bounds land with M3B/M3C.
 
+### Item price bound (F1 post-review ruling, 2026-07-19)
+
+`price_minor` is bounded to **0 ≤ price_minor ≤ 10,000,000** minor units
+(replacing an unapproved 1,000,000 ceiling found in independent review).
+Rationale: the bound keeps public and audit representations bounded;
+prevents unrealistic or accidental extreme values; still permits every
+realistic restaurant and catering price; and remains a product-policy
+constant, never a tenant setting. Enforcement is layered: the schemas
+reject out-of-range values with the standard 422, and the named database
+CHECKs (`ck_menu_items_price_nonnegative`, `ck_menu_items_price_maximum`)
+are the final integrity boundary. The audit price extractor shares the
+same constant, so every valid price — including the exact maximum — is
+faithfully retained by audit projections.
+
 ### Media encoding and responsive images (R3, R4 — M3C)
 
 The canonical stored asset is not the untouched upload: EXIF orientation
@@ -206,7 +220,8 @@ every table), composite tenant-safe FKs (items → categories RESTRICT;
 tags → items CASCADE) over `UNIQUE (business_id, id)` targets,
 DEFERRABLE INITIALLY DEFERRED dense-position uniques, case-insensitive
 name uniqueness via `lower(name)` expression indexes, the
-canonical-lowercase dietary CHECK, non-negative price/position CHECKs,
+canonical-lowercase dietary CHECK, price-range CHECKs (0–10,000,000, F1
+ruling) and the non-negative position CHECK,
 and the partial featured index serving the R1 count guard. Stepwise
 upgrade/downgrade proven; ORM metadata and migrated schema diff empty.
 

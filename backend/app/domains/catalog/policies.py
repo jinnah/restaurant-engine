@@ -21,13 +21,19 @@ MAX_DIETARY_TAGS_PER_ITEM = 3
 # clears the flag; exceeding returns 409 `conflict` with details.limit.
 MAX_FEATURED_ITEMS = 6
 
-# --- Value bounds (R2) -------------------------------------------------------
+# --- Value bounds (R2; price bound per the post-review F1 ruling) ------------
 MAX_NAME_LENGTH = 120
 MAX_CATEGORY_DESCRIPTION_LENGTH = 500
 MAX_ITEM_DESCRIPTION_LENGTH = 1000
-# Schema-level price ceiling so audit projections (bounded ints) can never
-# truncate a legitimate price; the DB CHECK enforces non-negativity only.
-MAX_PRICE_MINOR = 1_000_000
+# Approved item-price range: 0 <= price_minor <= 10,000,000 minor units
+# (ADR-017). The bound (a) keeps public and audit representations bounded,
+# (b) prevents unrealistic or accidental extreme values, (c) still permits
+# every realistic restaurant and catering price, and (d) is a product-policy
+# constant, not a tenant setting. Enforced in the schemas (422) AND by the
+# named database CHECKs (price_nonnegative, price_maximum); the audit price
+# extractor shares this constant so no valid price can ever fall out of a
+# projection.
+MAX_PRICE_MINOR = 10_000_000
 
 
 def normalize_name(value: str) -> str:

@@ -1,6 +1,7 @@
 """Catalog policy constants, name normalization, and the dietary registry
-(M3A, ADR-017 rulings R1/R2/R6/D6). Pure — no I/O."""
+(M3A, ADR-017 rulings R1/R2/R6/D6 + the F1 price ruling). Pure — no I/O."""
 
+from app.api.audit_view import _price_int
 from app.domains.catalog import dietary, policies
 
 
@@ -18,10 +19,18 @@ class TestPolicyConstants:
         assert policies.MAX_CATEGORY_DESCRIPTION_LENGTH == 500
         assert policies.MAX_ITEM_DESCRIPTION_LENGTH == 1000
 
-    def test_price_ceiling_matches_the_audit_projection_bound(self) -> None:
-        # audit_view._small_int admits 0..1_000_000; a legitimate price must
-        # never truncate out of the audit projection.
-        assert policies.MAX_PRICE_MINOR == 1_000_000
+    def test_approved_price_bound(self) -> None:
+        # F1 ruling: 0 <= price_minor <= 10,000,000 minor units.
+        assert policies.MAX_PRICE_MINOR == 10_000_000
+
+    def test_audit_price_extractor_retains_every_valid_price(self) -> None:
+        # The projection shares the policy constant: the exact maximum is
+        # retained; anything outside the approved range projects away.
+        assert _price_int(policies.MAX_PRICE_MINOR) == policies.MAX_PRICE_MINOR
+        assert _price_int(0) == 0
+        assert _price_int(policies.MAX_PRICE_MINOR + 1) is None
+        assert _price_int(-1) is None
+        assert _price_int(True) is None
 
 
 class TestNormalizeName:

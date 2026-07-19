@@ -127,6 +127,10 @@ class MenuItem(Base):
             name="description_length",
         ),
         CheckConstraint("price_minor >= 0", name="price_nonnegative"),
+        # Approved price ceiling (ADR-017 F1 ruling): the schema rejects
+        # above-bound values with a 422; this CHECK is the final integrity
+        # boundary so direct inserts cannot bypass the approved range.
+        CheckConstraint("price_minor <= 10000000", name="price_maximum"),
         CheckConstraint("position >= 0", name="position_nonnegative"),
         CheckConstraint("updated_at >= created_at", name="updated_after_creation"),
         # Tenant-safe parent relationship: the pair must exist in

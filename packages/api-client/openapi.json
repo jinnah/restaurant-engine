@@ -1018,7 +1018,7 @@
             "type": "string"
           },
           "price_minor": {
-            "maximum": 1000000.0,
+            "maximum": 10000000.0,
             "minimum": 0.0,
             "title": "Price Minor",
             "type": "integer"
@@ -1218,7 +1218,7 @@
           "price_minor": {
             "anyOf": [
               {
-                "maximum": 1000000.0,
+                "maximum": 10000000.0,
                 "minimum": 0.0,
                 "type": "integer"
               },

@@ -78,9 +78,16 @@ class TestItemCreate:
         with pytest.raises(ValidationError):
             ItemCreate(name="Samosa", price_minor=-1)
 
+    def test_price_at_the_exact_maximum_is_accepted(self) -> None:
+        payload = ItemCreate(name="Banquet", price_minor=policies.MAX_PRICE_MINOR)
+        assert payload.price_minor == 10_000_000
+
     def test_price_above_ceiling_is_rejected(self) -> None:
+        # 10,000,001 fails on create and on update alike (F1 ruling).
         with pytest.raises(ValidationError):
             ItemCreate(name="Samosa", price_minor=policies.MAX_PRICE_MINOR + 1)
+        with pytest.raises(ValidationError):
+            ItemUpdate(price_minor=policies.MAX_PRICE_MINOR + 1)
 
 
 class TestItemUpdate:

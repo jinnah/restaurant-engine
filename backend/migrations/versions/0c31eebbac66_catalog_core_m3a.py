@@ -121,6 +121,7 @@ def upgrade() -> None:
             name=op.f("ck_menu_items_description_length"),
         ),
         sa.CheckConstraint("position >= 0", name=op.f("ck_menu_items_position_nonnegative")),
+        sa.CheckConstraint("price_minor <= 10000000", name=op.f("ck_menu_items_price_maximum")),
         sa.CheckConstraint("price_minor >= 0", name=op.f("ck_menu_items_price_nonnegative")),
         sa.CheckConstraint(
             "updated_at >= created_at", name=op.f("ck_menu_items_updated_after_creation")

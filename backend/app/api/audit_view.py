@@ -24,6 +24,7 @@ from pydantic import BaseModel
 
 from app.domains.audit.actions import AuditAction
 from app.domains.audit.models import AuditEvent
+from app.domains.catalog.policies import MAX_PRICE_MINOR
 
 _MAX_STRING = 320  # longest legitimate detail value (emails are <= 254)
 
@@ -53,6 +54,19 @@ def _short_str(value: object) -> str | None:
 def _small_int(value: object) -> int | None:
     """Admit only a bounded plain int (bool is not an int here)."""
     if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 1_000_000:
+        return value
+    return None
+
+
+def _price_int(value: object) -> int | None:
+    """Admit an integer minor-unit price within the approved range.
+
+    Shares the catalog policy constant (ADR-017 F1 ruling: 0..10,000,000),
+    so every price the schemas and the DB CHECK accept is faithfully
+    retained by the projection — a valid price can never silently drop out
+    of the audit response.
+    """
+    if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= MAX_PRICE_MINOR:
         return value
     return None
 
@@ -108,8 +122,9 @@ _PROJECTIONS: dict[str, dict[str, _Extractor]] = {
     AuditAction.AUTH_PASSWORD_RESET_ISSUED.value: {"email_normalized": _short_str},
     AuditAction.AUTH_PASSWORD_RESET_COMPLETED.value: {"email_normalized": _short_str},
     # M3A catalog (ADR-017): bounded names, closed-set changed_fields
-    # summaries, integer minor-unit prices (MAX_PRICE_MINOR == the
-    # _small_int bound, so a legitimate price can never truncate away).
+    # summaries, integer minor-unit prices via the dedicated price
+    # extractor (shares MAX_PRICE_MINOR, so a legitimate price can never
+    # truncate away).
     AuditAction.CATALOG_CATEGORY_CREATED.value: {"name": _short_str},
     AuditAction.CATALOG_CATEGORY_UPDATED.value: {
         "name": _short_str,
@@ -120,12 +135,12 @@ _PROJECTIONS: dict[str, dict[str, _Extractor]] = {
     AuditAction.CATALOG_ITEM_CREATED.value: {
         "name": _short_str,
         "category_id": _short_str,
-        "price_minor": _small_int,
+        "price_minor": _price_int,
     },
     AuditAction.CATALOG_ITEM_UPDATED.value: {
         "changed_fields": _short_str,
-        "price_minor_old": _small_int,
-        "price_minor_new": _small_int,
+        "price_minor_old": _price_int,
+        "price_minor_new": _price_int,
         "category_id": _short_str,
     },
     AuditAction.CATALOG_ITEM_DELETED.value: {

@@ -116,8 +116,9 @@ exact-set-validated, atomic, idempotent. Names normalize
 (trim/collapse/NFC) with case-insensitive DB uniqueness (categories per
 business, items per category). Centralized limits: 50 categories, 300
 items/business, 100 items/category, 6 featured (hidden items count;
-hiding never clears the flag), 3 dietary tags/item. Categories delete
-only when empty. Nine audit actions record every mutation in its own
+hiding never clears the flag), 3 dietary tags/item; prices are
+0–10,000,000 minor units (F1 ruling), DB-CHECK-enforced. Categories
+delete only when empty. Nine audit actions record every mutation in its own
 transaction. Modifiers, media, and the public menu API are M3B–M3D.
 
 ## Storefront composition

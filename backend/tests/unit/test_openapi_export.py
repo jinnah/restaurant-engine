@@ -86,6 +86,19 @@ def test_exported_operation_ids_are_expected_and_unique() -> None:
     assert set(operation_ids) == EXPECTED_OPERATION_IDS
 
 
+def test_price_bound_is_advertised_in_the_contract() -> None:
+    # F1 ruling (ADR-017): the public contract advertises the approved
+    # price range on both the create and update schemas.
+    document = json.loads(canonical_openapi_json())
+    schemas = document["components"]["schemas"]
+    for schema_name in ("ItemCreate", "ItemUpdate"):
+        price = schemas[schema_name]["properties"]["price_minor"]
+        variants = price.get("anyOf", [price])  # ItemUpdate's field is nullable
+        integer_variant = next(part for part in variants if part.get("type") == "integer")
+        assert integer_variant["maximum"] == 10_000_000
+        assert integer_variant["minimum"] == 0
+
+
 def test_export_uses_lf_and_single_trailing_newline() -> None:
     text = canonical_openapi_json()
     assert "\r" not in text
