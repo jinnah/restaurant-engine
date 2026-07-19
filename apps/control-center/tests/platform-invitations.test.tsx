@@ -216,3 +216,213 @@ test('a suspended business offers revocation but not issuance', async () => {
     }),
   ).toBeInTheDocument();
 });
+
+test('the raw token never enters any query or mutation cache (F2)', async () => {
+  const createInvitation = vi.fn(async () => issued('raw-token-cache-check'));
+  const { queryClient } = renderApp(
+    DETAIL_PATH,
+    detailClient({ createInvitation }),
+  );
+
+  fireEvent.change(await screen.findByLabelText(/^email$/i), {
+    target: { value: 'newowner@example.com' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /issue invitation/i }));
+  await screen.findByText('raw-token-cache-check');
+
+  // The reveal renders from component state only: neither the query
+  // cache nor the token-bearing mutation state retains the raw token.
+  const cacheDump = JSON.stringify({
+    queries: queryClient
+      .getQueryCache()
+      .getAll()
+      .map((query) => query.state.data ?? null),
+    mutations: queryClient
+      .getMutationCache()
+      .getAll()
+      .map((mutation) => mutation.state),
+  });
+  expect(cacheDump).not.toContain('raw-token-cache-check');
+});
+
+test('a session clear plus remount cannot recover an issued token (F2)', async () => {
+  const createInvitation = vi.fn(async () => issued('raw-token-remount'));
+  const { queryClient, view } = renderApp(
+    DETAIL_PATH,
+    detailClient({ createInvitation }),
+  );
+
+  fireEvent.change(await screen.findByLabelText(/^email$/i), {
+    target: { value: 'newowner@example.com' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /issue invitation/i }));
+  await screen.findByText('raw-token-remount');
+
+  view.unmount();
+  expect(screen.queryByText('raw-token-remount')).toBeNull();
+  const cacheDump = JSON.stringify({
+    queries: queryClient
+      .getQueryCache()
+      .getAll()
+      .map((query) => query.state.data ?? null),
+    mutations: queryClient
+      .getMutationCache()
+      .getAll()
+      .map((mutation) => mutation.state),
+  });
+  expect(cacheDump).not.toContain('raw-token-remount');
+});
+
+test('a failed later attempt does not resurrect an earlier token (F2)', async () => {
+  const createInvitation = vi
+    .fn()
+    .mockResolvedValueOnce(issued('raw-token-first-success'))
+    .mockResolvedValueOnce(
+      apiError(409, envelope('conflict', 'A live invitation already exists.')),
+    );
+  const { queryClient } = renderApp(
+    DETAIL_PATH,
+    detailClient({ createInvitation }),
+  );
+
+  fireEvent.change(await screen.findByLabelText(/^email$/i), {
+    target: { value: 'newowner@example.com' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /issue invitation/i }));
+  await screen.findByText('raw-token-first-success');
+
+  fireEvent.change(screen.getByLabelText(/^email$/i), {
+    target: { value: 'newowner@example.com' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /issue invitation/i }));
+  await screen.findByRole('alert');
+  expect(screen.queryByText('raw-token-first-success')).toBeNull();
+  const cacheDump = JSON.stringify(
+    queryClient
+      .getMutationCache()
+      .getAll()
+      .map((mutation) => mutation.state),
+  );
+  expect(cacheDump).not.toContain('raw-token-first-success');
+});
+
+test('an emptied later page steps back instead of claiming emptiness (F3)', async () => {
+  const items = Array.from({ length: 10 }, (_, index) =>
+    invitation({
+      invitation_id: '00000000-0000-4000-8000-00000000000' + String(index),
+      email: 'pending' + String(index) + '@example.com',
+    }),
+  );
+  const listInvitations = vi
+    .fn()
+    // Page one: full page of a shrinking 11-item list.
+    .mockResolvedValueOnce(ok({ items, total: 11, limit: 10, offset: 0 }))
+    // Page two: the list shrank to 3 while navigating — page empty.
+    .mockResolvedValueOnce(ok({ items: [], total: 3, limit: 10, offset: 10 }))
+    // The step-back lands on the first (and only) valid page.
+    .mockResolvedValue(
+      ok({ items: items.slice(0, 3), total: 3, limit: 10, offset: 0 }),
+    );
+  renderApp(DETAIL_PATH, detailClient({ listInvitations }));
+
+  await screen.findByText('pending0@example.com');
+  fireEvent.click(screen.getByRole('button', { name: /^next$/i }));
+
+  // Never the misleading empty message; the valid page renders.
+  await screen.findByText('pending2@example.com');
+  expect(screen.queryByText(/no pending invitations/i)).toBeNull();
+  expect(listInvitations).toHaveBeenLastCalledWith(BIZ_ID, {
+    limit: 10,
+    offset: 0,
+  });
+});
+
+test('an offset beyond several vanished pages settles without looping (F3)', async () => {
+  const items = Array.from({ length: 10 }, (_, index) =>
+    invitation({
+      invitation_id: '00000000-0000-4000-8000-0000000000' + String(10 + index),
+      email: 'bulk' + String(index) + '@example.com',
+    }),
+  );
+  const listInvitations = vi
+    .fn()
+    .mockResolvedValueOnce(ok({ items, total: 21, limit: 10, offset: 0 }))
+    .mockResolvedValueOnce(ok({ items, total: 21, limit: 10, offset: 10 }))
+    // Everything vanished while on page three.
+    .mockResolvedValueOnce(ok({ items: [], total: 0, limit: 10, offset: 20 }))
+    .mockResolvedValueOnce(ok({ items: [], total: 0, limit: 10, offset: 10 }))
+    .mockResolvedValue(ok({ items: [], total: 0, limit: 10, offset: 0 }));
+  renderApp(DETAIL_PATH, detailClient({ listInvitations }));
+
+  await screen.findByText('bulk0@example.com');
+  fireEvent.click(screen.getByRole('button', { name: /^next$/i }));
+  // Wait for page two to render (the pager unmounts while loading).
+  const nextAgain = await screen.findByRole('button', { name: /^next$/i });
+  await waitFor(() => {
+    expect(listInvitations).toHaveBeenLastCalledWith(BIZ_ID, {
+      limit: 10,
+      offset: 10,
+    });
+  });
+  fireEvent.click(nextAgain);
+
+  // Settles on offset 0 and only then shows the honest empty state.
+  expect(
+    await screen.findByText(/no pending invitations/i),
+  ).toBeInTheDocument();
+  expect(listInvitations).toHaveBeenLastCalledWith(BIZ_ID, {
+    limit: 10,
+    offset: 0,
+  });
+  const settledCalls = listInvitations.mock.calls.length;
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  expect(listInvitations.mock.calls.length).toBe(settledCalls); // no loop
+});
+
+test('revoking the last item of a later page returns to the previous page (F3)', async () => {
+  const items = Array.from({ length: 10 }, (_, index) =>
+    invitation({
+      invitation_id: '00000000-0000-4000-8000-0000000000' + String(30 + index),
+      email: 'page1-' + String(index) + '@example.com',
+    }),
+  );
+  const last = invitation({
+    invitation_id: '00000000-0000-4000-8000-000000000099',
+    email: 'lastone@example.com',
+  });
+  const revokeInvitation = vi.fn(async () =>
+    ok({ status: 'revoked' as const }),
+  );
+  const listInvitations = vi
+    .fn()
+    .mockResolvedValueOnce(ok({ items, total: 11, limit: 10, offset: 0 }))
+    .mockResolvedValueOnce(
+      ok({ items: [last], total: 11, limit: 10, offset: 10 }),
+    )
+    // After the revoke, page two is empty but ten records remain.
+    .mockResolvedValueOnce(ok({ items: [], total: 10, limit: 10, offset: 10 }))
+    .mockResolvedValue(ok({ items, total: 10, limit: 10, offset: 0 }));
+  renderApp(DETAIL_PATH, detailClient({ revokeInvitation, listInvitations }));
+
+  await screen.findByText('page1-0@example.com');
+  fireEvent.click(screen.getByRole('button', { name: /^next$/i }));
+  fireEvent.click(
+    await screen.findByRole('button', {
+      name: /revoke invitation for lastone@example.com/i,
+    }),
+  );
+  fireEvent.click(
+    within(await screen.findByRole('dialog')).getByRole('button', {
+      name: /^revoke$/i,
+    }),
+  );
+
+  // Lands back on the previous page with Previous/Next semantics intact.
+  expect(await screen.findByText('page1-0@example.com')).toBeInTheDocument();
+  expect(screen.queryByText(/no pending invitations/i)).toBeNull();
+  expect(screen.getByRole('button', { name: /previous/i })).toBeDisabled();
+  expect(listInvitations).toHaveBeenLastCalledWith(BIZ_ID, {
+    limit: 10,
+    offset: 0,
+  });
+});

@@ -53,10 +53,13 @@ The M2E architecture is consumed as-is: one `['session']` TanStack
 Query cache, memory-only call-time CSRF, the session-generation guard,
 privileged-401 clearing, sanitized internal redirects. Platform
 mutations never write session state. Issued invitation and reset
-tokens extend the ADR-014/015 hygiene to the issuing side: a shared
-ephemeral reveal component renders the token exactly once from the
-mutation response, never from a refetch, and never lets it reach
-URLs, history, storage, query keys, logs, or analytics.
+tokens extend the ADR-014/015 hygiene to the issuing side: the
+issuance response is handed to the page's transient reveal state
+inside the mutation function and the mutation itself **resolves
+token-free**, so neither the query cache nor the TanStack mutation
+cache ever holds a raw token; the shared ephemeral reveal renders it
+exactly once, never from a refetch, and it never reaches URLs,
+history, storage, query keys, logs, or analytics.
 
 ### 4. E2E lifecycle: one orchestrator, one disposable database
 

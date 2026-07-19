@@ -107,3 +107,74 @@ test('a new issuance discards the previous reset token', async () => {
   await screen.findByText('second-reset');
   expect(screen.queryByText('first-reset')).toBeNull();
 });
+
+test('the raw reset token never enters any query or mutation cache (F2)', async () => {
+  const issuePasswordReset = vi.fn(async () =>
+    ok({
+      email: 'locked.out@example.com',
+      token: 'reset-cache-check-token',
+      expires_at: '2026-07-19T01:00:00Z',
+    }),
+  );
+  const { queryClient } = renderApp(
+    '/platform/recovery',
+    adminClient({ platform: { issuePasswordReset } }),
+  );
+
+  fireEvent.change(await screen.findByLabelText(/account email/i), {
+    target: { value: 'locked.out@example.com' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /issue reset token/i }));
+  await screen.findByText('reset-cache-check-token');
+
+  const cacheDump = JSON.stringify({
+    queries: queryClient
+      .getQueryCache()
+      .getAll()
+      .map((query) => query.state.data ?? null),
+    mutations: queryClient
+      .getMutationCache()
+      .getAll()
+      .map((mutation) => mutation.state),
+  });
+  expect(cacheDump).not.toContain('reset-cache-check-token');
+});
+
+test('a failed later issuance does not resurrect an earlier reset token (F2)', async () => {
+  const issuePasswordReset = vi
+    .fn()
+    .mockResolvedValueOnce(
+      ok({
+        email: 'a@example.com',
+        token: 'reset-first-token',
+        expires_at: '2026-07-19T01:00:00Z',
+      }),
+    )
+    .mockResolvedValueOnce(
+      apiError(404, envelope('not_found', 'No eligible account was found.')),
+    );
+  const { queryClient } = renderApp(
+    '/platform/recovery',
+    adminClient({ platform: { issuePasswordReset } }),
+  );
+
+  fireEvent.change(await screen.findByLabelText(/account email/i), {
+    target: { value: 'a@example.com' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /issue reset token/i }));
+  await screen.findByText('reset-first-token');
+
+  fireEvent.change(screen.getByLabelText(/account email/i), {
+    target: { value: 'nobody@example.com' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /issue reset token/i }));
+  await screen.findByRole('alert');
+  expect(screen.queryByText('reset-first-token')).toBeNull();
+  const mutationDump = JSON.stringify(
+    queryClient
+      .getMutationCache()
+      .getAll()
+      .map((mutation) => mutation.state),
+  );
+  expect(mutationDump).not.toContain('reset-first-token');
+});

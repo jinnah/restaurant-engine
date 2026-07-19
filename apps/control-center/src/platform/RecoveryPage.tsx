@@ -28,16 +28,23 @@ export function RecoveryPage() {
     document.title = 'Recovery — Restaurant Engine';
   }, []);
 
+  // The response carries the raw token, so it is handed straight to the
+  // transient reveal state inside the mutation function and the
+  // mutation resolves token-free: no cache — query or mutation — ever
+  // holds the token.
   const issue = useMutation({
-    mutationFn: async (body: { email: string }) => {
+    mutationFn: async (body: { email: string }): Promise<null> => {
       const csrfToken = currentCsrfToken(queryClient);
       if (csrfToken === null) {
         throw new ApiFailure(401, null);
       }
-      return unwrapPrivileged(
+      const response = await unwrapPrivileged(
         queryClient,
         await client.platform.issuePasswordReset(body, csrfToken),
       );
+      setEmail('');
+      setIssued(response);
+      return null;
     },
   });
 
@@ -52,10 +59,6 @@ export function RecoveryPage() {
     issue.mutate(
       { email },
       {
-        onSuccess: (response) => {
-          setEmail('');
-          setIssued(response);
-        },
         onError: (error: unknown) => {
           setFailure(
             mapFailure(

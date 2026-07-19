@@ -38,17 +38,39 @@ export function InvitationsPanel({
     limit: PAGE_SIZE,
     offset,
   });
-  const create = useCreateInvitation(businessId);
-  const revoke = useRevokeInvitation(businessId);
 
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<(typeof ROLES)[number]>('owner');
   const [failure, setFailure] = useState<FormFailure | null>(null);
   // The raw token lives only here, in transient component state: a
   // route change, sign-out, or dead session unmounts the panel and the
-  // token goes with it. Nothing ever writes it to a cache or store.
+  // token goes with it. The issuing mutation resolves token-free (the
+  // hook hands the response straight to this state), so no cache —
+  // query or mutation — ever holds the token.
   const [issued, setIssued] = useState<InvitationIssueResponse | null>(null);
   const [revoking, setRevoking] = useState<InvitationSummary | null>(null);
+
+  const create = useCreateInvitation(businessId, (response) => {
+    setEmail('');
+    setIssued(response);
+  });
+  const revoke = useRevokeInvitation(businessId);
+
+  // A pending-only list shrinks as invitations are revoked or accepted:
+  // when the current page empties while earlier records remain, step
+  // back to the nearest valid page instead of claiming the list is
+  // empty. This is React's adjust-state-during-render pattern; the
+  // offset strictly decreases toward zero, so it terminates.
+  if (
+    invitations.isSuccess &&
+    invitations.data.items.length === 0 &&
+    offset > 0
+  ) {
+    const lastValidOffset =
+      Math.max(0, Math.ceil(invitations.data.total / PAGE_SIZE) - 1) *
+      PAGE_SIZE;
+    setOffset(Math.min(offset - PAGE_SIZE, lastValidOffset));
+  }
 
   const canIssue =
     businessStatus === 'provisioning' || businessStatus === 'active';
@@ -64,10 +86,6 @@ export function InvitationsPanel({
     create.mutate(
       { email, role },
       {
-        onSuccess: (response) => {
-          setEmail('');
-          setIssued(response);
-        },
         onError: (error: unknown) => {
           setFailure(
             mapFailure(
@@ -200,9 +218,17 @@ export function InvitationsPanel({
           </button>
         </div>
       )}
-      {invitations.isSuccess && invitations.data.items.length === 0 && (
-        <p className={styles.empty}>No pending invitations.</p>
-      )}
+      {invitations.isSuccess &&
+        invitations.data.items.length === 0 &&
+        (offset === 0 ? (
+          <p className={styles.empty}>No pending invitations.</p>
+        ) : (
+          // The shrink effect above is stepping back to a valid page;
+          // never claim the whole list is empty while records remain.
+          <p role="status" className={styles.loading}>
+            Loading earlier invitations…
+          </p>
+        ))}
       {invitations.isSuccess && invitations.data.items.length > 0 && (
         <>
           <ul className={styles.list}>
