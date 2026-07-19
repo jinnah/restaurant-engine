@@ -1365,8 +1365,16 @@ class TestBusinessLockSerialization:
 
             session_a.commit()  # releases the lock; B proceeds
         finally:
+            # Cleanup must hold on every path, including an assertion
+            # failure above (review L1): close A first — close() rolls back
+            # any open transaction, so a still-blocked B is always released
+            # — then join the worker if it was ever started (thread.ident is
+            # set exactly once, at start; joining an unstarted thread would
+            # raise and mask the original failure). join(timeout) never
+            # raises, so the original assertion error always propagates.
             session_a.close()
-        thread.join(timeout=10)
+            if thread.ident is not None:
+                thread.join(timeout=10)
         assert not thread.is_alive(), "B must finish once the lock is released"
 
         # B re-evaluated authoritative state: exactly the approved 409, no row.
