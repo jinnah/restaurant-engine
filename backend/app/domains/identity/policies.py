@@ -48,6 +48,12 @@ class Capability(StrEnum):
     BUSINESS_VIEW = "business.view"
     BUSINESS_MEMBERS_INVITE = "business.members.invite"
     BUSINESS_AUDIT_READ = "business.audit.read"
+    # M3A (ADR-017 ruling D4): general catalog administration is owner/
+    # manager; the availability toggle is a separate staff-reachable
+    # capability gating only the availability command (blueprint §2.2:
+    # staff "mark items unavailable").
+    BUSINESS_CATALOG_WRITE = "business.catalog.write"
+    BUSINESS_CATALOG_AVAILABILITY = "business.catalog.availability"
 
 
 PLATFORM_CAPABILITIES: frozenset[Capability] = frozenset(
@@ -60,13 +66,17 @@ PLATFORM_CAPABILITIES: frozenset[Capability] = frozenset(
 
 # Every role maps to a capability set; every business role can view its
 # business. Owners and managers may invite members and read the business
-# audit trail (ADR-014 rulings); staff may not.
+# audit trail (ADR-014 rulings); staff may not. Catalog (M3A, ruling D4):
+# owners and managers hold general catalog write; staff hold only the
+# availability capability.
 CAPABILITIES_BY_ROLE: dict[Role, frozenset[Capability]] = {
     Role.OWNER: frozenset(
         {
             Capability.BUSINESS_VIEW,
             Capability.BUSINESS_MEMBERS_INVITE,
             Capability.BUSINESS_AUDIT_READ,
+            Capability.BUSINESS_CATALOG_WRITE,
+            Capability.BUSINESS_CATALOG_AVAILABILITY,
         }
     ),
     Role.MANAGER: frozenset(
@@ -74,9 +84,16 @@ CAPABILITIES_BY_ROLE: dict[Role, frozenset[Capability]] = {
             Capability.BUSINESS_VIEW,
             Capability.BUSINESS_MEMBERS_INVITE,
             Capability.BUSINESS_AUDIT_READ,
+            Capability.BUSINESS_CATALOG_WRITE,
+            Capability.BUSINESS_CATALOG_AVAILABILITY,
         }
     ),
-    Role.STAFF: frozenset({Capability.BUSINESS_VIEW}),
+    Role.STAFF: frozenset(
+        {
+            Capability.BUSINESS_VIEW,
+            Capability.BUSINESS_CATALOG_AVAILABILITY,
+        }
+    ),
 }
 
 # Rank order for the invitation role ceiling (ADR-014): an actor may only
