@@ -1,6 +1,7 @@
 import { createBrowserRouter, type RouteObject } from 'react-router';
 import { GuestOnly } from './auth/GuestOnly';
 import { RequireAuth } from './auth/RequireAuth';
+import { BusinessDetailPage } from './platform/BusinessDetailPage';
 import { BusinessesListPage } from './platform/BusinessesListPage';
 import { PlatformLayout } from './platform/PlatformLayout';
 import { PlatformOverview } from './platform/PlatformOverview';
@@ -39,8 +40,12 @@ export const routes: RouteObject[] = [
                     children: [
                       { index: true, element: <PlatformOverview /> },
                       { path: 'businesses', element: <BusinessesListPage /> },
-                      // Business detail, recovery, and audit pages land in
-                      // the following M2F slices; unknown children 404 below.
+                      {
+                        path: 'businesses/:businessId',
+                        element: <BusinessDetailPage />,
+                      },
+                      // Recovery and audit pages land in the following M2F
+                      // slices; unknown children 404 below.
                     ],
                   },
                 ],

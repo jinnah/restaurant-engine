@@ -29,6 +29,36 @@ export function usePlatformBusiness(businessId: string) {
   });
 }
 
+export type LifecycleAction = 'activate' | 'suspend' | 'reactivate' | 'close';
+
+/**
+ * Run a lifecycle command. The command response is the authoritative
+ * updated representation, so it is written straight into the detail
+ * cache; every businesses list page is invalidated for refetch.
+ */
+export function useLifecycleAction(businessId: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (action: LifecycleAction) => {
+      const csrfToken = currentCsrfToken(queryClient);
+      if (csrfToken === null) {
+        throw new ApiFailure(401, null);
+      }
+      return unwrapPrivileged(
+        queryClient,
+        await client.platform[action](businessId, csrfToken),
+      );
+    },
+    onSuccess: async (updated) => {
+      queryClient.setQueryData(platformKeys.business(businessId), updated);
+      await queryClient.invalidateQueries({
+        queryKey: platformKeys.allBusinesses(),
+      });
+    },
+  });
+}
+
 /** Create a business; success refreshes every businesses list page. */
 export function useCreateBusiness() {
   const client = useApiClient();
