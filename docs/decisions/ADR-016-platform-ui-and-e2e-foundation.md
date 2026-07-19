@@ -76,8 +76,12 @@ mutation; a both-loopback preflight of ports 8100 and 5273 that fails
 rather than attach to an existing server; recreation of the disposable
 `restaurant_engine_e2e` database at the migration head via
 `backend/scripts/reset_e2e_database.py`, which hard-refuses — before
-opening any connection — every database name except that exact literal
-(and drops its own half-made database if migration fails); seeding of
+opening any connection — every target except the exact canonical URL
+(driver `postgresql+psycopg`, host `127.0.0.1`, explicit port `5433`,
+that literal database name, zero query parameters; remote hosts,
+libpq overrides, `localhost` aliases, and Unix sockets are all
+rejected) and drops its own half-made database if migration fails;
+seeding of
 the single universal fixture, a synthetic platform administrator,
 through the documented bootstrap CLI with the password on stdin;
 spawning and tracking the backend (`DATABASE_URL` constructed by the
