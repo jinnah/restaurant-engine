@@ -32,6 +32,17 @@ from app.core.errors import (
     InvalidStateError,
     ResourceNotFoundError,
 )
+from app.domains.audit import recorder
+from app.domains.audit.actions import AuditAction
+from app.domains.audit.details import (
+    CatalogCategoryDetails,
+    CatalogCategoryUpdatedDetails,
+    CatalogItemAvailabilityDetails,
+    CatalogItemCreatedDetails,
+    CatalogItemDeletedDetails,
+    CatalogItemUpdatedDetails,
+    CatalogReorderDetails,
+)
 from app.domains.businesses.lifecycle import BusinessStatus
 from app.domains.businesses.queries import lock_business_status
 from app.domains.catalog import dietary, policies, repository
@@ -206,6 +217,15 @@ def create_category(
     )
     repository.add(db, category)
     _flush(db)
+    recorder.record(
+        db,
+        AuditAction.CATALOG_CATEGORY_CREATED,
+        actor_user_id=actor.user.id,
+        business_id=business_id,
+        target_type="menu_category",
+        target_id=str(category.id),
+        details=CatalogCategoryDetails(name=category.name),
+    )
     _commit(db)
     return _category_summary(category)
 
@@ -222,18 +242,38 @@ def update_category(
     if category is None:
         raise ResourceNotFoundError("Category not found.")
     provided = payload.model_fields_set
+    changed: list[str] = []
     if "name" in provided and payload.name is not None and payload.name != category.name:
         if repository.category_name_exists(
             db, business_id=business_id, name=payload.name, exclude_id=category.id
         ):
             raise ConflictError("a category with this name already exists")
         category.name = payload.name
-    if "description" in provided:
+        changed.append("name")
+    if "description" in provided and payload.description != category.description:
         category.description = payload.description
-    if "is_visible" in provided and payload.is_visible is not None:
+        changed.append("description")
+    if (
+        "is_visible" in provided
+        and payload.is_visible is not None
+        and payload.is_visible != category.is_visible
+    ):
         category.is_visible = payload.is_visible
-    category.updated_at = func.now()
-    _flush(db)
+        changed.append("is_visible")
+    if changed:
+        category.updated_at = func.now()
+        _flush(db)
+        recorder.record(
+            db,
+            AuditAction.CATALOG_CATEGORY_UPDATED,
+            actor_user_id=actor.user.id,
+            business_id=business_id,
+            target_type="menu_category",
+            target_id=str(category.id),
+            details=CatalogCategoryUpdatedDetails(
+                name=category.name, changed_fields=",".join(sorted(changed))
+            ),
+        )
     _commit(db)
     db.refresh(category)
     return _category_summary(category)
@@ -250,9 +290,20 @@ def delete_category(
     if repository.count_items_in_category(db, business_id=business_id, category_id=category_id):
         raise ConflictError("the category is not empty; move or delete its items first")
     position = category.position
+    name = category.name
+    deleted_id = category.id
     repository.delete_category(db, category)
     _flush(db)
     repository.close_category_position_gap(db, business_id=business_id, position=position)
+    recorder.record(
+        db,
+        AuditAction.CATALOG_CATEGORY_DELETED,
+        actor_user_id=actor.user.id,
+        business_id=business_id,
+        target_type="menu_category",
+        target_id=str(deleted_id),
+        details=CatalogCategoryDetails(name=name),
+    )
     _commit(db)
 
 
@@ -269,6 +320,15 @@ def reorder_categories(
         )
     repository.set_category_positions(
         db, business_id=business_id, ordered_ids=payload.ordered_category_ids
+    )
+    recorder.record(
+        db,
+        AuditAction.CATALOG_CATEGORIES_REORDERED,
+        actor_user_id=actor.user.id,
+        business_id=business_id,
+        target_type="business",
+        target_id=str(business_id),
+        details=CatalogReorderDetails(count=len(payload.ordered_category_ids)),
     )
     _commit(db)
     return get_admin_menu(db, actor, business_id)
@@ -323,6 +383,17 @@ def create_item(
     for tag in payload.dietary_tags:
         repository.add(db, MenuItemDietaryTag(business_id=business_id, item_id=item.id, tag=tag))
     _flush(db)
+    recorder.record(
+        db,
+        AuditAction.CATALOG_ITEM_CREATED,
+        actor_user_id=actor.user.id,
+        business_id=business_id,
+        target_type="menu_item",
+        target_id=str(item.id),
+        details=CatalogItemCreatedDetails(
+            name=item.name, category_id=str(category_id), price_minor=item.price_minor
+        ),
+    )
     _commit(db)
     return _item_summary(item, payload.dietary_tags)
 
@@ -395,36 +466,85 @@ def update_item(
         if moving
         else None
     )
+    current_tags = (
+        repository.list_tags_for_item(db, business_id=business_id, item_id=item.id)
+        if "dietary_tags" in provided and payload.dietary_tags is not None
+        else None
+    )
 
-    # Apply the mutation.
+    # Apply the mutation, tracking the closed-set change summary for audit.
+    changed: list[str] = []
+    price_minor_old: int | None = None
+    price_minor_new: int | None = None
     old_category_id = item.category_id
     old_position = item.position
     if name_changed:
         item.name = new_name
-    if "description" in provided:
+        changed.append("name")
+    if "description" in provided and payload.description != item.description:
         item.description = payload.description
-    if "price_minor" in provided and payload.price_minor is not None:
+        changed.append("description")
+    if (
+        "price_minor" in provided
+        and payload.price_minor is not None
+        and payload.price_minor != item.price_minor
+    ):
+        price_minor_old = item.price_minor
+        price_minor_new = payload.price_minor
         item.price_minor = payload.price_minor
-    if "is_hidden" in provided and payload.is_hidden is not None:
+        changed.append("price_minor")
+    if (
+        "is_hidden" in provided
+        and payload.is_hidden is not None
+        and payload.is_hidden != item.is_hidden
+    ):
         # Hiding never clears is_featured (R1): the flag is retained and
         # simply inert while hidden.
         item.is_hidden = payload.is_hidden
-    if "is_featured" in provided and payload.is_featured is not None:
+        changed.append("is_hidden")
+    if (
+        "is_featured" in provided
+        and payload.is_featured is not None
+        and payload.is_featured != item.is_featured
+    ):
         item.is_featured = payload.is_featured
+        changed.append("is_featured")
     if moving and destination_count is not None:
         item.category_id = target_category_id
         item.position = destination_count  # append at the destination's end
-    if "dietary_tags" in provided and payload.dietary_tags is not None:
+        changed.append("category_id")
+    if (
+        current_tags is not None
+        and payload.dietary_tags is not None
+        and sorted(payload.dietary_tags) != current_tags
+    ):
         repository.replace_item_tags(
             db, business_id=business_id, item_id=item.id, tags=payload.dietary_tags
         )
-    item.updated_at = func.now()
-    _flush(db)
-    if moving:
-        # Close the source category's gap; the moved row no longer matches
-        # its old (category, position) and is untouched by the shift.
-        repository.close_item_position_gap(
-            db, business_id=business_id, category_id=old_category_id, position=old_position
+        changed.append("dietary_tags")
+    if changed:
+        item.updated_at = func.now()
+        _flush(db)
+        if moving:
+            # Close the source category's gap; the moved row no longer
+            # matches its old (category, position) and is untouched by
+            # the shift.
+            repository.close_item_position_gap(
+                db, business_id=business_id, category_id=old_category_id, position=old_position
+            )
+        recorder.record(
+            db,
+            AuditAction.CATALOG_ITEM_UPDATED,
+            actor_user_id=actor.user.id,
+            business_id=business_id,
+            target_type="menu_item",
+            target_id=str(item.id),
+            details=CatalogItemUpdatedDetails(
+                changed_fields=",".join(sorted(changed)),
+                price_minor_old=price_minor_old,
+                price_minor_new=price_minor_new,
+                category_id=str(target_category_id) if moving else None,
+            ),
         )
     _commit(db)
     db.refresh(item)
@@ -442,10 +562,21 @@ def delete_item(
         raise ResourceNotFoundError("Item not found.")
     category_id = item.category_id
     position = item.position
+    name = item.name
+    deleted_id = item.id
     repository.delete_item(db, item)
     _flush(db)
     repository.close_item_position_gap(
         db, business_id=business_id, category_id=category_id, position=position
+    )
+    recorder.record(
+        db,
+        AuditAction.CATALOG_ITEM_DELETED,
+        actor_user_id=actor.user.id,
+        business_id=business_id,
+        target_type="menu_item",
+        target_id=str(deleted_id),
+        details=CatalogItemDeletedDetails(name=name, category_id=str(category_id)),
     )
     _commit(db)
 
@@ -470,6 +601,15 @@ def reorder_items(
         business_id=business_id,
         category_id=payload.category_id,
         ordered_ids=payload.ordered_item_ids,
+    )
+    recorder.record(
+        db,
+        AuditAction.CATALOG_ITEMS_REORDERED,
+        actor_user_id=actor.user.id,
+        business_id=business_id,
+        target_type="menu_category",
+        target_id=str(payload.category_id),
+        details=CatalogReorderDetails(count=len(payload.ordered_item_ids)),
     )
     _commit(db)
     return get_admin_menu(db, actor, business_id)
@@ -496,6 +636,17 @@ def set_item_availability(
         item.is_available = payload.is_available
         item.updated_at = func.now()
         _flush(db)
+        recorder.record(
+            db,
+            AuditAction.CATALOG_ITEM_AVAILABILITY_CHANGED,
+            actor_user_id=actor.user.id,
+            business_id=business_id,
+            target_type="menu_item",
+            target_id=str(item.id),
+            details=CatalogItemAvailabilityDetails(
+                availability="available" if payload.is_available else "sold_out"
+            ),
+        )
     _commit(db)
     db.refresh(item)
     tags = repository.list_tags_for_item(db, business_id=business_id, item_id=item_id)

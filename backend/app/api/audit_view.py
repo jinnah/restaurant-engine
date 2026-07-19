@@ -107,6 +107,33 @@ _PROJECTIONS: dict[str, dict[str, _Extractor]] = {
     AuditAction.BUSINESS_ENTITLEMENT_REVOKED.value: {"feature_key": _short_str},
     AuditAction.AUTH_PASSWORD_RESET_ISSUED.value: {"email_normalized": _short_str},
     AuditAction.AUTH_PASSWORD_RESET_COMPLETED.value: {"email_normalized": _short_str},
+    # M3A catalog (ADR-017): bounded names, closed-set changed_fields
+    # summaries, integer minor-unit prices (MAX_PRICE_MINOR == the
+    # _small_int bound, so a legitimate price can never truncate away).
+    AuditAction.CATALOG_CATEGORY_CREATED.value: {"name": _short_str},
+    AuditAction.CATALOG_CATEGORY_UPDATED.value: {
+        "name": _short_str,
+        "changed_fields": _short_str,
+    },
+    AuditAction.CATALOG_CATEGORY_DELETED.value: {"name": _short_str},
+    AuditAction.CATALOG_CATEGORIES_REORDERED.value: {"count": _small_int},
+    AuditAction.CATALOG_ITEM_CREATED.value: {
+        "name": _short_str,
+        "category_id": _short_str,
+        "price_minor": _small_int,
+    },
+    AuditAction.CATALOG_ITEM_UPDATED.value: {
+        "changed_fields": _short_str,
+        "price_minor_old": _small_int,
+        "price_minor_new": _small_int,
+        "category_id": _short_str,
+    },
+    AuditAction.CATALOG_ITEM_DELETED.value: {
+        "name": _short_str,
+        "category_id": _short_str,
+    },
+    AuditAction.CATALOG_ITEMS_REORDERED.value: {"count": _small_int},
+    AuditAction.CATALOG_ITEM_AVAILABILITY_CHANGED.value: {"availability": _short_str},
 }
 
 

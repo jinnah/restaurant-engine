@@ -81,3 +81,66 @@ class PasswordResetDetails(AuditDetails):
     """
 
     email_normalized: str
+
+
+# --- Catalog (M3A, ADR-017) --------------------------------------------------
+#
+# Bounded values only: normalized names are <= 120 chars; changed_fields is
+# a comma-joined, sorted string drawn from a closed field-name set (a plain
+# bounded string, so the read-time projection's primitive extractors apply
+# unchanged); prices are ints <= MAX_PRICE_MINOR. Free-text descriptions
+# never enter audit payloads.
+
+
+class CatalogCategoryDetails(AuditDetails):
+    """A menu category was created or deleted."""
+
+    name: str
+
+
+class CatalogCategoryUpdatedDetails(AuditDetails):
+    """A menu category changed; which fields is the closed-set summary."""
+
+    name: str
+    changed_fields: str
+
+
+class CatalogReorderDetails(AuditDetails):
+    """A full-set reorder ran (categories or items); count of rows."""
+
+    count: int
+
+
+class CatalogItemCreatedDetails(AuditDetails):
+    """A menu item was created."""
+
+    name: str
+    category_id: str
+    price_minor: int
+
+
+class CatalogItemUpdatedDetails(AuditDetails):
+    """A menu item changed.
+
+    ``price_minor_old``/``price_minor_new`` are present exactly when the
+    price changed (queryable price history); ``category_id`` is the
+    destination exactly when the item moved.
+    """
+
+    changed_fields: str
+    price_minor_old: int | None = None
+    price_minor_new: int | None = None
+    category_id: str | None = None
+
+
+class CatalogItemDeletedDetails(AuditDetails):
+    """A menu item was deleted."""
+
+    name: str
+    category_id: str
+
+
+class CatalogItemAvailabilityDetails(AuditDetails):
+    """The staff-reachable "sold out today" toggle changed state."""
+
+    availability: Literal["available", "sold_out"]
