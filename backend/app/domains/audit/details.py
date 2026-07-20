@@ -11,9 +11,14 @@ they are operational identifiers needed for security forensics, not
 customer data (docs/04 privacy-minimization).
 """
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+)
 
 
 class AuditDetails(BaseModel):
@@ -151,9 +156,22 @@ class CatalogItemAvailabilityDetails(AuditDetails):
 # The maximum-selection mode is explicit (D6 correction): never inferred
 # from field absence. Mode and availability values are closed-set strings
 # so the read-time projection needs no boolean in its value union.
+#
+# D6 binds field *presence* at both layers: inapplicable optional fields
+# are omitted from the stored payload too, not stored as explicit nulls.
+# The omission lives in these schemas' own serializer — the shared M2A
+# recorder and every earlier detail schema are untouched.
 
 
-class CatalogModifierGroupCreatedDetails(AuditDetails):
+class ModifierAuditDetails(AuditDetails):
+    """Base for M3B modifier details: None fields never reach storage."""
+
+    @model_serializer(mode="wrap")
+    def _omit_none(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        return {key: value for key, value in handler(self).items() if value is not None}
+
+
+class CatalogModifierGroupCreatedDetails(ModifierAuditDetails):
     """A modifier group was created (selection rule reconstructable)."""
 
     name: str
@@ -163,7 +181,7 @@ class CatalogModifierGroupCreatedDetails(AuditDetails):
     max_select: int | None = None  # present exactly when the mode is finite
 
 
-class CatalogModifierGroupUpdatedDetails(AuditDetails):
+class CatalogModifierGroupUpdatedDetails(ModifierAuditDetails):
     """A modifier group changed.
 
     ``min_select_old/new`` appear exactly when the minimum changes. The
@@ -181,7 +199,7 @@ class CatalogModifierGroupUpdatedDetails(AuditDetails):
     max_select_new: int | None = None
 
 
-class CatalogModifierGroupDeletedDetails(AuditDetails):
+class CatalogModifierGroupDeletedDetails(ModifierAuditDetails):
     """A modifier group was deleted (its options cascaded — no fan-out)."""
 
     name: str
@@ -189,7 +207,7 @@ class CatalogModifierGroupDeletedDetails(AuditDetails):
     option_count: int
 
 
-class CatalogModifierOptionCreatedDetails(AuditDetails):
+class CatalogModifierOptionCreatedDetails(ModifierAuditDetails):
     """A modifier option was created."""
 
     name: str
@@ -197,7 +215,7 @@ class CatalogModifierOptionCreatedDetails(AuditDetails):
     price_delta_minor: int
 
 
-class CatalogModifierOptionUpdatedDetails(AuditDetails):
+class CatalogModifierOptionUpdatedDetails(ModifierAuditDetails):
     """A modifier option changed.
 
     Price old/new appear exactly when the delta changes; the availability
@@ -211,7 +229,7 @@ class CatalogModifierOptionUpdatedDetails(AuditDetails):
     availability_new: Literal["available", "unavailable"] | None = None
 
 
-class CatalogModifierOptionDeletedDetails(AuditDetails):
+class CatalogModifierOptionDeletedDetails(ModifierAuditDetails):
     """A modifier option was deleted directly (not via cascade)."""
 
     name: str

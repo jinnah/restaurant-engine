@@ -306,9 +306,9 @@ class TestOptions:
         assert details["changed_fields"] == "price_delta_minor"
         assert details["price_delta_minor_old"] == 450
         assert details["price_delta_minor_new"] == 500
-        # Stored details carry explicit nulls (M3A recorder precedent);
-        # the typed read-time projection is what omits inapplicable keys.
-        assert details["availability_old"] is None, (
+        # D6 binds at both layers: inapplicable fields are absent from
+        # the STORED payload too (ModifierAuditDetails serializer).
+        assert "availability_old" not in details, (
             "availability fields appear only when availability changes"
         )
 
@@ -366,7 +366,7 @@ class TestOptions:
         assert details["changed_fields"] == "is_available"
         assert details["availability_old"] == "available"
         assert details["availability_new"] == "unavailable"
-        assert details["price_delta_minor_old"] is None
+        assert "price_delta_minor_old" not in details
 
 
 class TestReorders:
@@ -534,9 +534,13 @@ class TestCountLimits:
                 {
                     "bid": business,
                     "iid": item["id"],
-                    "top": policies.MAX_MODIFIER_GROUPS_PER_ITEM - 1,
+                    "top": policies.MAX_MODIFIER_GROUPS_PER_ITEM - 2,
                 },
-            )
+            )  # MAX-1 seeded
+        # The maximum permitted create succeeds through the API...
+        tenth = _create_group(client, csrf, business, item["id"], name="Tenth")
+        assert tenth["position"] == policies.MAX_MODIFIER_GROUPS_PER_ITEM - 1
+        # ...and the next returns the ruled 409 with no side effects.
         response = client.post(
             f"{_base(business)}/items/{item['id']}/modifier-groups",
             json={"name": "One Too Many"},
@@ -546,6 +550,25 @@ class TestCountLimits:
         assert response.json()["error"]["details"] == {
             "limit": policies.MAX_MODIFIER_GROUPS_PER_ITEM
         }
+        with migrated_engine.begin() as connection:
+            count = connection.execute(
+                text("SELECT count(*) FROM modifier_groups WHERE item_id = :iid"),
+                {"iid": item["id"]},
+            ).scalar_one()
+        assert count == policies.MAX_MODIFIER_GROUPS_PER_ITEM, "no partial row"
+
+        # The count is per item: a sibling item is unaffected by this
+        # item's full quota.
+        sibling = _create_item(client, csrf, business, item["category_id"], name="Sibling")
+        _create_group(client, csrf, business, sibling["id"], name="Sibling Group")
+
+        # Deleting a group releases capacity.
+        deleted = client.delete(
+            f"{_base(business)}/modifier-groups/{tenth['id']}",
+            headers=csrf_headers(csrf),
+        )
+        assert deleted.status_code == 200
+        _create_group(client, csrf, business, item["id"], name="Refilled")
 
     def test_groups_per_business_limit(
         self,
@@ -595,6 +618,23 @@ class TestCountLimits:
         assert response.json()["error"]["details"] == {
             "limit": policies.MAX_MODIFIER_GROUPS_PER_BUSINESS
         }
+        with migrated_engine.begin() as connection:
+            count = connection.execute(
+                text("SELECT count(*) FROM modifier_groups WHERE business_id = :bid"),
+                {"bid": business},
+            ).scalar_one()
+            victim = connection.execute(
+                text("SELECT id FROM modifier_groups WHERE business_id = :bid LIMIT 1"),
+                {"bid": business},
+            ).scalar_one()
+        assert count == policies.MAX_MODIFIER_GROUPS_PER_BUSINESS, "no partial row"
+        # Deleting any group releases business-level capacity.
+        released = client.delete(
+            f"{_base(business)}/modifier-groups/{victim}",
+            headers=csrf_headers(csrf),
+        )
+        assert released.status_code == 200
+        _create_group(client, csrf, business, item["id"], name="Refilled")
 
     def test_options_per_group_limit(
         self,
@@ -617,9 +657,13 @@ class TestCountLimits:
                 {
                     "bid": business,
                     "gid": group["id"],
-                    "top": policies.MAX_MODIFIER_OPTIONS_PER_GROUP - 1,
+                    "top": policies.MAX_MODIFIER_OPTIONS_PER_GROUP - 2,
                 },
-            )
+            )  # MAX-1 seeded
+        # The maximum permitted create succeeds through the API...
+        thirtieth = _create_option(client, csrf, business, group["id"], name="Thirtieth")
+        assert thirtieth["active_option_count"] == policies.MAX_MODIFIER_OPTIONS_PER_GROUP
+        # ...and the next returns the ruled 409 with no side effects.
         response = client.post(
             f"{_base(business)}/modifier-groups/{group['id']}/options",
             json={"name": "Overflow"},
@@ -629,6 +673,25 @@ class TestCountLimits:
         assert response.json()["error"]["details"] == {
             "limit": policies.MAX_MODIFIER_OPTIONS_PER_GROUP
         }
+        with migrated_engine.begin() as connection:
+            count = connection.execute(
+                text("SELECT count(*) FROM modifier_options WHERE group_id = :gid"),
+                {"gid": group["id"]},
+            ).scalar_one()
+        assert count == policies.MAX_MODIFIER_OPTIONS_PER_GROUP, "no partial row"
+
+        # Per-group isolation: a sibling group on the same item is unaffected.
+        sibling = _create_group(client, csrf, business, item["id"], name="Sibling")
+        _create_option(client, csrf, business, sibling["id"], name="Free Slot")
+
+        # Deleting an option releases capacity.
+        last_option_id = thirtieth["options"][-1]["id"]
+        released = client.delete(
+            f"{_base(business)}/modifier-options/{last_option_id}",
+            headers=csrf_headers(csrf),
+        )
+        assert released.status_code == 200
+        _create_option(client, csrf, business, group["id"], name="Refilled")
 
     def test_options_per_business_limit(
         self,
@@ -697,6 +760,23 @@ class TestCountLimits:
         assert response.json()["error"]["details"] == {
             "limit": policies.MAX_MODIFIER_OPTIONS_PER_BUSINESS
         }
+        with migrated_engine.begin() as connection:
+            count = connection.execute(
+                text("SELECT count(*) FROM modifier_options WHERE business_id = :bid"),
+                {"bid": business},
+            ).scalar_one()
+            victim = connection.execute(
+                text("SELECT id FROM modifier_options WHERE business_id = :bid LIMIT 1"),
+                {"bid": business},
+            ).scalar_one()
+        assert count == policies.MAX_MODIFIER_OPTIONS_PER_BUSINESS, "no partial row"
+        # Deleting any option releases business-level capacity.
+        released = client.delete(
+            f"{_base(business)}/modifier-options/{victim}",
+            headers=csrf_headers(csrf),
+        )
+        assert released.status_code == 200
+        _create_option(client, csrf, business, target_group["id"], name="Refilled")
 
 
 class TestGroupAuditModeTransitions:
@@ -716,7 +796,7 @@ class TestGroupAuditModeTransitions:
         events = _audit_rows(migrated_engine, business, "catalog.modifier_group_created")
         unlimited, finite = events[0]["details"], events[1]["details"]
         assert unlimited["max_select_mode"] == "unlimited"
-        assert unlimited["max_select"] is None
+        assert "max_select" not in unlimited
         assert finite["max_select_mode"] == "finite"
         assert finite["max_select"] == 3
 
@@ -753,17 +833,17 @@ class TestGroupAuditModeTransitions:
         assert finite_to_unlimited["max_select_mode_old"] == "finite"
         assert finite_to_unlimited["max_select_mode_new"] == "unlimited"
         assert finite_to_unlimited["max_select_old"] == 5
-        assert finite_to_unlimited["max_select_new"] is None
+        assert "max_select_new" not in finite_to_unlimited
 
         assert unlimited_to_finite["max_select_mode_old"] == "unlimited"
         assert unlimited_to_finite["max_select_mode_new"] == "finite"
-        assert unlimited_to_finite["max_select_old"] is None
+        assert "max_select_old" not in unlimited_to_finite
         assert unlimited_to_finite["max_select_new"] == 2
 
         assert min_change["changed_fields"] == "min_select"
         assert min_change["min_select_old"] == 0
         assert min_change["min_select_new"] == 1
-        assert min_change["max_select_mode_old"] is None
+        assert "max_select_mode_old" not in min_change
 
         # The API-level contract: the typed projection omits inapplicable
         # (null) keys entirely — the D6 field-presence rules bind here.

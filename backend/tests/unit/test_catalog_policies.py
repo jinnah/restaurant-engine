@@ -102,6 +102,7 @@ class TestGroupSatisfiability:
         # docs/03: max cannot exceed selectable active options unless NULL.
         assert not policies.is_group_satisfiable(0, 5, 3)
         assert policies.is_group_satisfiable(0, 3, 3)
+        assert policies.is_group_satisfiable(0, 1, 3)  # max below active is fine
 
     def test_unlimited_maximum_is_bounded_only_by_active_options(self) -> None:
         assert policies.is_group_satisfiable(1, None, 30)

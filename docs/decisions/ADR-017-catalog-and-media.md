@@ -322,11 +322,13 @@ operation-id total 49); option mutations return the recomputed parent
 modifier workflows live in `catalog/modifier_service.py` over the shared
 `service_support` preamble; R-1 landed (M3A category/item reorders now
 no-op-suppress identical permutations, tests updated). Eight audit
-actions recorded with the explicit max-mode convention; stored details
-carry explicit nulls for inapplicable fields (the M2A recorder's
-`model_dump` behavior, matching M3A price details) while the typed
-read-time projection omits them — the D6 field-presence rules bind at
-the API projection, and tests assert both layers. Delivered with unit,
+actions recorded with the explicit max-mode convention; the D6
+field-presence rules bind at **both layers** — the modifier detail
+schemas omit inapplicable optional fields from the stored payload via
+their own serializer (`ModifierAuditDetails`; the shared M2A recorder
+and every earlier schema, including M3A's price details, are untouched)
+and the typed read-time projection omits them independently; tests
+assert stored absence and projected absence separately. Delivered with unit,
 migration/constraint (five named selection-CHECK rejections, both
 cross-tenant FK rejections, cascade chains), API, satisfiability-
 transition, count-limit, authorization/isolation, audit-atomicity, and
