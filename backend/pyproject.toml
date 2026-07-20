@@ -74,6 +74,12 @@ pretty = true
 mypy_path = "."
 explicit_package_bases = true
 
+# python-multipart ships no type stubs / py.typed marker; the upload module
+# validates its returns explicitly (M3C).
+[[tool.mypy.overrides]]
+module = "multipart.*"
+ignore_missing_imports = true
+
 # --- pytest -----------------------------------------------------------------
 
 [tool.pytest.ini_options]

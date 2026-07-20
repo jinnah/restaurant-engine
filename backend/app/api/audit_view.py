@@ -25,6 +25,7 @@ from pydantic import BaseModel
 from app.domains.audit.actions import AuditAction
 from app.domains.audit.models import AuditEvent
 from app.domains.catalog.policies import MAX_PRICE_MINOR
+from app.domains.media.policies import MAX_ASSET_OUTPUT_BYTES
 
 _MAX_STRING = 320  # longest legitimate detail value (emails are <= 254)
 
@@ -76,6 +77,23 @@ def _choice(allowed: frozenset[str]) -> "_Extractor":
 
 _MODE_CHOICE = _choice(frozenset({"finite", "unlimited"}))
 _AVAILABILITY_CHOICE = _choice(frozenset({"available", "unavailable"}))
+# M3C media closed-set extractors.
+_SOURCE_FORMAT_CHOICE = _choice(frozenset({"jpeg", "png", "webp"}))
+_STATUS_CHOICE = _choice(frozenset({"pending", "active"}))
+_TRIGGER_CHOICE = _choice(frozenset({"pending_ttl_sweep"}))
+_CHANGE_CHOICE = _choice(frozenset({"attached", "replaced", "cleared", "alt_updated"}))
+_ALT_CHANGED_CHOICE = _choice(frozenset({"changed", "unchanged"}))
+
+
+def _byte_int(value: object) -> int | None:
+    """Admit an encoded-byte size within the per-asset output bound (M3C)."""
+    if (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and 0 <= value <= MAX_ASSET_OUTPUT_BYTES
+    ):
+        return value
+    return None
 
 
 def _price_int(value: object) -> int | None:
@@ -210,6 +228,30 @@ _PROJECTIONS: dict[str, dict[str, _Extractor]] = {
         "group_id": _short_str,
     },
     AuditAction.CATALOG_MODIFIER_OPTIONS_REORDERED.value: {"count": _small_int},
+    # M3C media (ADR-017): closed-set format/status/trigger/change via
+    # _choice; bounded ints; no key/path/checksum/alt-text is ever
+    # projectable because none is ever stored.
+    AuditAction.MEDIA_ASSET_UPLOADED.value: {
+        "source_format": _SOURCE_FORMAT_CHOICE,
+        "width": _small_int,
+        "height": _small_int,
+        "byte_size": _byte_int,
+        "variant_count": _small_int,
+    },
+    AuditAction.MEDIA_ASSET_DELETED.value: {
+        "status": _STATUS_CHOICE,
+        "variant_count": _small_int,
+    },
+    AuditAction.MEDIA_ASSET_EXPIRED.value: {
+        "trigger": _TRIGGER_CHOICE,
+        "variant_count": _small_int,
+    },
+    AuditAction.CATALOG_ITEM_IMAGE_CHANGED.value: {
+        "change": _CHANGE_CHOICE,
+        "media_id_old": _short_str,
+        "media_id_new": _short_str,
+        "alt_text_changed": _ALT_CHANGED_CHOICE,
+    },
 }
 
 

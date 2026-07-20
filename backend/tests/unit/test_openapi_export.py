@@ -65,6 +65,12 @@ EXPECTED_OPERATION_IDS = {
     "catalog_modifier_option_update",
     "catalog_modifier_option_delete",
     "catalog_modifier_options_reorder",
+    # M3C (ADR-017): media administration.
+    "media_asset_upload",
+    "media_assets_list",
+    "media_asset_get",
+    "media_asset_file_get",
+    "media_asset_delete",
 }
 
 

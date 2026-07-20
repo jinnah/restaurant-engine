@@ -477,6 +477,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/businesses/{business_id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Media Assets List
+         * @description A page of the business's media assets (newest first, any member).
+         */
+        get: operations["media_assets_list"];
+        put?: never;
+        /**
+         * Media Asset Upload
+         * @description Upload one image; returns the stored asset (pending).
+         *
+         *     Auth and CSRF run as dependencies (before any body parse); the handler
+         *     then completes the pre-body gate (capability + non-locking lifecycle)
+         *     on the request session, streams the bounded body, and hands processing
+         *     and the authoritative transaction to a worker thread.
+         */
+        post: operations["media_asset_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/media/{asset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Media Asset Get
+         * @description One asset with its variants (any member; pending included).
+         */
+        get: operations["media_asset_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Media Asset Delete
+         * @description Delete an asset (referenced → 409); objects removed after commit.
+         */
+        delete: operations["media_asset_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/media/{asset_id}/file/{variant}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Media Asset File Get
+         * @description Authorized admin preview of one stored object (pending allowed, R7).
+         *
+         *     Serves WebP with a fixed content type, ``nosniff``, a server-composed
+         *     inline filename, and ``no-store`` (public caching is the M3D/M4
+         *     decision). Missing canonical or variant → 404.
+         */
+        get: operations["media_asset_file_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/invitations/accept": {
         parameters: {
             query?: never;
@@ -876,7 +953,7 @@ export interface components {
          * @description Machine-readable audit event names (append-only).
          * @enum {string}
          */
-        AuditAction: "auth.login_succeeded" | "auth.login_failed" | "auth.login_throttled" | "auth.logout" | "user.platform_admin_created" | "business.created" | "business.activated" | "business.suspended" | "business.reactivated" | "business.closed" | "business.invitation_issued" | "business.invitation_revoked" | "business.invitation_accepted" | "business.entitlement_granted" | "business.entitlement_revoked" | "auth.password_reset_issued" | "auth.password_reset_completed" | "catalog.category_created" | "catalog.category_updated" | "catalog.category_deleted" | "catalog.categories_reordered" | "catalog.item_created" | "catalog.item_updated" | "catalog.item_deleted" | "catalog.items_reordered" | "catalog.item_availability_changed" | "catalog.modifier_group_created" | "catalog.modifier_group_updated" | "catalog.modifier_group_deleted" | "catalog.modifier_groups_reordered" | "catalog.modifier_option_created" | "catalog.modifier_option_updated" | "catalog.modifier_option_deleted" | "catalog.modifier_options_reordered";
+        AuditAction: "auth.login_succeeded" | "auth.login_failed" | "auth.login_throttled" | "auth.logout" | "user.platform_admin_created" | "business.created" | "business.activated" | "business.suspended" | "business.reactivated" | "business.closed" | "business.invitation_issued" | "business.invitation_revoked" | "business.invitation_accepted" | "business.entitlement_granted" | "business.entitlement_revoked" | "auth.password_reset_issued" | "auth.password_reset_completed" | "catalog.category_created" | "catalog.category_updated" | "catalog.category_deleted" | "catalog.categories_reordered" | "catalog.item_created" | "catalog.item_updated" | "catalog.item_deleted" | "catalog.items_reordered" | "catalog.item_availability_changed" | "catalog.modifier_group_created" | "catalog.modifier_group_updated" | "catalog.modifier_group_deleted" | "catalog.modifier_groups_reordered" | "catalog.modifier_option_created" | "catalog.modifier_option_updated" | "catalog.modifier_option_deleted" | "catalog.modifier_options_reordered" | "media.asset_uploaded" | "media.asset_deleted" | "media.asset_expired" | "catalog.item_image_changed";
         /**
          * AuditEventPage
          * @description Cursor page (``id DESC``); ``next_before_id`` feeds the next request.
@@ -1450,6 +1527,101 @@ export interface components {
              * @constant
              */
             status: "logged_out";
+        };
+        /**
+         * MediaAssetPage
+         * @description One page of a business's media assets (limit/offset, newest first).
+         */
+        MediaAssetPage: {
+            /** Items */
+            items: components["schemas"]["MediaAssetView"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * MediaAssetView
+         * @description One media asset (administrative projection).
+         *
+         *     Deliberately excludes ``checksum_sha256`` and every storage key/path:
+         *     those are internal storage metadata (R3/R4). ``pending_expires_at`` is
+         *     populated only for pending assets.
+         */
+        MediaAssetView: {
+            /** Byte Size */
+            byte_size: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Height */
+            height: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @constant
+             */
+            kind: "image";
+            /** Original Filename */
+            original_filename: string;
+            /** Pending Expires At */
+            pending_expires_at: string | null;
+            /**
+             * Source Format
+             * @enum {string}
+             */
+            source_format: "jpeg" | "png" | "webp";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "active";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Variants */
+            variants: components["schemas"]["MediaVariantView"][];
+            /** Width */
+            width: number;
+        };
+        /**
+         * MediaDeletedResponse
+         * @description Explicit confirmation body for the media delete command.
+         */
+        MediaDeletedResponse: {
+            /**
+             * Status
+             * @default deleted
+             * @constant
+             */
+            status: "deleted";
+        };
+        /**
+         * MediaVariantView
+         * @description One generated responsive rendition (no key, no checksum).
+         */
+        MediaVariantView: {
+            /** Byte Size */
+            byte_size: number;
+            /** Height */
+            height: number;
+            /**
+             * Variant
+             * @enum {string}
+             */
+            variant: "w320" | "w640" | "w1280";
+            /** Width */
+            width: number;
         };
         /**
          * MembershipSummary
@@ -3606,6 +3778,314 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    media_assets_list: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                status?: string | null;
+            };
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaAssetPage"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    media_asset_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description A single static JPEG, PNG, or WebP image.
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaAssetView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    media_asset_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaAssetView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    media_asset_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaDeletedResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    media_asset_file_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                asset_id: string;
+                variant: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/webp": unknown;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

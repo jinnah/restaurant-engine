@@ -51,3 +51,8 @@ class AuditAction(StrEnum):
     CATALOG_MODIFIER_OPTION_UPDATED = "catalog.modifier_option_updated"
     CATALOG_MODIFIER_OPTION_DELETED = "catalog.modifier_option_deleted"
     CATALOG_MODIFIER_OPTIONS_REORDERED = "catalog.modifier_options_reordered"
+    # M3C: media (ADR-017).
+    MEDIA_ASSET_UPLOADED = "media.asset_uploaded"
+    MEDIA_ASSET_DELETED = "media.asset_deleted"
+    MEDIA_ASSET_EXPIRED = "media.asset_expired"
+    CATALOG_ITEM_IMAGE_CHANGED = "catalog.item_image_changed"

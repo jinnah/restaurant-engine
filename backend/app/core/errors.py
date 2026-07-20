@@ -185,7 +185,7 @@ class PayloadTooLargeError(ApiError):
 
     def __init__(self, message: str = "Upload payload is too large.") -> None:
         super().__init__(
-            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status.HTTP_413_CONTENT_TOO_LARGE,
             ErrorCode.PAYLOAD_TOO_LARGE,
             message,
         )

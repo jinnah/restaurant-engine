@@ -234,3 +234,50 @@ class CatalogModifierOptionDeletedDetails(ModifierAuditDetails):
 
     name: str
     group_id: str
+
+
+# --- Media (M3C, ADR-017) -----------------------------------------------------
+#
+# Bounded values only. No storage key, filesystem path, checksum, alt text,
+# or signed URL ever enters an audit payload (ruling R3/R4; final
+# corrections I/L). Optional inapplicable fields are omitted at both layers
+# (the M3B ModifierAuditDetails omit-None base is reused).
+
+
+class MediaAssetUploadedDetails(ModifierAuditDetails):
+    """A media asset was uploaded and stored (pending)."""
+
+    source_format: Literal["jpeg", "png", "webp"]
+    width: int
+    height: int
+    byte_size: int
+    variant_count: int
+
+
+class MediaAssetDeletedDetails(ModifierAuditDetails):
+    """A media asset was deleted directly by an administrator."""
+
+    status: Literal["pending", "active"]
+    variant_count: int
+
+
+class MediaAssetExpiredDetails(ModifierAuditDetails):
+    """A pending asset was removed by the system TTL sweep (NULL actor)."""
+
+    trigger: Literal["pending_ttl_sweep"]
+    variant_count: int
+
+
+class CatalogItemImageChangedDetails(ModifierAuditDetails):
+    """An item's image attachment changed.
+
+    ``change`` is the closed-set kind. The media-id pair is present per the
+    exact rules (final correction 3): attached → new only; replaced → old
+    and new; cleared → old only; alt_updated → old and new present and
+    equal. The alt text itself is never recorded — only whether it changed.
+    """
+
+    change: Literal["attached", "replaced", "cleared", "alt_updated"]
+    media_id_old: str | None = None
+    media_id_new: str | None = None
+    alt_text_changed: Literal["changed", "unchanged"]
