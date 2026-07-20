@@ -54,6 +54,10 @@ class Capability(StrEnum):
     # staff "mark items unavailable").
     BUSINESS_CATALOG_WRITE = "business.catalog.write"
     BUSINESS_CATALOG_AVAILABILITY = "business.catalog.availability"
+    # M3C (ADR-017 D4): media upload/delete is owner/manager; staff hold
+    # no media mutation authority (reads use business.view). Item image
+    # attachment mutates a catalog row and stays on business.catalog.write.
+    BUSINESS_MEDIA_WRITE = "business.media.write"
 
 
 PLATFORM_CAPABILITIES: frozenset[Capability] = frozenset(
@@ -77,6 +81,7 @@ CAPABILITIES_BY_ROLE: dict[Role, frozenset[Capability]] = {
             Capability.BUSINESS_AUDIT_READ,
             Capability.BUSINESS_CATALOG_WRITE,
             Capability.BUSINESS_CATALOG_AVAILABILITY,
+            Capability.BUSINESS_MEDIA_WRITE,
         }
     ),
     Role.MANAGER: frozenset(
@@ -86,6 +91,7 @@ CAPABILITIES_BY_ROLE: dict[Role, frozenset[Capability]] = {
             Capability.BUSINESS_AUDIT_READ,
             Capability.BUSINESS_CATALOG_WRITE,
             Capability.BUSINESS_CATALOG_AVAILABILITY,
+            Capability.BUSINESS_MEDIA_WRITE,
         }
     ),
     Role.STAFF: frozenset(

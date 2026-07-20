@@ -20,6 +20,7 @@ from app.core.host_guard import KnownHostGuardMiddleware
 from app.core.logging import RequestLoggingMiddleware, configure_logging
 from app.core.openapi import assert_contract_operation_ids
 from app.core.settings import Settings, load_settings
+from app.domains.media.storage import LocalFilesystemStorage
 
 
 @asynccontextmanager
@@ -50,6 +51,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     engine = create_database_engine(settings)
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
+
+    # Media storage (M3C). Production requires the configured root to exist
+    # and be writable (fail-fast probe); development/test create the
+    # gitignored default lazily so the dev stack needs no manual setup.
+    media_root = settings.media_storage_root_path
+    media_storage = LocalFilesystemStorage(media_root)
+    if settings.is_production:
+        media_storage.startup_check()
+    else:
+        media_root.mkdir(parents=True, exist_ok=True)
+    app.state.media_storage = media_storage
 
     # add_middleware wraps outward, so the LAST call is the OUTERMOST layer.
     # Resulting order, outer → inner:

@@ -1126,7 +1126,7 @@ export interface components {
          * @description Machine-readable error code registry (append-only).
          * @enum {string}
          */
-        ErrorCode: "validation_error" | "not_found" | "method_not_allowed" | "http_error" | "internal_error" | "dependency_unavailable" | "authentication_required" | "invalid_credentials" | "csrf_rejected" | "permission_denied" | "conflict" | "invalid_state";
+        ErrorCode: "validation_error" | "not_found" | "method_not_allowed" | "http_error" | "internal_error" | "dependency_unavailable" | "authentication_required" | "invalid_credentials" | "csrf_rejected" | "permission_denied" | "conflict" | "invalid_state" | "payload_too_large";
         /** ErrorDetail */
         ErrorDetail: {
             code: components["schemas"]["ErrorCode"];

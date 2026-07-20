@@ -63,6 +63,7 @@ class TestAppEnv:
             database_url=VALID_URL,
             trusted_origins="https://admin.example.com",
             platform_base_domain="platform.example.com",
+            media_storage_root="/srv/media",
         )
         assert production.is_production
         assert not build(app_env="test", database_url=VALID_URL).is_production
@@ -92,6 +93,7 @@ class TestSessionSettings:
             database_url=VALID_URL,
             trusted_origins="https://admin.example.com",
             platform_base_domain="platform.example.com",
+            media_storage_root="/srv/media",
         )
         assert production.session_cookie_name == "__Host-session"
         assert production.session_cookie_secure is True
@@ -138,6 +140,7 @@ class TestProductionConfigurationValidation:
             database_url="postgresql+psycopg://app:distinct-real-secret@db:5432/app",
             trusted_origins="https://admin.example.com,https://ops.example.com",
             platform_base_domain="platform.example.com",
+            media_storage_root="/srv/restaurant-engine/media",
         )
         assert settings.is_production
 
@@ -148,6 +151,36 @@ class TestProductionConfigurationValidation:
                 database_url="postgresql+psycopg://app:distinct-real-secret@db:5432/app",
                 trusted_origins="https://admin.example.com",
             )
+
+    def test_default_media_root_is_rejected_in_production(self) -> None:
+        # The development default must never be used in production (M3C).
+        with pytest.raises(ValidationError, match="MEDIA_STORAGE_ROOT"):
+            build(
+                app_env="production",
+                database_url="postgresql+psycopg://app:distinct-real-secret@db:5432/app",
+                trusted_origins="https://admin.example.com",
+                platform_base_domain="platform.example.com",
+            )
+
+    def test_relative_media_root_is_rejected_in_production(self) -> None:
+        with pytest.raises(ValidationError, match="absolute"):
+            build(
+                app_env="production",
+                database_url="postgresql+psycopg://app:distinct-real-secret@db:5432/app",
+                trusted_origins="https://admin.example.com",
+                platform_base_domain="platform.example.com",
+                media_storage_root="var/media",
+            )
+
+    def test_absolute_media_root_is_accepted_in_production(self) -> None:
+        settings = build(
+            app_env="production",
+            database_url="postgresql+psycopg://app:distinct-real-secret@db:5432/app",
+            trusted_origins="https://admin.example.com",
+            platform_base_domain="platform.example.com",
+            media_storage_root="/srv/restaurant-engine/media",
+        )
+        assert settings.is_production
 
     def test_development_is_not_subject_to_production_checks(self) -> None:
         # The dev placeholder password and http origin are fine outside prod.
@@ -200,6 +233,27 @@ class TestLogLevel:
     def test_unknown_level_is_rejected(self) -> None:
         with pytest.raises(ValidationError):
             build(database_url=VALID_URL, log_level="verbose")
+
+
+class TestMediaSettings:
+    """M3C media configuration (ADR-017)."""
+
+    def test_defaults(self) -> None:
+        settings = build(database_url=VALID_URL)
+        assert settings.media_upload_max_bytes == 10 * 1024 * 1024
+        assert settings.media_storage_root_path.name == "media"
+
+    @pytest.mark.parametrize(
+        "value",
+        [10 * 1024 * 1024 - 1, 20 * 1024 * 1024 + 1, 0],
+    )
+    def test_out_of_bounds_upload_cap_is_rejected(self, value: int) -> None:
+        with pytest.raises(ValidationError):
+            build(database_url=VALID_URL, media_upload_max_bytes=value)
+
+    def test_upload_cap_maximum_is_accepted(self) -> None:
+        settings = build(database_url=VALID_URL, media_upload_max_bytes=20 * 1024 * 1024)
+        assert settings.media_upload_max_bytes == 20 * 1024 * 1024
 
 
 class TestM2dTokenExpirySettings:

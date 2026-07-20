@@ -605,7 +605,8 @@
           "csrf_rejected",
           "permission_denied",
           "conflict",
-          "invalid_state"
+          "invalid_state",
+          "payload_too_large"
         ],
         "title": "ErrorCode",
         "type": "string"

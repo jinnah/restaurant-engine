@@ -52,6 +52,8 @@ class ErrorCode(StrEnum):
     PERMISSION_DENIED = "permission_denied"
     CONFLICT = "conflict"
     INVALID_STATE = "invalid_state"
+    # M3C (ADR-017): the only new M3 error code, first used by media upload.
+    PAYLOAD_TOO_LARGE = "payload_too_large"
 
 
 _STATUS_CODES: dict[int, ErrorCode] = {
@@ -171,6 +173,22 @@ class InvalidStateError(ApiError):
 
     def __init__(self, message: str = "Operation not allowed in the current state.") -> None:
         super().__init__(status.HTTP_409_CONFLICT, ErrorCode.INVALID_STATE, message)
+
+
+class PayloadTooLargeError(ApiError):
+    """An upload payload exceeds its allowed size (413, M3C ADR-017).
+
+    Raised for a header-declared over-cap Content-Length, a streamed
+    request that overruns the request bound, or an extracted file part
+    that exceeds the file cap.
+    """
+
+    def __init__(self, message: str = "Upload payload is too large.") -> None:
+        super().__init__(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            ErrorCode.PAYLOAD_TOO_LARGE,
+            message,
+        )
 
 
 async def _handle_api_error(request: Request, exc: Exception) -> JSONResponse:
