@@ -24,6 +24,17 @@ from app.core.errors import (
     ErrorCode,
     ResourceNotFoundError,
 )
+from app.domains.audit import recorder
+from app.domains.audit.actions import AuditAction
+from app.domains.audit.details import (
+    CatalogModifierGroupCreatedDetails,
+    CatalogModifierGroupDeletedDetails,
+    CatalogModifierGroupUpdatedDetails,
+    CatalogModifierOptionCreatedDetails,
+    CatalogModifierOptionDeletedDetails,
+    CatalogModifierOptionUpdatedDetails,
+    CatalogReorderDetails,
+)
 from app.domains.catalog import policies, repository
 from app.domains.catalog.models import ModifierGroup, ModifierOption
 from app.domains.catalog.schemas import (
@@ -176,6 +187,21 @@ def create_group(
     )
     repository.add(db, group)
     safe_flush(db)
+    recorder.record(
+        db,
+        AuditAction.CATALOG_MODIFIER_GROUP_CREATED,
+        actor_user_id=actor.user.id,
+        business_id=business_id,
+        target_type="modifier_group",
+        target_id=str(group.id),
+        details=CatalogModifierGroupCreatedDetails(
+            name=group.name,
+            item_id=str(item_id),
+            min_select=group.min_select,
+            max_select_mode="finite" if group.max_select is not None else "unlimited",
+            max_select=group.max_select,
+        ),
+    )
     safe_commit(db)
     return _group_view(group, [])
 
@@ -207,6 +233,12 @@ def update_group(
         )
 
     changed: list[str] = []
+    min_select_old: int | None = None
+    min_select_new: int | None = None
+    max_mode_old: str | None = None
+    max_mode_new: str | None = None
+    max_select_old: int | None = None
+    max_select_new: int | None = None
     if "name" in provided and payload.name is not None and payload.name != group.name:
         if repository.group_name_exists(
             db,
@@ -219,14 +251,39 @@ def update_group(
         group.name = payload.name
         changed.append("name")
     if new_min != group.min_select:
+        min_select_old = group.min_select
+        min_select_new = new_min
         group.min_select = new_min
         changed.append("min_select")
     if "max_select" in provided and new_max != group.max_select:
+        # Explicit maximum mode (D6 correction): the mode pair is always
+        # recorded on a maximum change; finite values only for finite sides.
+        max_mode_old = "finite" if group.max_select is not None else "unlimited"
+        max_mode_new = "finite" if new_max is not None else "unlimited"
+        max_select_old = group.max_select
+        max_select_new = new_max
         group.max_select = new_max
         changed.append("max_select")
     if changed:
         group.updated_at = func.now()
         safe_flush(db)
+        recorder.record(
+            db,
+            AuditAction.CATALOG_MODIFIER_GROUP_UPDATED,
+            actor_user_id=actor.user.id,
+            business_id=business_id,
+            target_type="modifier_group",
+            target_id=str(group.id),
+            details=CatalogModifierGroupUpdatedDetails(
+                changed_fields=",".join(sorted(changed)),
+                min_select_old=min_select_old,
+                min_select_new=min_select_new,
+                max_select_mode_old=max_mode_old,  # type: ignore[arg-type]
+                max_select_mode_new=max_mode_new,  # type: ignore[arg-type]
+                max_select_old=max_select_old,
+                max_select_new=max_select_new,
+            ),
+        )
     safe_commit(db)
     db.refresh(group)
     return _load_group_view(db, business_id, group)
@@ -240,10 +297,26 @@ def delete_group(
     group = _require_group(db, business_id, group_id)
     item_id = group.item_id
     position = group.position
+    name = group.name
+    deleted_id = group.id
+    option_count = repository.count_options_for_group(
+        db, business_id=business_id, group_id=group.id
+    )
     repository.delete_group(db, group)
     safe_flush(db)
     repository.close_group_position_gap(
         db, business_id=business_id, item_id=item_id, position=position
+    )
+    recorder.record(
+        db,
+        AuditAction.CATALOG_MODIFIER_GROUP_DELETED,
+        actor_user_id=actor.user.id,
+        business_id=business_id,
+        target_type="modifier_group",
+        target_id=str(deleted_id),
+        details=CatalogModifierGroupDeletedDetails(
+            name=name, item_id=str(item_id), option_count=option_count
+        ),
     )
     safe_commit(db)
 
@@ -269,6 +342,15 @@ def reorder_groups(
         return _groups_view(db, business_id, item_id)
     repository.set_group_positions(
         db, business_id=business_id, item_id=item_id, ordered_ids=payload.ordered_group_ids
+    )
+    recorder.record(
+        db,
+        AuditAction.CATALOG_MODIFIER_GROUPS_REORDERED,
+        actor_user_id=actor.user.id,
+        business_id=business_id,
+        target_type="menu_item",
+        target_id=str(item_id),
+        details=CatalogReorderDetails(count=len(payload.ordered_group_ids)),
     )
     safe_commit(db)
     return _groups_view(db, business_id, item_id)
@@ -314,6 +396,19 @@ def create_option(
     )
     repository.add(db, option)
     safe_flush(db)
+    recorder.record(
+        db,
+        AuditAction.CATALOG_MODIFIER_OPTION_CREATED,
+        actor_user_id=actor.user.id,
+        business_id=business_id,
+        target_type="modifier_option",
+        target_id=str(option.id),
+        details=CatalogModifierOptionCreatedDetails(
+            name=option.name,
+            group_id=str(group_id),
+            price_delta_minor=option.price_delta_minor,
+        ),
+    )
     safe_commit(db)
     return _load_group_view(db, business_id, group)
 
@@ -333,6 +428,10 @@ def update_option(
     provided = payload.model_fields_set
 
     changed: list[str] = []
+    delta_old: int | None = None
+    delta_new: int | None = None
+    availability_old: str | None = None
+    availability_new: str | None = None
     if "name" in provided and payload.name is not None and payload.name != option.name:
         if repository.option_name_exists(
             db,
@@ -349,6 +448,8 @@ def update_option(
         and payload.price_delta_minor is not None
         and payload.price_delta_minor != option.price_delta_minor
     ):
+        delta_old = option.price_delta_minor
+        delta_new = payload.price_delta_minor
         option.price_delta_minor = payload.price_delta_minor
         changed.append("price_delta_minor")
     if (
@@ -356,11 +457,28 @@ def update_option(
         and payload.is_available is not None
         and payload.is_available != option.is_available
     ):
+        availability_old = "available" if option.is_available else "unavailable"
+        availability_new = "available" if payload.is_available else "unavailable"
         option.is_available = payload.is_available
         changed.append("is_available")
     if changed:
         option.updated_at = func.now()
         safe_flush(db)
+        recorder.record(
+            db,
+            AuditAction.CATALOG_MODIFIER_OPTION_UPDATED,
+            actor_user_id=actor.user.id,
+            business_id=business_id,
+            target_type="modifier_option",
+            target_id=str(option.id),
+            details=CatalogModifierOptionUpdatedDetails(
+                changed_fields=",".join(sorted(changed)),
+                price_delta_minor_old=delta_old,
+                price_delta_minor_new=delta_new,
+                availability_old=availability_old,  # type: ignore[arg-type]
+                availability_new=availability_new,  # type: ignore[arg-type]
+            ),
+        )
     safe_commit(db)
     db.refresh(option)
     return _load_group_view(db, business_id, group)
@@ -376,10 +494,21 @@ def delete_option(
     group = _require_group(db, business_id, option.group_id)
     group_id = option.group_id
     position = option.position
+    name = option.name
+    deleted_id = option.id
     repository.delete_option(db, option)
     safe_flush(db)
     repository.close_option_position_gap(
         db, business_id=business_id, group_id=group_id, position=position
+    )
+    recorder.record(
+        db,
+        AuditAction.CATALOG_MODIFIER_OPTION_DELETED,
+        actor_user_id=actor.user.id,
+        business_id=business_id,
+        target_type="modifier_option",
+        target_id=str(deleted_id),
+        details=CatalogModifierOptionDeletedDetails(name=name, group_id=str(group_id)),
     )
     safe_commit(db)
     return _load_group_view(db, business_id, group)
@@ -407,6 +536,15 @@ def reorder_options(
         return _load_group_view(db, business_id, group)
     repository.set_option_positions(
         db, business_id=business_id, group_id=group_id, ordered_ids=payload.ordered_option_ids
+    )
+    recorder.record(
+        db,
+        AuditAction.CATALOG_MODIFIER_OPTIONS_REORDERED,
+        actor_user_id=actor.user.id,
+        business_id=business_id,
+        target_type="modifier_group",
+        target_id=str(group_id),
+        details=CatalogReorderDetails(count=len(payload.ordered_option_ids)),
     )
     safe_commit(db)
     return _load_group_view(db, business_id, group)

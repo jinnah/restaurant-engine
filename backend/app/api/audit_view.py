@@ -58,6 +58,26 @@ def _small_int(value: object) -> int | None:
     return None
 
 
+def _choice(allowed: frozenset[str]) -> "_Extractor":
+    """Closed-set string extractor (M3B): admits only an exact member.
+
+    Used for the modifier maximum-selection mode and option availability,
+    so those facts stay bounded strings — the projection value union
+    remains ``str | int`` with no boolean (D6 correction).
+    """
+
+    def _extract(value: object) -> str | None:
+        if isinstance(value, str) and value in allowed:
+            return value
+        return None
+
+    return _extract
+
+
+_MODE_CHOICE = _choice(frozenset({"finite", "unlimited"}))
+_AVAILABILITY_CHOICE = _choice(frozenset({"available", "unavailable"}))
+
+
 def _price_int(value: object) -> int | None:
     """Admit an integer minor-unit price within the approved range.
 
@@ -149,6 +169,47 @@ _PROJECTIONS: dict[str, dict[str, _Extractor]] = {
     },
     AuditAction.CATALOG_ITEMS_REORDERED.value: {"count": _small_int},
     AuditAction.CATALOG_ITEM_AVAILABILITY_CHANGED.value: {"availability": _short_str},
+    # M3B modifiers (ADR-017): explicit max-selection mode; closed-set
+    # strings via _choice; bounded ints via _small_int/_price_int.
+    AuditAction.CATALOG_MODIFIER_GROUP_CREATED.value: {
+        "name": _short_str,
+        "item_id": _short_str,
+        "min_select": _small_int,
+        "max_select_mode": _MODE_CHOICE,
+        "max_select": _small_int,
+    },
+    AuditAction.CATALOG_MODIFIER_GROUP_UPDATED.value: {
+        "changed_fields": _short_str,
+        "min_select_old": _small_int,
+        "min_select_new": _small_int,
+        "max_select_mode_old": _MODE_CHOICE,
+        "max_select_mode_new": _MODE_CHOICE,
+        "max_select_old": _small_int,
+        "max_select_new": _small_int,
+    },
+    AuditAction.CATALOG_MODIFIER_GROUP_DELETED.value: {
+        "name": _short_str,
+        "item_id": _short_str,
+        "option_count": _small_int,
+    },
+    AuditAction.CATALOG_MODIFIER_GROUPS_REORDERED.value: {"count": _small_int},
+    AuditAction.CATALOG_MODIFIER_OPTION_CREATED.value: {
+        "name": _short_str,
+        "group_id": _short_str,
+        "price_delta_minor": _price_int,
+    },
+    AuditAction.CATALOG_MODIFIER_OPTION_UPDATED.value: {
+        "changed_fields": _short_str,
+        "price_delta_minor_old": _price_int,
+        "price_delta_minor_new": _price_int,
+        "availability_old": _AVAILABILITY_CHOICE,
+        "availability_new": _AVAILABILITY_CHOICE,
+    },
+    AuditAction.CATALOG_MODIFIER_OPTION_DELETED.value: {
+        "name": _short_str,
+        "group_id": _short_str,
+    },
+    AuditAction.CATALOG_MODIFIER_OPTIONS_REORDERED.value: {"count": _small_int},
 }
 
 

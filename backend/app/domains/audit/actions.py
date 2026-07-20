@@ -42,3 +42,12 @@ class AuditAction(StrEnum):
     CATALOG_ITEM_DELETED = "catalog.item_deleted"
     CATALOG_ITEMS_REORDERED = "catalog.items_reordered"
     CATALOG_ITEM_AVAILABILITY_CHANGED = "catalog.item_availability_changed"
+    # M3B: modifiers (ADR-017).
+    CATALOG_MODIFIER_GROUP_CREATED = "catalog.modifier_group_created"
+    CATALOG_MODIFIER_GROUP_UPDATED = "catalog.modifier_group_updated"
+    CATALOG_MODIFIER_GROUP_DELETED = "catalog.modifier_group_deleted"
+    CATALOG_MODIFIER_GROUPS_REORDERED = "catalog.modifier_groups_reordered"
+    CATALOG_MODIFIER_OPTION_CREATED = "catalog.modifier_option_created"
+    CATALOG_MODIFIER_OPTION_UPDATED = "catalog.modifier_option_updated"
+    CATALOG_MODIFIER_OPTION_DELETED = "catalog.modifier_option_deleted"
+    CATALOG_MODIFIER_OPTIONS_REORDERED = "catalog.modifier_options_reordered"

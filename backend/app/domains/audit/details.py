@@ -144,3 +144,75 @@ class CatalogItemAvailabilityDetails(AuditDetails):
     """The staff-reachable "sold out today" toggle changed state."""
 
     availability: Literal["available", "sold_out"]
+
+
+# --- Modifiers (M3B, ADR-017) -------------------------------------------------
+#
+# The maximum-selection mode is explicit (D6 correction): never inferred
+# from field absence. Mode and availability values are closed-set strings
+# so the read-time projection needs no boolean in its value union.
+
+
+class CatalogModifierGroupCreatedDetails(AuditDetails):
+    """A modifier group was created (selection rule reconstructable)."""
+
+    name: str
+    item_id: str
+    min_select: int
+    max_select_mode: Literal["finite", "unlimited"]
+    max_select: int | None = None  # present exactly when the mode is finite
+
+
+class CatalogModifierGroupUpdatedDetails(AuditDetails):
+    """A modifier group changed.
+
+    ``min_select_old/new`` appear exactly when the minimum changes. The
+    mode pair appears whenever the maximum changes (finite→unlimited,
+    unlimited→finite, finite→different finite); the finite value fields
+    appear only for the finite side(s).
+    """
+
+    changed_fields: str
+    min_select_old: int | None = None
+    min_select_new: int | None = None
+    max_select_mode_old: Literal["finite", "unlimited"] | None = None
+    max_select_mode_new: Literal["finite", "unlimited"] | None = None
+    max_select_old: int | None = None
+    max_select_new: int | None = None
+
+
+class CatalogModifierGroupDeletedDetails(AuditDetails):
+    """A modifier group was deleted (its options cascaded — no fan-out)."""
+
+    name: str
+    item_id: str
+    option_count: int
+
+
+class CatalogModifierOptionCreatedDetails(AuditDetails):
+    """A modifier option was created."""
+
+    name: str
+    group_id: str
+    price_delta_minor: int
+
+
+class CatalogModifierOptionUpdatedDetails(AuditDetails):
+    """A modifier option changed.
+
+    Price old/new appear exactly when the delta changes; the availability
+    pair (closed-set strings) appears exactly when availability changes.
+    """
+
+    changed_fields: str
+    price_delta_minor_old: int | None = None
+    price_delta_minor_new: int | None = None
+    availability_old: Literal["available", "unavailable"] | None = None
+    availability_new: Literal["available", "unavailable"] | None = None
+
+
+class CatalogModifierOptionDeletedDetails(AuditDetails):
+    """A modifier option was deleted directly (not via cascade)."""
+
+    name: str
+    group_id: str
