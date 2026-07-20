@@ -87,8 +87,14 @@ or be rejected in review:
    platform capability. `platform.users.recover` is documented
    account-takeover-equivalent authority: audited on every issuance, no
    public path (ADR-014).
+5. **Operator maintenance queries (M3C, ADR-017)** — the media sweep CLI
+   selects expired-pending candidates and inventory rows across tenants.
+   It has no API surface, runs only as an operator command on the host,
+   re-validates every candidate per business under the Business row lock
+   before acting, and audits deletions with system attribution.
 
-M2B uses exceptions 3 and 4; M2D adds exception 2 and extends 4.
+M2B uses exceptions 3 and 4; M2D adds exception 2 and extends 4; M3C
+adds exception 5.
 `businesses` is the tenant root; a lookup by its own primary key is a
 "which tenant" query, not a tenant-owned-data leak. Business-scoped audit
 reads apply both tenant predicates explicitly (`business_id = ?` AND

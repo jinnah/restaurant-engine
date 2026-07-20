@@ -335,6 +335,119 @@ transition, count-limit, authorization/isolation, audit-atomicity, and
 two-session concurrency coverage, plus the full local gate and
 exact-head clean-copy verification.
 
-### M3C–M3F
+### M3C — Media backend: in progress (2026-07-20)
+
+Approved architecture (discovery proposal → addendum → final binding
+corrections), recorded before implementation:
+
+- **Domain and model.** `app/domains/media` owns media; one general
+  `media_assets` model (kind CHECK-limited to `image`; extending to video
+  later is an additive migration) plus relational `media_asset_variants`
+  rows. Consumers store media identifiers through composite tenant-safe
+  FKs over `UNIQUE (business_id, id)`; M3C attaches **menu-item images
+  only** (`menu_items.image_media_id` RESTRICT + contextual
+  `image_alt_text`, alt requires image, ≤ 300). Logos, category images,
+  promotional media, hero composition, and video are later milestones;
+  nothing here forecloses them, and hero overlay content (headings,
+  buttons, CTAs) remains separately rendered storefront metadata — never
+  pixels in a video file.
+- **Storage protocol (supersedes the blueprint §7.5 illustrative
+  snippet; blueprint amended same date).** Runtime `MediaStorage`:
+  `put` / `open` / `delete` (idempotent) / `stat`; maintenance extension
+  `MaintenanceStorage` adds `iter_objects` (operator tooling only).
+  `stat`/`iter_objects` return internal key, byte size, and
+  last-modified. **No `public_url`**: M3C exposes no storage-provider
+  URL; application URLs are opaque asset ids + logical variant names;
+  a signed-URL/CDN resolver is a later delivery-layer concern. Keys are
+  derived (`{business_id}/{asset_id}/{variant}.webp`), tenant-prefixed,
+  never stored, and never appear in responses, audit, logs, or URLs.
+- **Persistence.** `MEDIA_STORAGE_ROOT` (dev default `backend/var/media`,
+  gitignored, development only). Production requires an explicit durable
+  absolute root outside any static-served directory, validated by a
+  startup write/stat/delete probe, mounted persistently when the M8
+  production compose is authored (runbook obligation recorded now);
+  `/health/ready` gains a collision-safe `media_storage` probe.
+  PostgreSQL and the media root form **one logical backup set**
+  (docs/07: quiesce → verify inventory/checksums → dump → archive →
+  shared-set manifest; restore only as a pair; re-verify after restore).
+- **Upload pipeline.** Authenticate → CSRF → `business.media.write` →
+  non-locking lifecycle gate (closed → 409 **before any body parse**) →
+  Content-Length required (over-cap 413 `payload_too_large`, the one new
+  error code) → async stream into a bounded spooled temp (request cap =
+  file cap + 64 KiB overhead; file cap default 10 MiB, deployment max
+  20 MiB — the only deployment-tunable media limit) → AnyIO worker
+  thread (sessions never cross threads; the worker opens its own session
+  and repeats capability + lifecycle under the Business `FOR UPDATE`
+  lock): strict one-`file`-part multipart parse → magic bytes + decoded
+  `Image.format` agreement (static JPEG/PNG/WebP only; GIF, SVG, HEIC,
+  AVIF, TIFF, animated WebP, APNG rejected) → 8000 px/side + 25 MP
+  before full decode, bomb guard promoted to rejection, `verify()` then
+  reopen, truncation rejected → EXIF orientation → mode normalization →
+  ≤ 2560 canonical + strictly-smaller 320/640/1280 variants (LANCZOS,
+  deterministic rounding, no upscaling) → WebP quality 82 method 4 lossy,
+  alpha preserved, all metadata dropped; the original upload is not
+  retained. Objects are written (every key tracked) before one short
+  final transaction (quotas + insert + audit); any later failure
+  compensates by deleting every tracked key; compensation failure leaves
+  a sweep-visible orphan and never masks the original error.
+- **Limits.** Product-policy constants: 500 assets/business (pending +
+  active), 1 GiB stored bytes/business (canonical + variants), 32 MiB
+  combined encoded output/asset (a processing 422, not a quota 409).
+  Exact usage is computed under the lock from authoritative rows via
+  separate non-multiplying aggregates (assets sum + variants sum) —
+  deliberately **no stored `total_bytes`** denormalization. Count/byte
+  quota rejections are 409 `conflict` with `details.limit`; every
+  rejection leaves no row, object, or audit event.
+- **Lifecycle (DB clock).** Uploads start `pending`
+  (`pending_expires_at = now() + 48 h` in SQL; active assets have NULL).
+  Attachable iff `pending_expires_at > now()`; at equality it is
+  expired: still visible to authorized admin reads/preview, still
+  explicitly deletable, still quota-counted, never attachable (409
+  `invalid_state`, decided under the Business lock), never publicly
+  deliverable. First valid attachment promotes to `active` (one-way);
+  ever-attached assets are never auto-deleted; referenced assets cannot
+  be deleted (menu_items RESTRICT FK mapped to 409).
+- **Authorization.** New capability `business.media.write`
+  (owner/manager). Staff read/list/preview via `business.view`, no
+  mutation. Platform admins 404; anonymous 401; cross-tenant 404;
+  provisioning/active/suspended writable; closed readable, immutable.
+  Attach/replace/clear/alt is one catalog command
+  (`catalog_item_image_set`, `business.catalog.write`) with exact no-op
+  suppression (no write, no `updated_at`, no promotion, no audit).
+- **API (49 → 55).** `media_asset_upload` (multipart documented via
+  `openapi_extra`; the endpoint declares no body params),
+  `media_assets_list` (limit/offset ≤ 100), `media_asset_get`,
+  `media_asset_file_get` (authorized admin preview incl. pending;
+  fixed `image/webp`, nosniff, inline server-composed filename),
+  `media_asset_delete`, `catalog_item_image_set`.
+- **Audit.** Four actions: `media.asset_uploaded`, `media.asset_deleted`,
+  `catalog.item_image_changed` (`change` ∈ attached/replaced/cleared/
+  alt_updated with exact old/new-id presence rules; alt text itself never
+  recorded), and `media.asset_expired` — NULL-actor **system**
+  attribution (supported by the M2A schema by design), recorded
+  atomically with sweep row deletion. Optional inapplicable fields are
+  omitted from stored and projected payloads (the M3B D6 rule). Objects
+  deleted without a database row (orphans, stale temps) are reported by
+  the CLI only — deliberately uneventful.
+- **Sweep** (`scripts/sweep_media.py`; operator CLI, dry-run default,
+  `--apply`, bounded batches; scheduling M8). Lifecycle-independent
+  system maintenance: expired pending is cleaned for provisioning,
+  active, suspended, **and closed** businesses — the Business
+  `FOR UPDATE` lock is acquired and candidates re-read (status, expiry,
+  existence on the DB clock) but no user-mutation lifecycle guard
+  applies. Rows + `media.asset_expired` events delete atomically;
+  objects only after commit. Object-level orphan identity: an object is
+  expected only when it is the canonical of an existing asset row or the
+  exact logical variant of an existing variant row; validly-shaped
+  unreferenced objects older than 24 h (storage last-modified, never
+  filename assumptions) are deletable; malformed or unknown key shapes
+  are report-only; rows without required objects are report-only, never
+  auto-deleted. Output reports business/asset ids, variants, and
+  counts — never keys or paths; one failed object deletion never stops
+  the batch report.
+- **Dependencies (D11).** `pillow==12.3.0`, `python-multipart==0.0.32`
+  (exact-pinned; backend only).
+
+### M3D–M3F
 
 Not started.
