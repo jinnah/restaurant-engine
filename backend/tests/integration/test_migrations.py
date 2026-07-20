@@ -542,3 +542,238 @@ def test_m3a_constraints_and_round_trip_with_real_rows(empty_database_url: str) 
         assert "menu_items" in set(inspect(engine).get_table_names())
     finally:
         engine.dispose()
+
+
+# The M3A revision (down_revision of the M3B modifiers migration).
+_M3A_REVISION = "0c31eebbac66"
+
+
+def test_m3b_constraints_and_round_trip_with_real_rows(empty_database_url: str) -> None:
+    """M3B modifier tables behave with real data (ADR-017).
+
+    Exercises the named selection-domain CHECKs (the five mandated
+    direct-SQL rejections), the price-delta range CHECKs, cross-tenant
+    composite-FK rejections for both child tables, case-insensitive
+    uniques, DEFERRABLE position behavior, the item->group->option and
+    group->option cascades, and the fail-explicit NOT NULL value columns;
+    then proves the downgrade drops both tables with earlier data intact
+    and the chain re-applies. Scratch database only.
+    """
+    config = _config(empty_database_url)
+    command.upgrade(config, "head")
+
+    engine = create_engine(empty_database_url, connect_args={"connect_timeout": 3})
+    try:
+        with engine.begin() as connection:
+            business_a = connection.execute(
+                text(
+                    "INSERT INTO businesses (id, name, slug, status) VALUES"
+                    " (gen_random_uuid(), 'A', 'mod-a', 'active') RETURNING id"
+                )
+            ).scalar_one()
+            business_b = connection.execute(
+                text(
+                    "INSERT INTO businesses (id, name, slug, status) VALUES"
+                    " (gen_random_uuid(), 'B', 'mod-b', 'active') RETURNING id"
+                )
+            ).scalar_one()
+            category_a = connection.execute(
+                text(
+                    "INSERT INTO menu_categories (id, business_id, name, position,"
+                    " is_visible) VALUES (gen_random_uuid(), :bid, 'Mains', 0, true)"
+                    " RETURNING id"
+                ),
+                {"bid": business_a},
+            ).scalar_one()
+            item_a = connection.execute(
+                text(
+                    "INSERT INTO menu_items (id, business_id, category_id, name,"
+                    " price_minor, position, is_available, is_hidden, is_featured)"
+                    " VALUES (gen_random_uuid(), :bid, :cid, 'Curry', 1200, 0, true,"
+                    " false, false) RETURNING id"
+                ),
+                {"bid": business_a, "cid": category_a},
+            ).scalar_one()
+            group_a = connection.execute(
+                text(
+                    "INSERT INTO modifier_groups (id, business_id, item_id, name,"
+                    " min_select, max_select, position) VALUES (gen_random_uuid(),"
+                    " :bid, :iid, 'Spice Level', 1, 1, 0) RETURNING id"
+                ),
+                {"bid": business_a, "iid": item_a},
+            ).scalar_one()
+            connection.execute(
+                text(
+                    "INSERT INTO modifier_options (id, business_id, group_id, name,"
+                    " price_delta_minor, is_available, position) VALUES"
+                    " (gen_random_uuid(), :bid, :gid, 'Mild', 0, true, 0)"
+                ),
+                {"bid": business_a, "gid": group_a},
+            )
+
+        def _rejected_with(statement: str, params: dict[str, object], fragment: str) -> None:
+            try:
+                with engine.begin() as connection:
+                    connection.execute(text(statement), params)
+            except Exception as exc:
+                assert fragment in str(exc), (
+                    f"expected {fragment!r} to be the violated constraint, got: {exc}"
+                )
+                return
+            raise AssertionError(f"statement must be rejected by {fragment!r}")
+
+        group_insert = (
+            "INSERT INTO modifier_groups (id, business_id, item_id, name,"
+            " min_select, max_select, position) VALUES (gen_random_uuid(), :bid,"
+            " :iid, :name, :mn, :mx, :pos)"
+        )
+        # The five mandated selection-domain rejections, each by its named CHECK.
+        _rejected_with(
+            group_insert,
+            {"bid": business_a, "iid": item_a, "name": "Bad1", "mn": 31, "mx": None, "pos": 1},
+            "ck_modifier_groups_min_select_range",
+        )
+        _rejected_with(
+            group_insert,
+            {"bid": business_a, "iid": item_a, "name": "Bad2", "mn": 0, "mx": 31, "pos": 1},
+            "ck_modifier_groups_max_select_range",
+        )
+        _rejected_with(
+            group_insert,
+            {"bid": business_a, "iid": item_a, "name": "Bad3", "mn": -1, "mx": None, "pos": 1},
+            "ck_modifier_groups_min_select_range",
+        )
+        _rejected_with(
+            group_insert,
+            {"bid": business_a, "iid": item_a, "name": "Bad4", "mn": 0, "mx": 0, "pos": 1},
+            "ck_modifier_groups_max_select_range",
+        )
+        _rejected_with(
+            group_insert,
+            {"bid": business_a, "iid": item_a, "name": "Bad5", "mn": 5, "mx": 4, "pos": 1},
+            "ck_modifier_groups_min_le_max",
+        )
+
+        option_insert = (
+            "INSERT INTO modifier_options (id, business_id, group_id, name,"
+            " price_delta_minor, is_available, position) VALUES (gen_random_uuid(),"
+            " :bid, :gid, :name, :delta, true, :pos)"
+        )
+        # Price-delta range (F1/D1): negative and above-maximum rejected by name.
+        _rejected_with(
+            option_insert,
+            {"bid": business_a, "gid": group_a, "name": "Neg", "delta": -1, "pos": 1},
+            "ck_modifier_options_price_delta_nonnegative",
+        )
+        _rejected_with(
+            option_insert,
+            {"bid": business_a, "gid": group_a, "name": "Huge", "delta": 10000001, "pos": 1},
+            "ck_modifier_options_price_delta_maximum",
+        )
+        # The exact maximum is storable.
+        with engine.begin() as connection:
+            connection.execute(
+                text(option_insert),
+                {"bid": business_a, "gid": group_a, "name": "Banquet", "delta": 10000000, "pos": 1},
+            )
+
+        # Fail-explicit defaults: omitting a NOT NULL value column fails
+        # rather than silently acquiring a divergent default.
+        _rejected_with(
+            "INSERT INTO modifier_options (id, business_id, group_id, name,"
+            " price_delta_minor, position) VALUES (gen_random_uuid(), :bid, :gid,"
+            " 'NoAvail', 0, 2)",
+            {"bid": business_a, "gid": group_a},
+            "is_available",
+        )
+
+        # Cross-tenant composite FKs: B cannot parent a group under A's item,
+        # nor an option under A's group.
+        _rejected_with(
+            group_insert,
+            {"bid": business_b, "iid": item_a, "name": "Intruder", "mn": 0, "mx": None, "pos": 0},
+            "fk_modifier_groups_business_id_item_id_menu_items",
+        )
+        _rejected_with(
+            option_insert,
+            {"bid": business_b, "gid": group_a, "name": "Intruder", "delta": 0, "pos": 0},
+            "fk_modifier_options_business_id_group_id_modifier_groups",
+        )
+
+        # Case-insensitive uniques within the parent scope.
+        _rejected_with(
+            group_insert,
+            {
+                "bid": business_a,
+                "iid": item_a,
+                "name": "SPICE LEVEL",
+                "mn": 0,
+                "mx": None,
+                "pos": 1,
+            },
+            "uq_modifier_groups_name_ci",
+        )
+        _rejected_with(
+            option_insert,
+            {"bid": business_a, "gid": group_a, "name": "MILD", "delta": 0, "pos": 2},
+            "uq_modifier_options_name_ci",
+        )
+
+        # DEFERRABLE position unique: transient duplicate inside one
+        # transaction is legal when resolved; unresolved fails at commit.
+        with engine.begin() as connection:
+            second = connection.execute(
+                text(group_insert + " RETURNING id"),
+                {
+                    "bid": business_a,
+                    "iid": item_a,
+                    "name": "Add-ons",
+                    "mn": 0,
+                    "mx": None,
+                    "pos": 1,
+                },
+            ).scalar_one()
+            connection.execute(
+                text("UPDATE modifier_groups SET position = 0 WHERE id = :gid"),
+                {"gid": second},
+            )
+            connection.execute(
+                text("UPDATE modifier_groups SET position = 1 WHERE id = :gid"),
+                {"gid": second},
+            )
+        try:
+            with engine.begin() as connection:
+                connection.execute(
+                    text("UPDATE modifier_groups SET position = 0 WHERE id = :gid"),
+                    {"gid": second},
+                )
+            raise AssertionError("unresolved duplicate group position must fail at commit")
+        except AssertionError:
+            raise
+        except Exception as exc:
+            assert "uq_modifier_groups_business_id_item_id_position" in str(exc)
+
+        # Cascade chains: group -> options; then item -> groups -> options.
+        with engine.begin() as connection:
+            connection.execute(text("DELETE FROM modifier_groups WHERE id = :gid"), {"gid": second})
+            connection.execute(text("DELETE FROM menu_items WHERE id = :iid"), {"iid": item_a})
+            groups_left = connection.execute(
+                text("SELECT count(*) FROM modifier_groups")
+            ).scalar_one()
+            options_left = connection.execute(
+                text("SELECT count(*) FROM modifier_options")
+            ).scalar_one()
+        assert groups_left == 0, "groups must CASCADE with their item"
+        assert options_left == 0, "options must CASCADE with their group/item"
+
+        # Round trip: downgrade drops both tables, earlier data survives,
+        # and the chain re-applies.
+        command.downgrade(config, _M3A_REVISION)
+        tables = set(inspect(engine).get_table_names())
+        assert "modifier_groups" not in tables
+        assert "modifier_options" not in tables
+        assert "menu_categories" in tables
+        command.upgrade(config, "head")
+        assert "modifier_options" in set(inspect(engine).get_table_names())
+    finally:
+        engine.dispose()

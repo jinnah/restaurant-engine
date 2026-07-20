@@ -15,6 +15,12 @@ from app.domains.catalog.schemas import (
     ItemCreate,
     ItemReorder,
     ItemUpdate,
+    ModifierGroupCreate,
+    ModifierGroupReorder,
+    ModifierGroupUpdate,
+    ModifierOptionCreate,
+    ModifierOptionReorder,
+    ModifierOptionUpdate,
 )
 
 
@@ -136,3 +142,88 @@ class TestAvailabilityCommand:
     def test_extra_fields_are_rejected(self) -> None:
         with pytest.raises(ValidationError):
             ItemAvailabilitySet.model_validate({"is_available": True, "is_hidden": True})
+
+
+class TestModifierGroupCreate:
+    def test_defaults_are_optional_unlimited(self) -> None:
+        payload = ModifierGroupCreate(name="Spice Level")
+        assert payload.min_select == 0
+        assert payload.max_select is None
+
+    def test_name_is_normalized(self) -> None:
+        assert ModifierGroupCreate(name="  Spice   Level ").name == "Spice Level"
+
+    def test_selection_domain_bounds(self) -> None:
+        ModifierGroupCreate(name="G", min_select=30, max_select=30)  # at the cap
+        with pytest.raises(ValidationError):
+            ModifierGroupCreate(name="G", min_select=31)
+        with pytest.raises(ValidationError):
+            ModifierGroupCreate(name="G", max_select=31)
+        with pytest.raises(ValidationError):
+            ModifierGroupCreate(name="G", min_select=-1)
+        with pytest.raises(ValidationError):
+            ModifierGroupCreate(name="G", max_select=0)
+
+    def test_finite_min_above_max_is_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="cannot exceed"):
+            ModifierGroupCreate(name="G", min_select=3, max_select=2)
+
+
+class TestModifierGroupUpdate:
+    def test_explicit_null_max_means_unlimited(self) -> None:
+        payload = ModifierGroupUpdate.model_validate({"max_select": None})
+        assert "max_select" in payload.model_fields_set
+        assert payload.max_select is None
+
+    def test_explicit_null_name_or_min_is_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="cannot be null"):
+            ModifierGroupUpdate.model_validate({"name": None})
+        with pytest.raises(ValidationError, match="cannot be null"):
+            ModifierGroupUpdate.model_validate({"min_select": None})
+
+    def test_pair_supplied_together_is_validated(self) -> None:
+        with pytest.raises(ValidationError, match="cannot exceed"):
+            ModifierGroupUpdate.model_validate({"min_select": 5, "max_select": 4})
+
+
+class TestModifierOptionSchemas:
+    def test_option_create_defaults_and_delta_bounds(self) -> None:
+        payload = ModifierOptionCreate(name="Extra Chicken")
+        assert payload.price_delta_minor == 0
+        ModifierOptionCreate(name="Feast", price_delta_minor=policies.MAX_PRICE_MINOR)
+        with pytest.raises(ValidationError):
+            ModifierOptionCreate(name="X", price_delta_minor=policies.MAX_PRICE_MINOR + 1)
+        with pytest.raises(ValidationError):
+            ModifierOptionCreate(name="X", price_delta_minor=-1)
+
+    def test_availability_is_not_a_create_field(self) -> None:
+        with pytest.raises(ValidationError):
+            ModifierOptionCreate.model_validate({"name": "X", "is_available": False})
+
+    def test_option_update_rejects_explicit_nulls(self) -> None:
+        for field in ("name", "price_delta_minor", "is_available"):
+            with pytest.raises(ValidationError, match="cannot be null"):
+                ModifierOptionUpdate.model_validate({field: None})
+
+
+class TestModifierReorderSchemas:
+    def test_duplicates_and_bounds(self) -> None:
+        duplicate = uuid.uuid4()
+        with pytest.raises(ValidationError, match="duplicates"):
+            ModifierGroupReorder(ordered_group_ids=[duplicate, duplicate])
+        with pytest.raises(ValidationError, match="duplicates"):
+            ModifierOptionReorder(ordered_option_ids=[duplicate, duplicate])
+        with pytest.raises(ValidationError):
+            ModifierGroupReorder(
+                ordered_group_ids=[
+                    uuid.uuid4() for _ in range(policies.MAX_MODIFIER_GROUPS_PER_ITEM + 1)
+                ]
+            )
+        with pytest.raises(ValidationError):
+            ModifierOptionReorder(
+                ordered_option_ids=[
+                    uuid.uuid4() for _ in range(policies.MAX_MODIFIER_OPTIONS_PER_GROUP + 1)
+                ]
+            )
+        with pytest.raises(ValidationError):
+            ModifierGroupReorder(ordered_group_ids=[])

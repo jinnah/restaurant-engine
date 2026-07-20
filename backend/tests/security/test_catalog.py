@@ -362,6 +362,35 @@ class TestReorders:
         )
         assert mismatch.status_code == 409
 
+    def test_item_reorder_noop_is_suppressed(
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
+    ) -> None:
+        """R-1 alignment (ADR-017): an identical item permutation returns
+        authoritative state with no position writes and no audit event."""
+        business = create_business()
+        create_membership(business, create_user(OWNER))
+        csrf = login_as(client, OWNER)
+        category = _create_category(client, csrf, business)
+        one = _create_item(client, csrf, business, category["id"], name="One")
+        two = _create_item(client, csrf, business, category["id"], name="Two")
+        response = client.post(
+            f"{_base(business)}/items/reorder",
+            json={
+                "category_id": category["id"],
+                "ordered_item_ids": [one["id"], two["id"]],  # current order
+            },
+            headers=csrf_headers(csrf),
+        )
+        assert response.status_code == 200
+        items = response.json()["categories"][0]["items"]
+        assert [item["position"] for item in items] == [0, 1]
+        assert _audit_rows(migrated_engine, business, "catalog.items_reordered") == []
+
 
 class TestItems:
     def test_create_read_update_delete(
