@@ -522,6 +522,179 @@ class TestCompensation:
         assert leftovers == []
 
 
+class TestItemImageAttachment:
+    def _seed_item(self, engine: Engine, business_id: uuid.UUID) -> uuid.UUID:
+        category_id = uuid.uuid4()
+        item_id = uuid.uuid4()
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO menu_categories (id, business_id, name, position,"
+                    " is_visible) VALUES (:id, :bid, 'Mains', 0, true)"
+                ),
+                {"id": category_id, "bid": business_id},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO menu_items (id, business_id, category_id, name,"
+                    " price_minor, position, is_available, is_hidden, is_featured)"
+                    " VALUES (:id, :bid, :cid, 'Kacchi', 1500, 0, true, false, false)"
+                ),
+                {"id": item_id, "bid": business_id, "cid": category_id},
+            )
+        return item_id
+
+    def _item_url(self, business_id: uuid.UUID, item_id: uuid.UUID) -> str:
+        return f"/api/v1/businesses/{business_id}/catalog/items/{item_id}/image"
+
+    def test_attach_promotes_pending_to_active(
+        self, client, create_user, create_business, create_membership, migrated_engine
+    ) -> None:
+        business_id = _seed_owner(create_user, create_business, create_membership)
+        csrf = login_as(client, OWNER)
+        asset_id = _upload(client, csrf, business_id).json()["id"]
+        item_id = self._seed_item(migrated_engine, business_id)
+        response = client.post(
+            self._item_url(business_id, item_id),
+            json={"media_id": asset_id, "alt_text": "Chicken kacchi biryani"},
+            headers=csrf_headers(csrf),
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["image_media_id"] == asset_id
+        assert body["image_alt_text"] == "Chicken kacchi biryani"
+        # The asset is now active (ever-attached).
+        assert client.get(f"{_base(business_id)}/{asset_id}").json()["status"] == "active"
+
+    def test_exact_no_op_changes_nothing(
+        self, client, create_user, create_business, create_membership, migrated_engine
+    ) -> None:
+        business_id = _seed_owner(create_user, create_business, create_membership)
+        csrf = login_as(client, OWNER)
+        asset_id = _upload(client, csrf, business_id).json()["id"]
+        item_id = self._seed_item(migrated_engine, business_id)
+        first = client.post(
+            self._item_url(business_id, item_id),
+            json={"media_id": asset_id, "alt_text": "Alt"},
+            headers=csrf_headers(csrf),
+        ).json()
+        # Re-send identical values: updated_at must not change, no new audit.
+        with migrated_engine.connect() as connection:
+            before = connection.execute(
+                text(
+                    "SELECT count(*) FROM audit_events WHERE action = 'catalog.item_image_changed'"
+                )
+            ).scalar_one()
+        second = client.post(
+            self._item_url(business_id, item_id),
+            json={"media_id": asset_id, "alt_text": "Alt"},
+            headers=csrf_headers(csrf),
+        ).json()
+        assert second["updated_at"] == first["updated_at"]
+        with migrated_engine.connect() as connection:
+            after = connection.execute(
+                text(
+                    "SELECT count(*) FROM audit_events WHERE action = 'catalog.item_image_changed'"
+                )
+            ).scalar_one()
+        assert after == before, "an exact no-op records no audit event"
+
+    def test_referenced_asset_cannot_be_deleted(
+        self, client, create_user, create_business, create_membership, migrated_engine
+    ) -> None:
+        business_id = _seed_owner(create_user, create_business, create_membership)
+        csrf = login_as(client, OWNER)
+        asset_id = _upload(client, csrf, business_id).json()["id"]
+        item_id = self._seed_item(migrated_engine, business_id)
+        client.post(
+            self._item_url(business_id, item_id),
+            json={"media_id": asset_id},
+            headers=csrf_headers(csrf),
+        )
+        # Referenced -> 409.
+        blocked = client.delete(f"{_base(business_id)}/{asset_id}", headers=csrf_headers(csrf))
+        assert blocked.status_code == 409
+        # Clear the reference, then deletion succeeds.
+        client.post(
+            self._item_url(business_id, item_id),
+            json={"media_id": None},
+            headers=csrf_headers(csrf),
+        )
+        assert (
+            client.delete(
+                f"{_base(business_id)}/{asset_id}", headers=csrf_headers(csrf)
+            ).status_code
+            == 200
+        )
+
+    def test_expired_pending_cannot_be_attached(
+        self, client, create_user, create_business, create_membership, migrated_engine
+    ) -> None:
+        business_id = _seed_owner(create_user, create_business, create_membership)
+        # A pending asset already expired (past pending_expires_at).
+        asset_id = _seed_asset(
+            migrated_engine, business_id, status="pending", expires="now() - interval '1 minute'"
+        )
+        item_id = self._seed_item(migrated_engine, business_id)
+        csrf = login_as(client, OWNER)
+        response = client.post(
+            self._item_url(business_id, item_id),
+            json={"media_id": str(asset_id)},
+            headers=csrf_headers(csrf),
+        )
+        assert response.status_code == 409
+        assert response.json()["error"]["code"] == "invalid_state"
+
+    def test_cross_tenant_media_reference_is_rejected(
+        self, client, create_user, create_business, create_membership, migrated_engine
+    ) -> None:
+        business_a = _seed_owner(create_user, create_business, create_membership, slug="att-a")
+        business_b = create_business(slug="att-b", status="active")
+        asset_b = _seed_asset(migrated_engine, business_b)
+        item_a = self._seed_item(migrated_engine, business_a)
+        csrf = login_as(client, OWNER)
+        response = client.post(
+            self._item_url(business_a, item_a),
+            json={"media_id": str(asset_b)},
+            headers=csrf_headers(csrf),
+        )
+        # B's asset is invisible in A's tenant -> 404 (non-disclosure).
+        assert response.status_code == 404
+
+    def test_alt_updated_records_equal_media_id_pair(
+        self, client, create_user, create_business, create_membership, migrated_engine
+    ) -> None:
+        business_id = _seed_owner(create_user, create_business, create_membership)
+        csrf = login_as(client, OWNER)
+        asset_id = _upload(client, csrf, business_id).json()["id"]
+        item_id = self._seed_item(migrated_engine, business_id)
+        client.post(
+            self._item_url(business_id, item_id),
+            json={"media_id": asset_id, "alt_text": "First"},
+            headers=csrf_headers(csrf),
+        )
+        client.post(
+            self._item_url(business_id, item_id),
+            json={"media_id": asset_id, "alt_text": "Second"},
+            headers=csrf_headers(csrf),
+        )
+        with migrated_engine.connect() as connection:
+            stored = connection.execute(
+                text(
+                    "SELECT details FROM audit_events"
+                    " WHERE action = 'catalog.item_image_changed'"
+                    " ORDER BY id DESC LIMIT 1"
+                )
+            ).scalar_one()
+        assert stored["change"] == "alt_updated"
+        assert stored["media_id_old"] == asset_id
+        assert stored["media_id_new"] == asset_id
+        assert stored["alt_text_changed"] == "changed"
+        # Alt text itself is never stored.
+        assert "First" not in str(stored)
+        assert "Second" not in str(stored)
+
+
 class TestResponseHygiene:
     def test_no_storage_key_path_or_checksum_in_any_response(
         self, client, create_user, create_business, create_membership, app

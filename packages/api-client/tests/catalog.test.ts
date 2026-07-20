@@ -32,9 +32,13 @@ const ITEM = {
   is_hidden: false,
   is_featured: false,
   dietary_tags: ['halal'],
+  image_media_id: null,
+  image_alt_text: null,
   created_at: '2026-07-19T00:00:00Z',
   updated_at: '2026-07-19T00:00:00Z',
 };
+
+const MID = '3f9c1e2a-7b4d-4c6e-8a1f-9d0b2c3e4f5a';
 
 const MENU = { categories: [{ ...CATEGORY, items: [ITEM] }] };
 
@@ -259,6 +263,38 @@ describe('catalog facade', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.data.is_available).toBe(false);
+    }
+  });
+
+  it('setItemImage posts the image attachment command', async () => {
+    const requests: Request[] = [];
+    const client = clientCapturing(
+      jsonResponse(200, {
+        ...ITEM,
+        image_media_id: MID,
+        image_alt_text: 'Chicken biryani',
+      }),
+      requests,
+    );
+
+    const result = await client.catalog.setItemImage(
+      BID,
+      IID,
+      { media_id: MID, alt_text: 'Chicken biryani' },
+      'csrf-token',
+    );
+
+    expect(requests[0]?.url).toBe(
+      `${BASE_URL}/api/v1/businesses/${BID}/catalog/items/${IID}/image`,
+    );
+    expect(requests[0]?.headers.get('X-CSRF-Token')).toBe('csrf-token');
+    expect(await requests[0]?.json()).toEqual({
+      media_id: MID,
+      alt_text: 'Chicken biryani',
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.image_media_id).toBe(MID);
     }
   });
 

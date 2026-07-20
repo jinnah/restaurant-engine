@@ -55,6 +55,7 @@ EXPECTED_OPERATION_IDS = {
     "catalog_item_delete",
     "catalog_items_reorder",
     "catalog_item_availability_set",
+    "catalog_item_image_set",
     # M3B (ADR-017): modifier administration.
     "catalog_item_modifier_groups_get",
     "catalog_modifier_group_create",

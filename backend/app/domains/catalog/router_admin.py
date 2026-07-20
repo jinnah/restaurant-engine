@@ -26,6 +26,7 @@ from app.domains.catalog.schemas import (
     DeletedResponse,
     ItemAvailabilitySet,
     ItemCreate,
+    ItemImageSet,
     ItemReorder,
     ItemSummary,
     ItemUpdate,
@@ -234,6 +235,24 @@ def catalog_item_availability_set(
 ) -> ItemSummary:
     """The "sold out today" toggle (staff-reachable, ruling D4)."""
     return service.set_item_availability(db, actor, business_id, item_id, payload)
+
+
+@catalog_admin_router.post(
+    "/items/{item_id}/image",
+    operation_id="catalog_item_image_set",
+    responses=_WRITE_ENVELOPES,
+)
+def catalog_item_image_set(
+    business_id: uuid.UUID,
+    item_id: uuid.UUID,
+    payload: ItemImageSet,
+    db: Annotated[Session, Depends(get_session)],
+    actor: Annotated[ActorContext, Depends(csrf_protected_actor)],
+) -> ItemSummary:
+    """Attach/replace/clear the item's image and its contextual alt text
+    (M3C); exact no-ops change nothing. Attaching promotes the media asset
+    to active; an expired or cross-tenant media reference → 409."""
+    return service.set_item_image(db, actor, business_id, item_id, payload)
 
 
 # --- Modifiers (M3B, ADR-017) -------------------------------------------------

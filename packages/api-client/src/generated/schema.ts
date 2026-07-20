@@ -258,6 +258,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/businesses/{business_id}/catalog/items/{item_id}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Catalog Item Image Set
+         * @description Attach/replace/clear the item's image and its contextual alt text
+         *     (M3C); exact no-ops change nothing. Attaching promotes the media asset
+         *     to active; an expired or cross-tenant media reference → 409.
+         */
+        post: operations["catalog_item_image_set"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/businesses/{business_id}/catalog/items/{item_id}/modifier-groups": {
         parameters: {
             query?: never;
@@ -1421,6 +1443,21 @@ export interface components {
             price_minor: number;
         };
         /**
+         * ItemImageSet
+         * @description The item-image command body (M3C): attach/replace/clear + alt text.
+         *
+         *     Both fields are genuinely nullable: ``media_id`` null clears the image;
+         *     ``alt_text`` null removes the description. Alt text without an image is
+         *     rejected (the database also enforces this). Empty/whitespace alt text
+         *     normalizes to null.
+         */
+        ItemImageSet: {
+            /** Alt Text */
+            alt_text?: string | null;
+            /** Media Id */
+            media_id?: string | null;
+        };
+        /**
          * ItemReorder
          * @description Full-set item reorder within one category.
          */
@@ -1460,6 +1497,10 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Image Alt Text */
+            image_alt_text: string | null;
+            /** Image Media Id */
+            image_media_id: string | null;
             /** Is Available */
             is_available: boolean;
             /** Is Featured */
@@ -2808,6 +2849,78 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ItemAvailabilitySet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemSummary"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    catalog_item_image_set: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ItemImageSet"];
             };
         };
         responses: {

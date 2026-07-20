@@ -254,6 +254,41 @@ class ItemAvailabilitySet(BaseModel):
     is_available: bool
 
 
+class ItemImageSet(BaseModel):
+    """The item-image command body (M3C): attach/replace/clear + alt text.
+
+    Both fields are genuinely nullable: ``media_id`` null clears the image;
+    ``alt_text`` null removes the description. Alt text without an image is
+    rejected (the database also enforces this). Empty/whitespace alt text
+    normalizes to null.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    media_id: uuid.UUID | None = None
+    alt_text: str | None = None
+
+    @field_validator("alt_text")
+    @classmethod
+    def _alt(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        if not trimmed:
+            return None
+        if len(trimmed) > policies.MAX_IMAGE_ALT_LENGTH:
+            msg = f"alt_text must be at most {policies.MAX_IMAGE_ALT_LENGTH} characters"
+            raise ValueError(msg)
+        return trimmed
+
+    @model_validator(mode="after")
+    def _alt_requires_image(self) -> "ItemImageSet":
+        if self.alt_text is not None and self.media_id is None:
+            msg = "alt_text requires an image"
+            raise ValueError(msg)
+        return self
+
+
 class ItemSummary(BaseModel):
     """One menu item (administrative projection).
 
@@ -271,6 +306,10 @@ class ItemSummary(BaseModel):
     is_hidden: bool
     is_featured: bool
     dietary_tags: list[str]
+    # M3C attachment: at most one image and its contextual alt text (null
+    # when no image is attached).
+    image_media_id: uuid.UUID | None
+    image_alt_text: str | None
     created_at: datetime
     updated_at: datetime
 

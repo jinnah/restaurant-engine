@@ -1044,6 +1044,37 @@
         "title": "ItemCreate",
         "type": "object"
       },
+      "ItemImageSet": {
+        "additionalProperties": false,
+        "description": "The item-image command body (M3C): attach/replace/clear + alt text.\n\nBoth fields are genuinely nullable: ``media_id`` null clears the image;\n``alt_text`` null removes the description. Alt text without an image is\nrejected (the database also enforces this). Empty/whitespace alt text\nnormalizes to null.",
+        "properties": {
+          "alt_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Text"
+          },
+          "media_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media Id"
+          }
+        },
+        "title": "ItemImageSet",
+        "type": "object"
+      },
       "ItemReorder": {
         "additionalProperties": false,
         "description": "Full-set item reorder within one category.",
@@ -1107,6 +1138,29 @@
             "title": "Id",
             "type": "string"
           },
+          "image_alt_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Alt Text"
+          },
+          "image_media_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Media Id"
+          },
           "is_available": {
             "title": "Is Available",
             "type": "boolean"
@@ -1148,6 +1202,8 @@
           "is_hidden",
           "is_featured",
           "dietary_tags",
+          "image_media_id",
+          "image_alt_text",
           "created_at",
           "updated_at"
         ],
@@ -3407,6 +3463,110 @@
           }
         },
         "summary": "Catalog Item Availability Set",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/catalog/items/{item_id}/image": {
+      "post": {
+        "description": "Attach/replace/clear the item's image and its contextual alt text\n(M3C); exact no-ops change nothing. Attaching promotes the media asset\nto active; an expired or cross-tenant media reference → 409.",
+        "operationId": "catalog_item_image_set",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemImageSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Catalog Item Image Set",
         "tags": [
           "catalog"
         ]

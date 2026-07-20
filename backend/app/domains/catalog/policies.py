@@ -33,6 +33,10 @@ MAX_FEATURED_ITEMS = 6
 MAX_NAME_LENGTH = 120
 MAX_CATEGORY_DESCRIPTION_LENGTH = 500
 MAX_ITEM_DESCRIPTION_LENGTH = 1000
+# Contextual image alt text on a menu item (M3C attachment); mirrors the
+# menu_items DB CHECK. The bound matches media.policies.MAX_IMAGE_ALT_LENGTH
+# (a pinned test keeps them equal).
+MAX_IMAGE_ALT_LENGTH = 300
 # Approved item-price range: 0 <= price_minor <= 10,000,000 minor units
 # (ADR-017). The bound (a) keeps public and audit representations bounded,
 # (b) prevents unrealistic or accidental extreme values, (c) still permits

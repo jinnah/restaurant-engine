@@ -52,6 +52,7 @@ export type {
   CategoryWithItems,
   ItemAvailabilitySet,
   ItemCreate,
+  ItemImageSet,
   ItemReorder,
   ItemSummary,
   ItemUpdate,
