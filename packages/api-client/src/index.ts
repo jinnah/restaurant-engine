@@ -55,6 +55,15 @@ export type {
   ItemReorder,
   ItemSummary,
   ItemUpdate,
+  ModifierGroupCreate,
+  ModifierGroupReorder,
+  ModifierGroupsView,
+  ModifierGroupUpdate,
+  ModifierGroupView,
+  ModifierOptionCreate,
+  ModifierOptionReorder,
+  ModifierOptionUpdate,
+  ModifierOptionView,
 } from './catalog';
 export type {
   InvitationAcceptedResponse,

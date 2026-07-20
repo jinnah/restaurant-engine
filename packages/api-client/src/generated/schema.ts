@@ -258,6 +258,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/businesses/{business_id}/catalog/items/{item_id}/modifier-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Catalog Item Modifier Groups Get
+         * @description The item's bounded modifier tree with computed satisfiability (D2).
+         */
+        get: operations["catalog_item_modifier_groups_get"];
+        put?: never;
+        /**
+         * Catalog Modifier Group Create
+         * @description Create a modifier group (appended; zero options is valid, D5).
+         */
+        post: operations["catalog_modifier_group_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/catalog/items/{item_id}/modifier-groups/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Catalog Modifier Groups Reorder
+         * @description Full-set group reorder; returns the item's modifier tree.
+         */
+        post: operations["catalog_modifier_groups_reorder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/businesses/{business_id}/catalog/menu": {
         parameters: {
             query?: never;
@@ -276,6 +320,97 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/catalog/modifier-groups/{group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Catalog Modifier Group Delete
+         * @description Delete a group; its options cascade; sibling positions compact.
+         */
+        delete: operations["catalog_modifier_group_delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Catalog Modifier Group Update
+         * @description Update a group's name or selection rules (explicit null max_select
+         *     means unlimited).
+         */
+        patch: operations["catalog_modifier_group_update"];
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/catalog/modifier-groups/{group_id}/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Catalog Modifier Option Create
+         * @description Create an option (appended, available); returns the parent group.
+         */
+        post: operations["catalog_modifier_option_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/catalog/modifier-groups/{group_id}/options/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Catalog Modifier Options Reorder
+         * @description Full-set option reorder; returns the parent group.
+         */
+        post: operations["catalog_modifier_options_reorder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/catalog/modifier-options/{option_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Catalog Modifier Option Delete
+         * @description Delete an option; returns the surviving parent group (possibly
+         *     unsatisfiable with zero active options).
+         */
+        delete: operations["catalog_modifier_option_delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Catalog Modifier Option Update
+         * @description Update an option (name/price delta/availability, D3); returns the
+         *     recomputed parent group.
+         */
+        patch: operations["catalog_modifier_option_update"];
         trace?: never;
     };
     "/api/v1/businesses/{business_id}/entitlements": {
@@ -741,7 +876,7 @@ export interface components {
          * @description Machine-readable audit event names (append-only).
          * @enum {string}
          */
-        AuditAction: "auth.login_succeeded" | "auth.login_failed" | "auth.login_throttled" | "auth.logout" | "user.platform_admin_created" | "business.created" | "business.activated" | "business.suspended" | "business.reactivated" | "business.closed" | "business.invitation_issued" | "business.invitation_revoked" | "business.invitation_accepted" | "business.entitlement_granted" | "business.entitlement_revoked" | "auth.password_reset_issued" | "auth.password_reset_completed" | "catalog.category_created" | "catalog.category_updated" | "catalog.category_deleted" | "catalog.categories_reordered" | "catalog.item_created" | "catalog.item_updated" | "catalog.item_deleted" | "catalog.items_reordered" | "catalog.item_availability_changed";
+        AuditAction: "auth.login_succeeded" | "auth.login_failed" | "auth.login_throttled" | "auth.logout" | "user.platform_admin_created" | "business.created" | "business.activated" | "business.suspended" | "business.reactivated" | "business.closed" | "business.invitation_issued" | "business.invitation_revoked" | "business.invitation_accepted" | "business.entitlement_granted" | "business.entitlement_revoked" | "auth.password_reset_issued" | "auth.password_reset_completed" | "catalog.category_created" | "catalog.category_updated" | "catalog.category_deleted" | "catalog.categories_reordered" | "catalog.item_created" | "catalog.item_updated" | "catalog.item_deleted" | "catalog.items_reordered" | "catalog.item_availability_changed" | "catalog.modifier_group_created" | "catalog.modifier_group_updated" | "catalog.modifier_group_deleted" | "catalog.modifier_groups_reordered" | "catalog.modifier_option_created" | "catalog.modifier_option_updated" | "catalog.modifier_option_deleted" | "catalog.modifier_options_reordered";
         /**
          * AuditEventPage
          * @description Cursor page (``id DESC``); ``next_before_id`` feeds the next request.
@@ -1331,6 +1466,172 @@ export interface components {
             business_status: string;
             /** Role */
             role: string;
+        };
+        /**
+         * ModifierGroupCreate
+         * @description Create a modifier group (appended at the end of the item's groups).
+         *
+         *     A group may be created with zero options: satisfiability is computed
+         *     and report-only (D5). ``max_select`` null means unlimited.
+         */
+        ModifierGroupCreate: {
+            /** Max Select */
+            max_select?: number | null;
+            /**
+             * Min Select
+             * @default 0
+             */
+            min_select: number;
+            /** Name */
+            name: string;
+        };
+        /**
+         * ModifierGroupReorder
+         * @description Full-set group reorder: every group id of the item, in order.
+         */
+        ModifierGroupReorder: {
+            /** Ordered Group Ids */
+            ordered_group_ids: string[];
+        };
+        /**
+         * ModifierGroupUpdate
+         * @description Partial group update; only supplied fields change.
+         *
+         *     ``max_select`` is the one genuinely nullable field: an explicit null
+         *     sets the group to unlimited (the description-clearing pattern). When
+         *     only one side of the min/max pair is supplied, the service validates
+         *     the effective pair against the stored values.
+         */
+        ModifierGroupUpdate: {
+            /** Max Select */
+            max_select?: number | null;
+            /** Min Select */
+            min_select?: number | null;
+            /** Name */
+            name?: string | null;
+        };
+        /**
+         * ModifierGroupView
+         * @description One group with its ordered options and computed satisfiability.
+         *
+         *     ``active_option_count`` and ``is_satisfiable`` are computed from the
+         *     authoritative post-mutation state (D5) — never stored.
+         */
+        ModifierGroupView: {
+            /** Active Option Count */
+            active_option_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Satisfiable */
+            is_satisfiable: boolean;
+            /**
+             * Item Id
+             * Format: uuid
+             */
+            item_id: string;
+            /** Max Select */
+            max_select: number | null;
+            /** Min Select */
+            min_select: number;
+            /** Name */
+            name: string;
+            /** Options */
+            options: components["schemas"]["ModifierOptionView"][];
+            /** Position */
+            position: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * ModifierGroupsView
+         * @description The bounded per-item modifier tree (D2): ordered groups.
+         */
+        ModifierGroupsView: {
+            /** Groups */
+            groups: components["schemas"]["ModifierGroupView"][];
+            /**
+             * Item Id
+             * Format: uuid
+             */
+            item_id: string;
+        };
+        /**
+         * ModifierOptionCreate
+         * @description Create an option (appended; starts available).
+         */
+        ModifierOptionCreate: {
+            /** Name */
+            name: string;
+            /**
+             * Price Delta Minor
+             * @default 0
+             */
+            price_delta_minor: number;
+        };
+        /**
+         * ModifierOptionReorder
+         * @description Full-set option reorder within one group.
+         */
+        ModifierOptionReorder: {
+            /** Ordered Option Ids */
+            ordered_option_ids: string[];
+        };
+        /**
+         * ModifierOptionUpdate
+         * @description Partial option update; availability rides this PATCH (D3).
+         */
+        ModifierOptionUpdate: {
+            /** Is Available */
+            is_available?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Price Delta Minor */
+            price_delta_minor?: number | null;
+        };
+        /**
+         * ModifierOptionView
+         * @description One option (administrative projection).
+         */
+        ModifierOptionView: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Group Id
+             * Format: uuid
+             */
+            group_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Available */
+            is_available: boolean;
+            /** Name */
+            name: string;
+            /** Position */
+            position: number;
+            /** Price Delta Minor */
+            price_delta_minor: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /**
          * PasswordResetIssueRequest
@@ -2394,6 +2695,200 @@ export interface operations {
             };
         };
     };
+    catalog_item_modifier_groups_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModifierGroupsView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    catalog_modifier_group_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifierGroupCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModifierGroupView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    catalog_modifier_groups_reorder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifierGroupReorder"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModifierGroupsView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     catalog_admin_menu_get: {
         parameters: {
             query?: never;
@@ -2425,6 +2920,430 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    catalog_modifier_group_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    catalog_modifier_group_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifierGroupUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModifierGroupView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    catalog_modifier_option_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifierOptionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModifierGroupView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    catalog_modifier_options_reorder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifierOptionReorder"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModifierGroupView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    catalog_modifier_option_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                option_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModifierGroupView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    catalog_modifier_option_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                option_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifierOptionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModifierGroupView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
