@@ -34,14 +34,14 @@ PR each: M3B depends on M3A; M3C depends on M3A; M3D depends on M3A–M3C;
 M3E depends on the stable M3A–M3C administrative contracts (and any M3D
 behavior it directly consumes); M3F depends on all earlier slices.
 
-| Sub                              | Scope                                                                                                                                                                                      | State                                       |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
-| **M3A** — Catalog core backend   | menu categories/items, dietary tags, integer minor-unit pricing, availability/hidden/featured, transactional normalized reorder, catalog capabilities, admin APIs, audit, isolation matrix | **Delivered (local)** — in review (ADR-017) |
-| **M3B** — Modifiers backend      | modifier groups/options, selection rules, satisfiability model, admin APIs                                                                                                                 | Not started                                 |
-| **M3C** — Media backend          | media domain, storage adapter, upload pipeline, responsive WebP variants, pending/active lifecycle, sweep, item image attachment                                                           | Not started                                 |
-| **M3D** — Public menu API        | host-resolved public menu + public media delivery, neutral-404 contract                                                                                                                    | Not started                                 |
-| **M3E** — Menu administration UI | business workspace + menu management in the control center                                                                                                                                 | Not started                                 |
-| **M3F** — E2E and close-out      | Playwright menu journey, verification, final documentation                                                                                                                                 | Not started                                 |
+| Sub                              | Scope                                                                                                                                                                                      | State                              |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| **M3A** — Catalog core backend   | menu categories/items, dietary tags, integer minor-unit pricing, availability/hidden/featured, transactional normalized reorder, catalog capabilities, admin APIs, audit, isolation matrix | **Complete** (2026-07-20, ADR-017) |
+| **M3B** — Modifiers backend      | modifier groups/options, selection rules, satisfiability model, admin APIs                                                                                                                 | **In progress** (2026-07-20)       |
+| **M3C** — Media backend          | media domain, storage adapter, upload pipeline, responsive WebP variants, pending/active lifecycle, sweep, item image attachment                                                           | Not started                        |
+| **M3D** — Public menu API        | host-resolved public menu + public media delivery, neutral-404 contract                                                                                                                    | Not started                        |
+| **M3E** — Menu administration UI | business workspace + menu management in the control center                                                                                                                                 | Not started                        |
+| **M3F** — E2E and close-out      | Playwright menu journey, verification, final documentation                                                                                                                                 | Not started                        |
 
 ## Milestone 2 delivery decision (2026-07-16)
 
