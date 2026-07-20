@@ -11,12 +11,21 @@ import uuid
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
-from app.domains.catalog.models import MenuCategory, MenuItem, MenuItemDietaryTag
+from app.domains.catalog.models import (
+    MenuCategory,
+    MenuItem,
+    MenuItemDietaryTag,
+    ModifierGroup,
+    ModifierOption,
+)
 
 # --- Categories --------------------------------------------------------------
 
 
-def add(db: Session, entity: MenuCategory | MenuItem | MenuItemDietaryTag) -> None:
+def add(
+    db: Session,
+    entity: MenuCategory | MenuItem | MenuItemDietaryTag | ModifierGroup | ModifierOption,
+) -> None:
     db.add(entity)
 
 
@@ -247,3 +256,233 @@ def replace_item_tags(
     )
     for tag in tags:
         db.add(MenuItemDietaryTag(business_id=business_id, item_id=item_id, tag=tag))
+
+
+# --- Modifier groups (M3B) ----------------------------------------------------
+
+
+def get_group(db: Session, *, business_id: uuid.UUID, group_id: uuid.UUID) -> ModifierGroup | None:
+    return db.execute(
+        select(ModifierGroup).where(
+            ModifierGroup.business_id == business_id, ModifierGroup.id == group_id
+        )
+    ).scalar_one_or_none()
+
+
+def list_groups_for_item(
+    db: Session, *, business_id: uuid.UUID, item_id: uuid.UUID
+) -> list[ModifierGroup]:
+    """The item's groups in display order (position, then id tiebreak)."""
+    return list(
+        db.execute(
+            select(ModifierGroup)
+            .where(ModifierGroup.business_id == business_id, ModifierGroup.item_id == item_id)
+            .order_by(ModifierGroup.position, ModifierGroup.id)
+        ).scalars()
+    )
+
+
+def list_group_ids_for_item(
+    db: Session, *, business_id: uuid.UUID, item_id: uuid.UUID
+) -> list[uuid.UUID]:
+    return list(
+        db.execute(
+            select(ModifierGroup.id)
+            .where(ModifierGroup.business_id == business_id, ModifierGroup.item_id == item_id)
+            .order_by(ModifierGroup.position, ModifierGroup.id)
+        ).scalars()
+    )
+
+
+def count_groups_for_item(db: Session, *, business_id: uuid.UUID, item_id: uuid.UUID) -> int:
+    count = db.execute(
+        select(func.count())
+        .select_from(ModifierGroup)
+        .where(ModifierGroup.business_id == business_id, ModifierGroup.item_id == item_id)
+    ).scalar_one()
+    return int(count)
+
+
+def count_groups_for_business(db: Session, *, business_id: uuid.UUID) -> int:
+    count = db.execute(
+        select(func.count())
+        .select_from(ModifierGroup)
+        .where(ModifierGroup.business_id == business_id)
+    ).scalar_one()
+    return int(count)
+
+
+def group_name_exists(
+    db: Session,
+    *,
+    business_id: uuid.UUID,
+    item_id: uuid.UUID,
+    name: str,
+    exclude_id: uuid.UUID | None = None,
+) -> bool:
+    """Case-insensitive per-item group-name precheck (index is the law)."""
+    query = select(ModifierGroup.id).where(
+        ModifierGroup.business_id == business_id,
+        ModifierGroup.item_id == item_id,
+        func.lower(ModifierGroup.name) == name.lower(),
+    )
+    if exclude_id is not None:
+        query = query.where(ModifierGroup.id != exclude_id)
+    return db.execute(query.limit(1)).scalar_one_or_none() is not None
+
+
+def delete_group(db: Session, group: ModifierGroup) -> None:
+    db.delete(group)
+
+
+def close_group_position_gap(
+    db: Session, *, business_id: uuid.UUID, item_id: uuid.UUID, position: int
+) -> None:
+    db.execute(
+        update(ModifierGroup)
+        .where(
+            ModifierGroup.business_id == business_id,
+            ModifierGroup.item_id == item_id,
+            ModifierGroup.position > position,
+        )
+        .values(position=ModifierGroup.position - 1)
+    )
+
+
+def set_group_positions(
+    db: Session, *, business_id: uuid.UUID, item_id: uuid.UUID, ordered_ids: list[uuid.UUID]
+) -> None:
+    for index, group_id in enumerate(ordered_ids):
+        db.execute(
+            update(ModifierGroup)
+            .where(
+                ModifierGroup.business_id == business_id,
+                ModifierGroup.item_id == item_id,
+                ModifierGroup.id == group_id,
+            )
+            .values(position=index)
+        )
+
+
+# --- Modifier options (M3B) ---------------------------------------------------
+
+
+def get_option(
+    db: Session, *, business_id: uuid.UUID, option_id: uuid.UUID
+) -> ModifierOption | None:
+    return db.execute(
+        select(ModifierOption).where(
+            ModifierOption.business_id == business_id, ModifierOption.id == option_id
+        )
+    ).scalar_one_or_none()
+
+
+def list_options_for_group(
+    db: Session, *, business_id: uuid.UUID, group_id: uuid.UUID
+) -> list[ModifierOption]:
+    return list(
+        db.execute(
+            select(ModifierOption)
+            .where(ModifierOption.business_id == business_id, ModifierOption.group_id == group_id)
+            .order_by(ModifierOption.position, ModifierOption.id)
+        ).scalars()
+    )
+
+
+def list_options_for_groups(
+    db: Session, *, business_id: uuid.UUID, group_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[ModifierOption]]:
+    """All (group_id -> ordered options) for the per-item tree view."""
+    if not group_ids:
+        return {}
+    rows = db.execute(
+        select(ModifierOption)
+        .where(ModifierOption.business_id == business_id, ModifierOption.group_id.in_(group_ids))
+        .order_by(ModifierOption.group_id, ModifierOption.position, ModifierOption.id)
+    ).scalars()
+    options_by_group: dict[uuid.UUID, list[ModifierOption]] = {}
+    for option in rows:
+        options_by_group.setdefault(option.group_id, []).append(option)
+    return options_by_group
+
+
+def list_option_ids_for_group(
+    db: Session, *, business_id: uuid.UUID, group_id: uuid.UUID
+) -> list[uuid.UUID]:
+    return list(
+        db.execute(
+            select(ModifierOption.id)
+            .where(ModifierOption.business_id == business_id, ModifierOption.group_id == group_id)
+            .order_by(ModifierOption.position, ModifierOption.id)
+        ).scalars()
+    )
+
+
+def count_options_for_group(db: Session, *, business_id: uuid.UUID, group_id: uuid.UUID) -> int:
+    count = db.execute(
+        select(func.count())
+        .select_from(ModifierOption)
+        .where(ModifierOption.business_id == business_id, ModifierOption.group_id == group_id)
+    ).scalar_one()
+    return int(count)
+
+
+def count_options_for_business(db: Session, *, business_id: uuid.UUID) -> int:
+    count = db.execute(
+        select(func.count())
+        .select_from(ModifierOption)
+        .where(ModifierOption.business_id == business_id)
+    ).scalar_one()
+    return int(count)
+
+
+def option_name_exists(
+    db: Session,
+    *,
+    business_id: uuid.UUID,
+    group_id: uuid.UUID,
+    name: str,
+    exclude_id: uuid.UUID | None = None,
+) -> bool:
+    """Case-insensitive per-group option-name precheck (index is the law)."""
+    query = select(ModifierOption.id).where(
+        ModifierOption.business_id == business_id,
+        ModifierOption.group_id == group_id,
+        func.lower(ModifierOption.name) == name.lower(),
+    )
+    if exclude_id is not None:
+        query = query.where(ModifierOption.id != exclude_id)
+    return db.execute(query.limit(1)).scalar_one_or_none() is not None
+
+
+def delete_option(db: Session, option: ModifierOption) -> None:
+    db.delete(option)
+
+
+def close_option_position_gap(
+    db: Session, *, business_id: uuid.UUID, group_id: uuid.UUID, position: int
+) -> None:
+    db.execute(
+        update(ModifierOption)
+        .where(
+            ModifierOption.business_id == business_id,
+            ModifierOption.group_id == group_id,
+            ModifierOption.position > position,
+        )
+        .values(position=ModifierOption.position - 1)
+    )
+
+
+def set_option_positions(
+    db: Session, *, business_id: uuid.UUID, group_id: uuid.UUID, ordered_ids: list[uuid.UUID]
+) -> None:
+    for index, option_id in enumerate(ordered_ids):
+        db.execute(
+            update(ModifierOption)
+            .where(
+                ModifierOption.business_id == business_id,
+                ModifierOption.group_id == group_id,
+                ModifierOption.id == option_id,
+            )
+            .values(position=index)
+        )

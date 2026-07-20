@@ -16,6 +16,14 @@ MAX_ITEMS_PER_BUSINESS = 300
 MAX_ITEMS_PER_CATEGORY = 100
 MAX_DIETARY_TAGS_PER_ITEM = 3
 
+# --- Modifier limits (M3B, ADR-017) ------------------------------------------
+# MAX_MODIFIER_OPTIONS_PER_GROUP is mirrored by the literal 30 in the
+# modifier_groups selection-range CHECKs (a pinned test keeps them equal).
+MAX_MODIFIER_GROUPS_PER_ITEM = 10
+MAX_MODIFIER_GROUPS_PER_BUSINESS = 600
+MAX_MODIFIER_OPTIONS_PER_GROUP = 30
+MAX_MODIFIER_OPTIONS_PER_BUSINESS = 3000
+
 # --- Featured policy (R1) ----------------------------------------------------
 # Counts every item with is_featured = true, hidden included; hiding never
 # clears the flag; exceeding returns 409 `conflict` with details.limit.
@@ -34,6 +42,21 @@ MAX_ITEM_DESCRIPTION_LENGTH = 1000
 # extractor shares this constant so no valid price can ever fall out of a
 # projection.
 MAX_PRICE_MINOR = 10_000_000
+
+
+def is_group_satisfiable(min_select: int, max_select: int | None, active_count: int) -> bool:
+    """The ruled satisfiability formula (ADR-017 D5) — computed, never stored.
+
+    A group is satisfiable when at least one available option exists, the
+    minimum can be met, and a finite maximum does not exceed the available
+    options (docs/03: max cannot exceed selectable active options unless
+    NULL/unlimited). Report-only in M3B: never a write gate.
+    """
+    if active_count < 1:
+        return False
+    if min_select > active_count:
+        return False
+    return max_select is None or max_select <= active_count
 
 
 def normalize_name(value: str) -> str:

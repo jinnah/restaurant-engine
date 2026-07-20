@@ -294,7 +294,9 @@ class TestReorders:
         positions = [cat["position"] for cat in response.json()["categories"]]
         assert positions == [0, 1, 2]
 
-        # Repeating the identical reorder is a no-op success.
+        # Repeating the identical reorder is a no-op success (R-1,
+        # ADR-017): authoritative state, no position writes, no second
+        # audit event.
         again = client.post(
             f"{_base(business)}/categories/reorder",
             json={"ordered_category_ids": new_order},
@@ -303,7 +305,7 @@ class TestReorders:
         assert again.status_code == 200
         assert [cat["id"] for cat in again.json()["categories"]] == new_order
         events = _audit_rows(migrated_engine, business, "catalog.categories_reordered")
-        assert len(events) == 2
+        assert len(events) == 1, "an identical permutation must not audit (R-1)"
         assert events[0]["details"] == {"count": 3}
 
     def test_category_reorder_rejects_inexact_sets(

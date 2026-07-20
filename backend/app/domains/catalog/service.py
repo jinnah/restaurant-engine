@@ -22,14 +22,12 @@ loser into a 409.
 import uuid
 
 from sqlalchemy import func
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import (
     ApiError,
     ConflictError,
     ErrorCode,
-    InvalidStateError,
     ResourceNotFoundError,
 )
 from app.domains.audit import recorder
@@ -43,8 +41,6 @@ from app.domains.audit.details import (
     CatalogItemUpdatedDetails,
     CatalogReorderDetails,
 )
-from app.domains.businesses.lifecycle import BusinessStatus
-from app.domains.businesses.queries import lock_business_status
 from app.domains.catalog import dietary, policies, repository
 from app.domains.catalog.models import MenuCategory, MenuItem, MenuItemDietaryTag
 from app.domains.catalog.schemas import (
@@ -60,68 +56,14 @@ from app.domains.catalog.schemas import (
     ItemSummary,
     ItemUpdate,
 )
+from app.domains.catalog.service_support import (
+    authorize_read,
+    authorize_write,
+    safe_commit,
+    safe_flush,
+)
 from app.domains.identity.actor import ActorContext
-from app.domains.identity.authorization import require_membership_capability
 from app.domains.identity.policies import Capability
-
-# Friendly messages for known uniqueness violations; anything else is a real
-# error and propagates (the businesses-service conversion pattern). The
-# position uniques are DEFERRED, so they can only surface at commit — a
-# service logic error, still converted safely rather than leaked as a 500.
-_CONFLICT_CONSTRAINTS: dict[str, str] = {
-    "uq_menu_categories_name_ci": "a category with this name already exists",
-    "uq_menu_items_name_ci": "an item with this name already exists in this category",
-    "uq_menu_categories_business_id_position": "category ordering conflicted; retry",
-    "uq_menu_items_business_id_category_id_position": "item ordering conflicted; retry",
-    "uq_menu_item_dietary_tags_business_id_item_id_tag": "duplicate dietary tag",
-}
-
-
-def _constraint_message(exc: IntegrityError) -> str | None:
-    diag = getattr(exc.orig, "diag", None)
-    name = getattr(diag, "constraint_name", None)
-    return _CONFLICT_CONSTRAINTS.get(name) if name is not None else None
-
-
-def _flush(db: Session) -> None:
-    try:
-        db.flush()
-    except IntegrityError as exc:
-        db.rollback()
-        message = _constraint_message(exc)
-        if message is not None:
-            raise ConflictError(message) from None
-        raise
-
-
-def _commit(db: Session) -> None:
-    """Commit, converting deferred-constraint races to the same safe 409."""
-    try:
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        message = _constraint_message(exc)
-        if message is not None:
-            raise ConflictError(message) from None
-        raise
-
-
-def _authorize_read(db: Session, actor: ActorContext, business_id: uuid.UUID) -> None:
-    require_membership_capability(
-        db, actor, business_id=business_id, capability=Capability.BUSINESS_VIEW
-    )
-
-
-def _authorize_write(
-    db: Session, actor: ActorContext, business_id: uuid.UUID, capability: Capability
-) -> None:
-    """Capability, business lock, and lifecycle — the write preamble."""
-    require_membership_capability(db, actor, business_id=business_id, capability=capability)
-    status = lock_business_status(db, business_id)
-    if status is None:  # pragma: no cover - membership implies existence via FK
-        raise ResourceNotFoundError("Business not found.")
-    if status == BusinessStatus.CLOSED.value:
-        raise InvalidStateError("cannot modify the catalog of a closed business")
 
 
 def _category_summary(category: MenuCategory) -> CategorySummary:
@@ -160,7 +102,7 @@ def _item_summary(item: MenuItem, tags: list[str]) -> ItemSummary:
 
 def get_admin_menu(db: Session, actor: ActorContext, business_id: uuid.UUID) -> AdminMenu:
     """The complete administrative menu tree (hidden entries included)."""
-    _authorize_read(db, actor, business_id)
+    authorize_read(db, actor, business_id)
     categories = repository.list_categories(db, business_id=business_id)
     items = repository.list_items(db, business_id=business_id)
     tags_by_item = repository.list_tags_for_business(db, business_id=business_id)
@@ -183,7 +125,7 @@ def get_admin_menu(db: Session, actor: ActorContext, business_id: uuid.UUID) -> 
 def get_item(
     db: Session, actor: ActorContext, business_id: uuid.UUID, item_id: uuid.UUID
 ) -> ItemSummary:
-    _authorize_read(db, actor, business_id)
+    authorize_read(db, actor, business_id)
     item = repository.get_item(db, business_id=business_id, item_id=item_id)
     if item is None:
         raise ResourceNotFoundError("Item not found.")
@@ -198,7 +140,7 @@ def create_category(
     db: Session, actor: ActorContext, business_id: uuid.UUID, payload: CategoryCreate
 ) -> CategorySummary:
     """Create a category, appended at the end of the menu."""
-    _authorize_write(db, actor, business_id, Capability.BUSINESS_CATALOG_WRITE)
+    authorize_write(db, actor, business_id, Capability.BUSINESS_CATALOG_WRITE)
     count = repository.count_categories(db, business_id=business_id)
     if count >= policies.MAX_CATEGORIES_PER_BUSINESS:
         raise ApiError(
@@ -216,7 +158,7 @@ def create_category(
         position=count,
     )
     repository.add(db, category)
-    _flush(db)
+    safe_flush(db)
     recorder.record(
         db,
         AuditAction.CATALOG_CATEGORY_CREATED,
@@ -226,7 +168,7 @@ def create_category(
         target_id=str(category.id),
         details=CatalogCategoryDetails(name=category.name),
     )
-    _commit(db)
+    safe_commit(db)
     return _category_summary(category)
 
 
@@ -237,7 +179,7 @@ def update_category(
     category_id: uuid.UUID,
     payload: CategoryUpdate,
 ) -> CategorySummary:
-    _authorize_write(db, actor, business_id, Capability.BUSINESS_CATALOG_WRITE)
+    authorize_write(db, actor, business_id, Capability.BUSINESS_CATALOG_WRITE)
     category = repository.get_category(db, business_id=business_id, category_id=category_id)
     if category is None:
         raise ResourceNotFoundError("Category not found.")
@@ -262,7 +204,7 @@ def update_category(
         changed.append("is_visible")
     if changed:
         category.updated_at = func.now()
-        _flush(db)
+        safe_flush(db)
         recorder.record(
             db,
             AuditAction.CATALOG_CATEGORY_UPDATED,
@@ -274,7 +216,7 @@ def update_category(
                 name=category.name, changed_fields=",".join(sorted(changed))
             ),
         )
-    _commit(db)
+    safe_commit(db)
     db.refresh(category)
     return _category_summary(category)
 
@@ -283,7 +225,7 @@ def delete_category(
     db: Session, actor: ActorContext, business_id: uuid.UUID, category_id: uuid.UUID
 ) -> None:
     """Delete an empty category and close its position gap (D7)."""
-    _authorize_write(db, actor, business_id, Capability.BUSINESS_CATALOG_WRITE)
+    authorize_write(db, actor, business_id, Capability.BUSINESS_CATALOG_WRITE)
     category = repository.get_category(db, business_id=business_id, category_id=category_id)
     if category is None:
         raise ResourceNotFoundError("Category not found.")
@@ -293,7 +235,7 @@ def delete_category(
     name = category.name
     deleted_id = category.id
     repository.delete_category(db, category)
-    _flush(db)
+    safe_flush(db)
     repository.close_category_position_gap(db, business_id=business_id, position=position)
     recorder.record(
         db,
@@ -304,20 +246,25 @@ def delete_category(
         target_id=str(deleted_id),
         details=CatalogCategoryDetails(name=name),
     )
-    _commit(db)
+    safe_commit(db)
 
 
 def reorder_categories(
     db: Session, actor: ActorContext, business_id: uuid.UUID, payload: CategoryReorder
 ) -> AdminMenu:
     """Full-set, atomic, normalizing category reorder (naturally idempotent)."""
-    _authorize_write(db, actor, business_id, Capability.BUSINESS_CATALOG_WRITE)
+    authorize_write(db, actor, business_id, Capability.BUSINESS_CATALOG_WRITE)
     categories = repository.list_categories(db, business_id=business_id)
     current_ids = [category.id for category in categories]
     if sorted(payload.ordered_category_ids, key=str) != sorted(current_ids, key=str):
         raise ConflictError(
             "the supplied ids do not exactly match the business's categories; refresh and retry"
         )
+    if payload.ordered_category_ids == current_ids:
+        # R-1 (ADR-017): an identical full-set permutation is a no-op —
+        # authoritative state, no position writes, no audit event.
+        safe_commit(db)
+        return get_admin_menu(db, actor, business_id)
     repository.set_category_positions(
         db, business_id=business_id, ordered_ids=payload.ordered_category_ids
     )
@@ -330,7 +277,7 @@ def reorder_categories(
         target_id=str(business_id),
         details=CatalogReorderDetails(count=len(payload.ordered_category_ids)),
     )
-    _commit(db)
+    safe_commit(db)
     return get_admin_menu(db, actor, business_id)
 
 
@@ -345,7 +292,7 @@ def create_item(
     payload: ItemCreate,
 ) -> ItemSummary:
     """Create an item, appended at the end of its category."""
-    _authorize_write(db, actor, business_id, Capability.BUSINESS_CATALOG_WRITE)
+    authorize_write(db, actor, business_id, Capability.BUSINESS_CATALOG_WRITE)
     category = repository.get_category(db, business_id=business_id, category_id=category_id)
     if category is None:
         raise ResourceNotFoundError("Category not found.")
@@ -379,10 +326,10 @@ def create_item(
         position=category_count,
     )
     repository.add(db, item)
-    _flush(db)
+    safe_flush(db)
     for tag in payload.dietary_tags:
         repository.add(db, MenuItemDietaryTag(business_id=business_id, item_id=item.id, tag=tag))
-    _flush(db)
+    safe_flush(db)
     recorder.record(
         db,
         AuditAction.CATALOG_ITEM_CREATED,
@@ -394,7 +341,7 @@ def create_item(
             name=item.name, category_id=str(category_id), price_minor=item.price_minor
         ),
     )
-    _commit(db)
+    safe_commit(db)
     # Canonical tag order (review F4): the create response sorts exactly as
     # every subsequent read does — never request order.
     return _item_summary(item, sorted(payload.dietary_tags))
@@ -408,7 +355,7 @@ def update_item(
     payload: ItemUpdate,
 ) -> ItemSummary:
     """Partial item update, including category movement and featuring."""
-    _authorize_write(db, actor, business_id, Capability.BUSINESS_CATALOG_WRITE)
+    authorize_write(db, actor, business_id, Capability.BUSINESS_CATALOG_WRITE)
     item = repository.get_item(db, business_id=business_id, item_id=item_id)
     if item is None:
         raise ResourceNotFoundError("Item not found.")
@@ -526,7 +473,7 @@ def update_item(
         changed.append("dietary_tags")
     if changed:
         item.updated_at = func.now()
-        _flush(db)
+        safe_flush(db)
         if moving:
             # Close the source category's gap; the moved row no longer
             # matches its old (category, position) and is untouched by
@@ -548,7 +495,7 @@ def update_item(
                 category_id=str(target_category_id) if moving else None,
             ),
         )
-    _commit(db)
+    safe_commit(db)
     db.refresh(item)
     tags = repository.list_tags_for_item(db, business_id=business_id, item_id=item.id)
     return _item_summary(item, tags)
@@ -558,7 +505,7 @@ def delete_item(
     db: Session, actor: ActorContext, business_id: uuid.UUID, item_id: uuid.UUID
 ) -> None:
     """Delete an item; its dietary tags CASCADE; positions renormalize."""
-    _authorize_write(db, actor, business_id, Capability.BUSINESS_CATALOG_WRITE)
+    authorize_write(db, actor, business_id, Capability.BUSINESS_CATALOG_WRITE)
     item = repository.get_item(db, business_id=business_id, item_id=item_id)
     if item is None:
         raise ResourceNotFoundError("Item not found.")
@@ -567,7 +514,7 @@ def delete_item(
     name = item.name
     deleted_id = item.id
     repository.delete_item(db, item)
-    _flush(db)
+    safe_flush(db)
     repository.close_item_position_gap(
         db, business_id=business_id, category_id=category_id, position=position
     )
@@ -580,14 +527,14 @@ def delete_item(
         target_id=str(deleted_id),
         details=CatalogItemDeletedDetails(name=name, category_id=str(category_id)),
     )
-    _commit(db)
+    safe_commit(db)
 
 
 def reorder_items(
     db: Session, actor: ActorContext, business_id: uuid.UUID, payload: ItemReorder
 ) -> AdminMenu:
     """Full-set, atomic, normalizing item reorder within one category."""
-    _authorize_write(db, actor, business_id, Capability.BUSINESS_CATALOG_WRITE)
+    authorize_write(db, actor, business_id, Capability.BUSINESS_CATALOG_WRITE)
     category = repository.get_category(db, business_id=business_id, category_id=payload.category_id)
     if category is None:
         raise ResourceNotFoundError("Category not found.")
@@ -598,6 +545,10 @@ def reorder_items(
         raise ConflictError(
             "the supplied ids do not exactly match the category's items; refresh and retry"
         )
+    if payload.ordered_item_ids == current_ids:
+        # R-1 (ADR-017): identical permutation — no writes, no audit.
+        safe_commit(db)
+        return get_admin_menu(db, actor, business_id)
     repository.set_item_positions(
         db,
         business_id=business_id,
@@ -613,7 +564,7 @@ def reorder_items(
         target_id=str(payload.category_id),
         details=CatalogReorderDetails(count=len(payload.ordered_item_ids)),
     )
-    _commit(db)
+    safe_commit(db)
     return get_admin_menu(db, actor, business_id)
 
 
@@ -630,14 +581,14 @@ def set_item_availability(
     change. Availability is deliberately independent of ``is_hidden``
     (docs/03: separate states).
     """
-    _authorize_write(db, actor, business_id, Capability.BUSINESS_CATALOG_AVAILABILITY)
+    authorize_write(db, actor, business_id, Capability.BUSINESS_CATALOG_AVAILABILITY)
     item = repository.get_item(db, business_id=business_id, item_id=item_id)
     if item is None:
         raise ResourceNotFoundError("Item not found.")
     if item.is_available != payload.is_available:
         item.is_available = payload.is_available
         item.updated_at = func.now()
-        _flush(db)
+        safe_flush(db)
         recorder.record(
             db,
             AuditAction.CATALOG_ITEM_AVAILABILITY_CHANGED,
@@ -649,7 +600,7 @@ def set_item_availability(
                 availability="available" if payload.is_available else "sold_out"
             ),
         )
-    _commit(db)
+    safe_commit(db)
     db.refresh(item)
     tags = repository.list_tags_for_item(db, business_id=business_id, item_id=item_id)
     return _item_summary(item, tags)

@@ -300,3 +300,177 @@ class DeletedResponse(BaseModel):
     blueprint §10.4)."""
 
     status: Literal["deleted"] = "deleted"
+
+
+# --- Modifiers (M3B, ADR-017) -------------------------------------------------
+
+
+class ModifierGroupCreate(BaseModel):
+    """Create a modifier group (appended at the end of the item's groups).
+
+    A group may be created with zero options: satisfiability is computed
+    and report-only (D5). ``max_select`` null means unlimited.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    min_select: int = Field(default=0, ge=0, le=policies.MAX_MODIFIER_OPTIONS_PER_GROUP)
+    max_select: int | None = Field(default=None, ge=1, le=policies.MAX_MODIFIER_OPTIONS_PER_GROUP)
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, value: str) -> str:
+        return _normalized_name(value)
+
+    @model_validator(mode="after")
+    def _min_le_max(self) -> "ModifierGroupCreate":
+        if self.max_select is not None and self.min_select > self.max_select:
+            msg = "min_select cannot exceed max_select"
+            raise ValueError(msg)
+        return self
+
+
+class ModifierGroupUpdate(BaseModel):
+    """Partial group update; only supplied fields change.
+
+    ``max_select`` is the one genuinely nullable field: an explicit null
+    sets the group to unlimited (the description-clearing pattern). When
+    only one side of the min/max pair is supplied, the service validates
+    the effective pair against the stored values.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = None
+    min_select: int | None = Field(default=None, ge=0, le=policies.MAX_MODIFIER_OPTIONS_PER_GROUP)
+    max_select: int | None = Field(default=None, ge=1, le=policies.MAX_MODIFIER_OPTIONS_PER_GROUP)
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, value: str | None) -> str | None:
+        return _normalized_name(value) if value is not None else None
+
+    @model_validator(mode="after")
+    def _semantics(self) -> "ModifierGroupUpdate":
+        for field in ("name", "min_select"):
+            if field in self.model_fields_set and getattr(self, field) is None:
+                msg = f"{field} cannot be null"
+                raise ValueError(msg)
+        if (
+            "min_select" in self.model_fields_set
+            and "max_select" in self.model_fields_set
+            and self.min_select is not None
+            and self.max_select is not None
+            and self.min_select > self.max_select
+        ):
+            msg = "min_select cannot exceed max_select"
+            raise ValueError(msg)
+        return self
+
+
+class ModifierGroupReorder(BaseModel):
+    """Full-set group reorder: every group id of the item, in order."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ordered_group_ids: list[uuid.UUID] = Field(
+        min_length=1, max_length=policies.MAX_MODIFIER_GROUPS_PER_ITEM
+    )
+
+    @field_validator("ordered_group_ids")
+    @classmethod
+    def _unique(cls, value: list[uuid.UUID]) -> list[uuid.UUID]:
+        return _unique_ids(value)
+
+
+class ModifierOptionCreate(BaseModel):
+    """Create an option (appended; starts available)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    price_delta_minor: int = Field(default=0, ge=0, le=policies.MAX_PRICE_MINOR)
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, value: str) -> str:
+        return _normalized_name(value)
+
+
+class ModifierOptionUpdate(BaseModel):
+    """Partial option update; availability rides this PATCH (D3)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = None
+    price_delta_minor: int | None = Field(default=None, ge=0, le=policies.MAX_PRICE_MINOR)
+    is_available: bool | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, value: str | None) -> str | None:
+        return _normalized_name(value) if value is not None else None
+
+    @model_validator(mode="after")
+    def _no_nulls(self) -> "ModifierOptionUpdate":
+        for field in ("name", "price_delta_minor", "is_available"):
+            if field in self.model_fields_set and getattr(self, field) is None:
+                msg = f"{field} cannot be null"
+                raise ValueError(msg)
+        return self
+
+
+class ModifierOptionReorder(BaseModel):
+    """Full-set option reorder within one group."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ordered_option_ids: list[uuid.UUID] = Field(
+        min_length=1, max_length=policies.MAX_MODIFIER_OPTIONS_PER_GROUP
+    )
+
+    @field_validator("ordered_option_ids")
+    @classmethod
+    def _unique(cls, value: list[uuid.UUID]) -> list[uuid.UUID]:
+        return _unique_ids(value)
+
+
+class ModifierOptionView(BaseModel):
+    """One option (administrative projection)."""
+
+    id: uuid.UUID
+    group_id: uuid.UUID
+    name: str
+    price_delta_minor: int
+    is_available: bool
+    position: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class ModifierGroupView(BaseModel):
+    """One group with its ordered options and computed satisfiability.
+
+    ``active_option_count`` and ``is_satisfiable`` are computed from the
+    authoritative post-mutation state (D5) — never stored.
+    """
+
+    id: uuid.UUID
+    item_id: uuid.UUID
+    name: str
+    min_select: int
+    max_select: int | None
+    position: int
+    active_option_count: int
+    is_satisfiable: bool
+    options: list[ModifierOptionView]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ModifierGroupsView(BaseModel):
+    """The bounded per-item modifier tree (D2): ordered groups."""
+
+    item_id: uuid.UUID
+    groups: list[ModifierGroupView]
