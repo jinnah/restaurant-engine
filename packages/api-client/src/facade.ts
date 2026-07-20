@@ -9,6 +9,7 @@ import { createBusinessesApi, type BusinessesApi } from './businesses';
 import { createCatalogApi, type CatalogApi } from './catalog';
 import { createHealthMethods, type HealthMethods } from './health';
 import { createInvitationsApi, type InvitationsApi } from './invitations';
+import { createMediaApi, type MediaApi } from './media';
 import {
   createPasswordResetsApi,
   type PasswordResetsApi,
@@ -21,6 +22,7 @@ export interface ApiClient extends HealthMethods {
   platform: PlatformApi;
   businesses: BusinessesApi;
   catalog: CatalogApi;
+  media: MediaApi;
   public: PublicApi;
   invitations: InvitationsApi;
   passwordResets: PasswordResetsApi;
@@ -34,6 +36,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     platform: createPlatformApi(client),
     businesses: createBusinessesApi(client),
     catalog: createCatalogApi(client),
+    media: createMediaApi(client, options),
     public: createPublicApi(client),
     invitations: createInvitationsApi(client),
     passwordResets: createPasswordResetsApi(client),
