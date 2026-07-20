@@ -154,8 +154,8 @@ def test_recreate_then_drop_lifecycle(test_database_url: str) -> None:
                 text("SELECT count(*) FROM pg_tables WHERE schemaname = 'public'")
             ).scalar()
             # M2 core (8) + alembic_version + M3A catalog core (3) +
-            # M3B modifiers (2).
-            assert tables == 14
+            # M3B modifiers (2) + M3C media (2).
+            assert tables == 16
     finally:
         engine.dispose()
 
