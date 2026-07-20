@@ -2,6 +2,7 @@
 connection to a closed local port fails immediately)."""
 
 import concurrent.futures
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -36,7 +37,7 @@ def test_liveness_is_unaffected_by_database_outage() -> None:
     assert client.get("/health/live").status_code == 200
 
 
-def test_ready_reports_media_storage_down_without_exposing_the_path(tmp_path) -> None:
+def test_ready_reports_media_storage_down_without_exposing_the_path(tmp_path: Path) -> None:
     """A read-only/unwritable media root fails the check with no path leak."""
     app = create_app(make_settings(media_storage_root=str(tmp_path / "media")))
     # Replace the storage with one whose probe always fails.
@@ -46,7 +47,7 @@ def test_ready_reports_media_storage_down_without_exposing_the_path(tmp_path) ->
     def _boom() -> None:
         raise OSError("disk full")
 
-    app.state.media_storage.probe = _boom  # type: ignore[method-assign]
+    app.state.media_storage.probe = _boom
     with TestClient(app) as client:
         response = client.get("/health/ready")
     assert response.status_code == 503
@@ -54,10 +55,10 @@ def test_ready_reports_media_storage_down_without_exposing_the_path(tmp_path) ->
     assert body["error"]["details"]["checks"]["media_storage"] == "down"
     # The media root path never appears anywhere in the response.
     assert str(tmp_path) not in response.text
-    app.state.media_storage.probe = original_probe  # type: ignore[method-assign]
+    app.state.media_storage.probe = original_probe
 
 
-def test_concurrent_readiness_probes_do_not_collide(tmp_path) -> None:
+def test_concurrent_readiness_probes_do_not_collide(tmp_path: Path) -> None:
     """Collision-safe probe: many parallel readiness checks all pass and
     leave no marker behind (unique probe names, finally cleanup)."""
     storage = LocalFilesystemStorage(tmp_path / "media")

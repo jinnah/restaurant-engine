@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from PIL import Image
 from sqlalchemy import Engine, text
@@ -220,14 +221,23 @@ class TestAuthorizationMatrix:
         return business_id
 
     def test_manager_can_upload(
-        self, client, create_user, create_business, create_membership
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
     ) -> None:
         business_id = self._business_with_roles(create_user, create_business, create_membership)
         csrf = login_as(client, MANAGER)
         assert _upload(client, csrf, business_id).status_code == 201
 
     def test_staff_cannot_upload_but_can_read(
-        self, client, create_user, create_business, create_membership, migrated_engine
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
     ) -> None:
         business_id = self._business_with_roles(create_user, create_business, create_membership)
         asset_id = _seed_asset(migrated_engine, business_id)
@@ -238,7 +248,12 @@ class TestAuthorizationMatrix:
         assert client.get(f"{_base(business_id)}/{asset_id}").status_code == 200
 
     def test_platform_admin_without_membership_gets_404(
-        self, client, create_user, create_business, create_membership, migrated_engine
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
     ) -> None:
         business_id = _seed_owner(create_user, create_business, create_membership)
         asset_id = _seed_asset(migrated_engine, business_id)
@@ -249,13 +264,22 @@ class TestAuthorizationMatrix:
         assert _upload(client, csrf, business_id).status_code == 404
 
     def test_anonymous_is_401(
-        self, client, create_user, create_business, create_membership
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
     ) -> None:
         business_id = _seed_owner(create_user, create_business, create_membership)
         assert client.get(_base(business_id)).status_code == 401
 
     def test_cross_tenant_asset_is_404(
-        self, client, create_user, create_business, create_membership, migrated_engine
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
     ) -> None:
         business_a = _seed_owner(create_user, create_business, create_membership, slug="med-a")
         business_b = create_business(slug="med-b", status="active")
@@ -268,7 +292,11 @@ class TestAuthorizationMatrix:
         assert _upload(client, csrf_b, business_a).status_code == 404
 
     def test_upload_without_csrf_is_403(
-        self, client, create_user, create_business, create_membership
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
     ) -> None:
         business_id = _seed_owner(create_user, create_business, create_membership)
         login_as(client, OWNER)
@@ -283,7 +311,12 @@ class TestAuthorizationMatrix:
 class TestLifecycleGate:
     @pytest.mark.parametrize("status", ["provisioning", "active", "suspended"])
     def test_writable_lifecycle_states_allow_upload(
-        self, client, create_user, create_business, create_membership, status
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        status: str,
     ) -> None:
         business_id = _seed_owner(
             create_user, create_business, create_membership, status=status, slug=f"med-{status}"
@@ -292,7 +325,12 @@ class TestLifecycleGate:
         assert _upload(client, csrf, business_id).status_code == 201
 
     def test_closed_business_rejects_upload_before_parsing_the_body(
-        self, client, create_user, create_business, create_membership, migrated_engine
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
     ) -> None:
         # provisioning first (activation requires an owner), then close.
         business_id = _seed_owner(
@@ -327,7 +365,12 @@ class TestLifecycleGate:
 
 class TestListGetDelete:
     def test_list_pagination_and_status_filter(
-        self, client, create_user, create_business, create_membership, migrated_engine
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
     ) -> None:
         business_id = _seed_owner(create_user, create_business, create_membership)
         _seed_asset(migrated_engine, business_id, status="active")
@@ -341,7 +384,12 @@ class TestListGetDelete:
         assert active["items"][0]["status"] == "active"
 
     def test_delete_removes_row_and_objects(
-        self, client, create_user, create_business, create_membership, app
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        app: FastAPI,
     ) -> None:
         business_id = _seed_owner(create_user, create_business, create_membership)
         csrf = login_as(client, OWNER)
@@ -357,7 +405,11 @@ class TestListGetDelete:
         assert storage.stat(key=object_key(business_id, uuid.UUID(asset_id), "canonical")) is None
 
     def test_preview_missing_variant_is_404(
-        self, client, create_user, create_business, create_membership
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
     ) -> None:
         business_id = _seed_owner(create_user, create_business, create_membership)
         csrf = login_as(client, OWNER)
@@ -367,7 +419,12 @@ class TestListGetDelete:
         assert client.get(f"{_base(business_id)}/{asset_id}/file/canonical").status_code == 200
 
     def test_preview_unknown_variant_name_is_404(
-        self, client, create_user, create_business, create_membership, migrated_engine
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
     ) -> None:
         business_id = _seed_owner(create_user, create_business, create_membership)
         asset_id = _seed_asset(migrated_engine, business_id)
@@ -377,7 +434,12 @@ class TestListGetDelete:
 
 class TestQuotas:
     def test_count_quota_rejects_the_501st_asset(
-        self, client, create_user, create_business, create_membership, migrated_engine
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
     ) -> None:
         business_id = _seed_owner(create_user, create_business, create_membership)
         # Seed exactly 500 assets with set-based SQL (fast).
@@ -401,7 +463,12 @@ class TestQuotas:
         assert body["error"]["details"]["limit"] == policies.MAX_MEDIA_ASSETS_PER_BUSINESS
 
     def test_byte_quota_rejects_when_over_budget(
-        self, client, create_user, create_business, create_membership, migrated_engine
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
     ) -> None:
         business_id = _seed_owner(create_user, create_business, create_membership)
         # One asset already at (1 GiB - 1 KiB); the new upload's bytes push over.
@@ -426,7 +493,13 @@ class TestQuotas:
         assert response.json()["error"]["details"]["limit"] == policies.MAX_MEDIA_BYTES_PER_BUSINESS
 
     def test_count_quota_is_race_safe_under_the_business_lock(
-        self, client, create_user, create_business, create_membership, migrated_engine, app
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
+        app: FastAPI,
     ) -> None:
         """Two-session boundary test (M3B pattern): at 499 assets, session A
         holds the Business lock mid-transaction while B blocks, then B is
@@ -474,7 +547,12 @@ class TestQuotas:
 
 class TestCompensation:
     def test_storage_put_failure_leaves_no_row_and_cleans_up(
-        self, app, create_user, create_business, create_membership, migrated_engine
+        self,
+        app: FastAPI,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
     ) -> None:
         """An injected failing adapter: the DB has no asset row, and the
         temp work dir is left clean (final corrections G/N)."""
@@ -548,7 +626,12 @@ class TestItemImageAttachment:
         return f"/api/v1/businesses/{business_id}/catalog/items/{item_id}/image"
 
     def test_attach_promotes_pending_to_active(
-        self, client, create_user, create_business, create_membership, migrated_engine
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
     ) -> None:
         business_id = _seed_owner(create_user, create_business, create_membership)
         csrf = login_as(client, OWNER)
@@ -567,7 +650,12 @@ class TestItemImageAttachment:
         assert client.get(f"{_base(business_id)}/{asset_id}").json()["status"] == "active"
 
     def test_exact_no_op_changes_nothing(
-        self, client, create_user, create_business, create_membership, migrated_engine
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
     ) -> None:
         business_id = _seed_owner(create_user, create_business, create_membership)
         csrf = login_as(client, OWNER)
@@ -600,7 +688,12 @@ class TestItemImageAttachment:
         assert after == before, "an exact no-op records no audit event"
 
     def test_referenced_asset_cannot_be_deleted(
-        self, client, create_user, create_business, create_membership, migrated_engine
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
     ) -> None:
         business_id = _seed_owner(create_user, create_business, create_membership)
         csrf = login_as(client, OWNER)
@@ -628,7 +721,12 @@ class TestItemImageAttachment:
         )
 
     def test_expired_pending_cannot_be_attached(
-        self, client, create_user, create_business, create_membership, migrated_engine
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
     ) -> None:
         business_id = _seed_owner(create_user, create_business, create_membership)
         # A pending asset already expired (past pending_expires_at).
@@ -646,7 +744,12 @@ class TestItemImageAttachment:
         assert response.json()["error"]["code"] == "invalid_state"
 
     def test_cross_tenant_media_reference_is_rejected(
-        self, client, create_user, create_business, create_membership, migrated_engine
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
     ) -> None:
         business_a = _seed_owner(create_user, create_business, create_membership, slug="att-a")
         business_b = create_business(slug="att-b", status="active")
@@ -662,7 +765,12 @@ class TestItemImageAttachment:
         assert response.status_code == 404
 
     def test_alt_updated_records_equal_media_id_pair(
-        self, client, create_user, create_business, create_membership, migrated_engine
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
     ) -> None:
         business_id = _seed_owner(create_user, create_business, create_membership)
         csrf = login_as(client, OWNER)
@@ -697,7 +805,12 @@ class TestItemImageAttachment:
 
 class TestResponseHygiene:
     def test_no_storage_key_path_or_checksum_in_any_response(
-        self, client, create_user, create_business, create_membership, app
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        app: FastAPI,
     ) -> None:
         business_id = _seed_owner(create_user, create_business, create_membership)
         csrf = login_as(client, OWNER)
