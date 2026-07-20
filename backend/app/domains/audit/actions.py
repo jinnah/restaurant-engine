@@ -32,3 +32,13 @@ class AuditAction(StrEnum):
     # S105 suppressions: these are event names, not credentials.
     AUTH_PASSWORD_RESET_ISSUED = "auth.password_reset_issued"  # noqa: S105
     AUTH_PASSWORD_RESET_COMPLETED = "auth.password_reset_completed"  # noqa: S105
+    # M3A: catalog core (ADR-017).
+    CATALOG_CATEGORY_CREATED = "catalog.category_created"
+    CATALOG_CATEGORY_UPDATED = "catalog.category_updated"
+    CATALOG_CATEGORY_DELETED = "catalog.category_deleted"
+    CATALOG_CATEGORIES_REORDERED = "catalog.categories_reordered"
+    CATALOG_ITEM_CREATED = "catalog.item_created"
+    CATALOG_ITEM_UPDATED = "catalog.item_updated"
+    CATALOG_ITEM_DELETED = "catalog.item_deleted"
+    CATALOG_ITEMS_REORDERED = "catalog.items_reordered"
+    CATALOG_ITEM_AVAILABILITY_CHANGED = "catalog.item_availability_changed"

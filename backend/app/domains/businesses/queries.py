@@ -25,6 +25,21 @@ class BusinessSummaryView:
     status: str
 
 
+def lock_business_status(db: Session, business_id: uuid.UUID) -> str | None:
+    """Lock the business row (``FOR UPDATE``) and return its status (M3A).
+
+    The businesses-owned serialization point other domains' write services
+    use: catalog mutations lock the Business row **first** (deterministic
+    lock order, ADR-014/ADR-017), which both serializes per-tenant catalog
+    writes (making count-limit checks race-safe) and pins the lifecycle
+    status for the transaction. Returns ``None`` for a nonexistent
+    business. Never commits — the calling service owns the transaction.
+    """
+    return db.execute(
+        select(Business.status).where(Business.id == business_id).with_for_update()
+    ).scalar_one_or_none()
+
+
 def get_business_summaries(
     db: Session, business_ids: list[uuid.UUID]
 ) -> dict[uuid.UUID, BusinessSummaryView]:

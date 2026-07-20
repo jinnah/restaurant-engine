@@ -22,8 +22,26 @@ initial architecture-contract commit.
 | ----------------------------------------- | ---------------------------- |
 | M0 — Architecture and repository contract | **Complete** (2026-07-14)    |
 | M1 — Platform foundation                  | **Complete** (2026-07-15)    |
-| M2 — Identity, tenancy, and onboarding    | **In progress** (2026-07-16) |
-| M3 – M8                                   | Not started                  |
+| M2 — Identity, tenancy, and onboarding    | **Complete** (2026-07-19)    |
+| M3 — Catalog and media                    | **In progress** (2026-07-19) |
+| M4 – M8                                   | Not started                  |
+
+## Milestone 3 delivery decision (2026-07-19)
+
+The approved M3 architecture (proposal + addendum + binding rulings,
+ADR-017) subdivides M3 into six independently reviewed sub-milestones, one
+PR each: M3B depends on M3A; M3C depends on M3A; M3D depends on M3A–M3C;
+M3E depends on the stable M3A–M3C administrative contracts (and any M3D
+behavior it directly consumes); M3F depends on all earlier slices.
+
+| Sub                              | Scope                                                                                                                                                                                      | State                                       |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| **M3A** — Catalog core backend   | menu categories/items, dietary tags, integer minor-unit pricing, availability/hidden/featured, transactional normalized reorder, catalog capabilities, admin APIs, audit, isolation matrix | **Delivered (local)** — in review (ADR-017) |
+| **M3B** — Modifiers backend      | modifier groups/options, selection rules, satisfiability model, admin APIs                                                                                                                 | Not started                                 |
+| **M3C** — Media backend          | media domain, storage adapter, upload pipeline, responsive WebP variants, pending/active lifecycle, sweep, item image attachment                                                           | Not started                                 |
+| **M3D** — Public menu API        | host-resolved public menu + public media delivery, neutral-404 contract                                                                                                                    | Not started                                 |
+| **M3E** — Menu administration UI | business workspace + menu management in the control center                                                                                                                                 | Not started                                 |
+| **M3F** — E2E and close-out      | Playwright menu journey, verification, final documentation                                                                                                                                 | Not started                                 |
 
 ## Milestone 2 delivery decision (2026-07-16)
 
@@ -31,14 +49,14 @@ The approved M2 architecture (proposal + revision + final addendum)
 subdivides M2 into six independently reviewed sub-milestones, one PR each,
 strictly sequential:
 
-| Sub                                           | Scope                                                                                                                                                                                                                                             | State                                       |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| **M2A** — Identity & session core             | users/sessions/audit_events schema; Argon2id; opaque hashed-token sessions; login/logout/session; fail-closed CSRF; uniform-failure backoff; audit recorder; bootstrap CLI (ADR-010)                                                              | **Complete** (2026-07-16)                   |
-| **M2B** — Tenancy model & capabilities        | businesses (the tenant aggregate, ADR-012), memberships, capability policies (ADR-011), service-layer authorization, lifecycle + platform endpoints, enriched session view, isolation matrix v1                                                   | **Complete** (2026-07-17)                   |
-| **M2C** — Tenant resolution & isolation       | parser-level host normalization, two-scope trusted-host policy, direct-subdomain slug resolution, reserved-slug policy, public `site` endpoint, neutral public-failure semantics, consolidated isolation matrix (ADR-013)                         | **Complete** (2026-07-17)                   |
-| **M2D** — Onboarding, recovery & entitlements | invitations (role ceiling, owner bootstrap, existing-user acceptance), platform-issued password-reset tokens, feature entitlements (registry seeded `online_ordering`), platform + business audit list APIs with typed safe projections (ADR-014) | **Complete** (2026-07-18)                   |
-| **M2E** — Control-center auth UI              | login/session UI, guards, accept-invitation and reset pages, dev proxy                                                                                                                                                                            | **Complete** (2026-07-18, ADR-015)          |
-| **M2F** — Platform UI & E2E                   | platform area UI, deep-import lint hardening, first Playwright journeys + CI e2e job                                                                                                                                                              | **Delivered (local)** — in review (ADR-016) |
+| Sub                                           | Scope                                                                                                                                                                                                                                             | State                              |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| **M2A** — Identity & session core             | users/sessions/audit_events schema; Argon2id; opaque hashed-token sessions; login/logout/session; fail-closed CSRF; uniform-failure backoff; audit recorder; bootstrap CLI (ADR-010)                                                              | **Complete** (2026-07-16)          |
+| **M2B** — Tenancy model & capabilities        | businesses (the tenant aggregate, ADR-012), memberships, capability policies (ADR-011), service-layer authorization, lifecycle + platform endpoints, enriched session view, isolation matrix v1                                                   | **Complete** (2026-07-17)          |
+| **M2C** — Tenant resolution & isolation       | parser-level host normalization, two-scope trusted-host policy, direct-subdomain slug resolution, reserved-slug policy, public `site` endpoint, neutral public-failure semantics, consolidated isolation matrix (ADR-013)                         | **Complete** (2026-07-17)          |
+| **M2D** — Onboarding, recovery & entitlements | invitations (role ceiling, owner bootstrap, existing-user acceptance), platform-issued password-reset tokens, feature entitlements (registry seeded `online_ordering`), platform + business audit list APIs with typed safe projections (ADR-014) | **Complete** (2026-07-18)          |
+| **M2E** — Control-center auth UI              | login/session UI, guards, accept-invitation and reset pages, dev proxy                                                                                                                                                                            | **Complete** (2026-07-18, ADR-015) |
+| **M2F** — Platform UI & E2E                   | platform area UI, deep-import lint hardening, first Playwright journeys + CI e2e job                                                                                                                                                              | **Complete** (2026-07-19, ADR-016) |
 
 ## Milestone 1 delivery decision (2026-07-14)
 

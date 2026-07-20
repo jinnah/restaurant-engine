@@ -153,7 +153,8 @@ def test_recreate_then_drop_lifecycle(test_database_url: str) -> None:
             tables = connection.execute(
                 text("SELECT count(*) FROM pg_tables WHERE schemaname = 'public'")
             ).scalar()
-            assert tables == 9
+            # M2 core (8) + alembic_version + M3A catalog core (3).
+            assert tables == 12
     finally:
         engine.dispose()
 

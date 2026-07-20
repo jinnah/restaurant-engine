@@ -7,13 +7,16 @@ operations. Initial market: Bengali-owned restaurants in Buffalo, New York.
 
 ## Status
 
-**Milestone 1 — Platform foundation: complete (2026-07-15).** Milestone 0
-(repository contract) and all of Milestone 1 are done: M1A backend +
-PostgreSQL foundation, M1B frontend application shells, and M1C the
-generated API client (`packages/api-client`, ADR-009), contract drift gate,
-integrated CI matrix, and one-command dev stack. Product-domain behavior
-(tenants, menus, orders) begins in Milestone 2, which is not started. See
-[docs/08_ROADMAP.md](docs/08_ROADMAP.md).
+**Milestone 2 — Identity, tenancy, and onboarding: complete (2026-07-19).**
+Milestones 0–2 are done and merged: the repository contract (M0); the
+platform foundation — backend + PostgreSQL, frontend shells, generated API
+client and contract drift gate (M1, ADR-007–009); and identity, tenancy,
+and onboarding — sessions and CSRF, the Business tenant aggregate and
+capability authorization, tenant resolution, invitations/recovery/
+entitlements, the control-center auth and platform UIs, and the Playwright
+E2E foundation (M2, ADR-010–016). **Milestone 3 — Catalog and media** is in
+progress as gated sub-milestones (M3A first: catalog core backend,
+ADR-017). See [docs/08_ROADMAP.md](docs/08_ROADMAP.md).
 
 ## Quick start
 

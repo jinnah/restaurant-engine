@@ -43,6 +43,18 @@ EXPECTED_OPERATION_IDS = {
     "business_entitlements_get",
     "platform_audit_events_list",
     "business_audit_events_list",
+    # M3A (ADR-017): catalog core administration.
+    "catalog_admin_menu_get",
+    "catalog_category_create",
+    "catalog_category_update",
+    "catalog_category_delete",
+    "catalog_categories_reorder",
+    "catalog_item_create",
+    "catalog_item_get",
+    "catalog_item_update",
+    "catalog_item_delete",
+    "catalog_items_reorder",
+    "catalog_item_availability_set",
 }
 
 
@@ -72,6 +84,19 @@ def test_exported_operation_ids_are_expected_and_unique() -> None:
     ]
     assert len(operation_ids) == len(set(operation_ids))
     assert set(operation_ids) == EXPECTED_OPERATION_IDS
+
+
+def test_price_bound_is_advertised_in_the_contract() -> None:
+    # F1 ruling (ADR-017): the public contract advertises the approved
+    # price range on both the create and update schemas.
+    document = json.loads(canonical_openapi_json())
+    schemas = document["components"]["schemas"]
+    for schema_name in ("ItemCreate", "ItemUpdate"):
+        price = schemas[schema_name]["properties"]["price_minor"]
+        variants = price.get("anyOf", [price])  # ItemUpdate's field is nullable
+        integer_variant = next(part for part in variants if part.get("type") == "integer")
+        assert integer_variant["maximum"] == 10_000_000
+        assert integer_variant["minimum"] == 0
 
 
 def test_export_uses_lf_and_single_trailing_newline() -> None:
