@@ -66,7 +66,7 @@ def test_upgrade_head_runs_on_empty_database(empty_database_url: str) -> None:
     try:
         tables = set(inspect(engine).get_table_names())
         # M2A identity/audit + M2B tenancy + M2D onboarding/recovery/
-        # entitlements + M3A catalog core.
+        # entitlements + M3A catalog core + M3B modifiers.
         assert tables == {
             "alembic_version",
             "users",
@@ -80,6 +80,8 @@ def test_upgrade_head_runs_on_empty_database(empty_database_url: str) -> None:
             "menu_categories",
             "menu_items",
             "menu_item_dietary_tags",
+            "modifier_groups",
+            "modifier_options",
         }
         with engine.connect() as connection:
             version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar()
