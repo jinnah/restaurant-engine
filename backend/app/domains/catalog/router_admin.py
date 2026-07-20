@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_session
 from app.core.errors import ErrorEnvelope
-from app.domains.catalog import service
+from app.domains.catalog import modifier_service, service
 from app.domains.catalog.schemas import (
     AdminMenu,
     CategoryCreate,
@@ -29,6 +29,14 @@ from app.domains.catalog.schemas import (
     ItemReorder,
     ItemSummary,
     ItemUpdate,
+    ModifierGroupCreate,
+    ModifierGroupReorder,
+    ModifierGroupsView,
+    ModifierGroupUpdate,
+    ModifierGroupView,
+    ModifierOptionCreate,
+    ModifierOptionReorder,
+    ModifierOptionUpdate,
 )
 from app.domains.identity.actor import ActorContext
 from app.domains.identity.dependencies import csrf_protected_actor, current_actor
@@ -226,3 +234,153 @@ def catalog_item_availability_set(
 ) -> ItemSummary:
     """The "sold out today" toggle (staff-reachable, ruling D4)."""
     return service.set_item_availability(db, actor, business_id, item_id, payload)
+
+
+# --- Modifiers (M3B, ADR-017) -------------------------------------------------
+
+
+@catalog_admin_router.get(
+    "/items/{item_id}/modifier-groups",
+    operation_id="catalog_item_modifier_groups_get",
+    responses=_READ_ENVELOPES,
+)
+def catalog_item_modifier_groups_get(
+    business_id: uuid.UUID,
+    item_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_session)],
+    actor: Annotated[ActorContext, Depends(current_actor)],
+) -> ModifierGroupsView:
+    """The item's bounded modifier tree with computed satisfiability (D2)."""
+    return modifier_service.get_modifier_groups(db, actor, business_id, item_id)
+
+
+@catalog_admin_router.post(
+    "/items/{item_id}/modifier-groups",
+    operation_id="catalog_modifier_group_create",
+    status_code=status.HTTP_201_CREATED,
+    responses=_WRITE_ENVELOPES,
+)
+def catalog_modifier_group_create(
+    business_id: uuid.UUID,
+    item_id: uuid.UUID,
+    payload: ModifierGroupCreate,
+    db: Annotated[Session, Depends(get_session)],
+    actor: Annotated[ActorContext, Depends(csrf_protected_actor)],
+) -> ModifierGroupView:
+    """Create a modifier group (appended; zero options is valid, D5)."""
+    return modifier_service.create_group(db, actor, business_id, item_id, payload)
+
+
+@catalog_admin_router.patch(
+    "/modifier-groups/{group_id}",
+    operation_id="catalog_modifier_group_update",
+    responses=_WRITE_ENVELOPES,
+)
+def catalog_modifier_group_update(
+    business_id: uuid.UUID,
+    group_id: uuid.UUID,
+    payload: ModifierGroupUpdate,
+    db: Annotated[Session, Depends(get_session)],
+    actor: Annotated[ActorContext, Depends(csrf_protected_actor)],
+) -> ModifierGroupView:
+    """Update a group's name or selection rules (explicit null max_select
+    means unlimited)."""
+    return modifier_service.update_group(db, actor, business_id, group_id, payload)
+
+
+@catalog_admin_router.delete(
+    "/modifier-groups/{group_id}",
+    operation_id="catalog_modifier_group_delete",
+    responses=_WRITE_ENVELOPES,
+)
+def catalog_modifier_group_delete(
+    business_id: uuid.UUID,
+    group_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_session)],
+    actor: Annotated[ActorContext, Depends(csrf_protected_actor)],
+) -> DeletedResponse:
+    """Delete a group; its options cascade; sibling positions compact."""
+    modifier_service.delete_group(db, actor, business_id, group_id)
+    return DeletedResponse()
+
+
+@catalog_admin_router.post(
+    "/items/{item_id}/modifier-groups/reorder",
+    operation_id="catalog_modifier_groups_reorder",
+    responses=_WRITE_ENVELOPES,
+)
+def catalog_modifier_groups_reorder(
+    business_id: uuid.UUID,
+    item_id: uuid.UUID,
+    payload: ModifierGroupReorder,
+    db: Annotated[Session, Depends(get_session)],
+    actor: Annotated[ActorContext, Depends(csrf_protected_actor)],
+) -> ModifierGroupsView:
+    """Full-set group reorder; returns the item's modifier tree."""
+    return modifier_service.reorder_groups(db, actor, business_id, item_id, payload)
+
+
+@catalog_admin_router.post(
+    "/modifier-groups/{group_id}/options",
+    operation_id="catalog_modifier_option_create",
+    status_code=status.HTTP_201_CREATED,
+    responses=_WRITE_ENVELOPES,
+)
+def catalog_modifier_option_create(
+    business_id: uuid.UUID,
+    group_id: uuid.UUID,
+    payload: ModifierOptionCreate,
+    db: Annotated[Session, Depends(get_session)],
+    actor: Annotated[ActorContext, Depends(csrf_protected_actor)],
+) -> ModifierGroupView:
+    """Create an option (appended, available); returns the parent group."""
+    return modifier_service.create_option(db, actor, business_id, group_id, payload)
+
+
+@catalog_admin_router.patch(
+    "/modifier-options/{option_id}",
+    operation_id="catalog_modifier_option_update",
+    responses=_WRITE_ENVELOPES,
+)
+def catalog_modifier_option_update(
+    business_id: uuid.UUID,
+    option_id: uuid.UUID,
+    payload: ModifierOptionUpdate,
+    db: Annotated[Session, Depends(get_session)],
+    actor: Annotated[ActorContext, Depends(csrf_protected_actor)],
+) -> ModifierGroupView:
+    """Update an option (name/price delta/availability, D3); returns the
+    recomputed parent group."""
+    return modifier_service.update_option(db, actor, business_id, option_id, payload)
+
+
+@catalog_admin_router.delete(
+    "/modifier-options/{option_id}",
+    operation_id="catalog_modifier_option_delete",
+    responses=_WRITE_ENVELOPES,
+)
+def catalog_modifier_option_delete(
+    business_id: uuid.UUID,
+    option_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_session)],
+    actor: Annotated[ActorContext, Depends(csrf_protected_actor)],
+) -> ModifierGroupView:
+    """Delete an option; returns the surviving parent group (possibly
+    unsatisfiable with zero active options)."""
+    return modifier_service.delete_option(db, actor, business_id, option_id)
+
+
+@catalog_admin_router.post(
+    "/modifier-groups/{group_id}/options/reorder",
+    operation_id="catalog_modifier_options_reorder",
+    responses=_WRITE_ENVELOPES,
+)
+def catalog_modifier_options_reorder(
+    business_id: uuid.UUID,
+    group_id: uuid.UUID,
+    payload: ModifierOptionReorder,
+    db: Annotated[Session, Depends(get_session)],
+    actor: Annotated[ActorContext, Depends(csrf_protected_actor)],
+) -> ModifierGroupView:
+    """Full-set option reorder; returns the parent group."""
+    return modifier_service.reorder_options(db, actor, business_id, group_id, payload)

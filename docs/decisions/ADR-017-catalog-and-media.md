@@ -258,6 +258,83 @@ role matrix, CSRF, no mutation or audit side effects on rejection), the
 full local gate, the existing Playwright suite, and clean-copy
 verification.
 
-### M3B–M3F
+### M3B — Modifiers backend: in progress (2026-07-20)
+
+Approved architecture (proposal + addendum rulings), recorded before
+implementation:
+
+- Option `price_delta_minor` range **0 ≤ delta ≤ 10,000,000** sharing
+  `MAX_PRICE_MINOR` and the `_price_int` audit extractor; named CHECKs
+  `ck_modifier_options_price_delta_nonnegative` / `_maximum`; no currency
+  column; no new error code.
+- Selection bounds are **database-enforced numeric domain**, in three
+  separately named CHECKs: `ck_modifier_groups_min_select_range`
+  (0–30), `ck_modifier_groups_max_select_range` (NULL or 1–30), and
+  `ck_modifier_groups_min_le_max`. The 30 mirrors the options-per-group
+  policy cap. Active-option **satisfiability stays computed and
+  report-only** (`active_option_count`, `is_satisfiable` on every group
+  representation; never stored; never a write gate) — a legal but
+  unsatisfiable configuration is always storable.
+- Admin read contract: one dedicated bounded per-item tree,
+  `catalog_item_modifier_groups_get`; `AdminMenu`, `ItemSummary`,
+  `catalog_item_get`, and every existing operation stay byte-stable
+  (the audit-action filter enum growth is the only additive change).
+- Option availability is `is_available` inside the general option PATCH
+  (no separate command, no separate audit action); staff hold **no**
+  modifier authority of any kind; owner/manager use
+  `business.catalog.write`; reads use `business.view`; no new
+  capability.
+- Eight audit actions with explicit **`max_select_mode`**
+  (`finite`/`unlimited`) fields on group create/update — mode fields
+  always present when the maximum changes, finite values only when the
+  respective side is finite; option updates record
+  `availability_old`/`availability_new` (`available`/`unavailable`)
+  exactly when availability changes; projections use a closed-set
+  `_choice` extractor (no booleans in the audit value union). Cascade
+  deletions never fan out child events: item deletion emits only
+  `catalog.item_deleted`; group deletion emits one
+  `modifier_group_deleted` carrying its `option_count`.
+- **No-op full-set reorders return current state with no position
+  writes and no audit event** — and by explicit ruling R-1 the merged
+  M3A `reorder_categories`/`reorder_items` are aligned to the same rule
+  in this sub-milestone (a deliberate, tested change to M3A behavior).
+- Shared internal module `catalog/service_support.py` carries the
+  authorization preamble, flush/commit conversion, and the single
+  known-conflict constraint map, **moved** from `service.py` so M3A and
+  M3B cannot drift; `modifier_service.py` holds the modifier workflows
+  inside the catalog domain.
+- Value-column defaults are application-side only (server defaults only
+  on timestamps): a direct SQL insert omitting a required value fails
+  explicitly rather than acquiring a divergent default.
+
+**Delivered (local) 2026-07-20, in review.** One migration
+(`f8ad809962f8`) creates `modifier_groups` and `modifier_options`
+exactly as ruled: composite tenant-safe FKs (groups CASCADE with their
+item; options CASCADE with their group over the new
+`uq_modifier_groups_business_id_id` target; deliberately no such target
+on options), the three named selection-domain CHECKs, the price-delta
+range CHECKs, DEFERRABLE dense-position uniques, case-insensitive name
+expression indexes, and application-side value defaults (a direct SQL
+insert omitting a value column fails explicitly). Nine operations landed
+(`catalog_item_modifier_groups_get` + eight mutations; pinned
+operation-id total 49); option mutations return the recomputed parent
+`ModifierGroupView`; no existing M3A operation or schema changed. The
+modifier workflows live in `catalog/modifier_service.py` over the shared
+`service_support` preamble; R-1 landed (M3A category/item reorders now
+no-op-suppress identical permutations, tests updated). Eight audit
+actions recorded with the explicit max-mode convention; the D6
+field-presence rules bind at **both layers** — the modifier detail
+schemas omit inapplicable optional fields from the stored payload via
+their own serializer (`ModifierAuditDetails`; the shared M2A recorder
+and every earlier schema, including M3A's price details, are untouched)
+and the typed read-time projection omits them independently; tests
+assert stored absence and projected absence separately. Delivered with unit,
+migration/constraint (five named selection-CHECK rejections, both
+cross-tenant FK rejections, cascade chains), API, satisfiability-
+transition, count-limit, authorization/isolation, audit-atomicity, and
+two-session concurrency coverage, plus the full local gate and
+exact-head clean-copy verification.
+
+### M3C–M3F
 
 Not started.
