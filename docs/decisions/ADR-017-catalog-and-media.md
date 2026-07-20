@@ -307,8 +307,31 @@ implementation:
   on timestamps): a direct SQL insert omitting a required value fails
   explicitly rather than acquiring a divergent default.
 
-Implementation in progress; the delivery record is completed when M3B
-is delivered.
+**Delivered (local) 2026-07-20, in review.** One migration
+(`f8ad809962f8`) creates `modifier_groups` and `modifier_options`
+exactly as ruled: composite tenant-safe FKs (groups CASCADE with their
+item; options CASCADE with their group over the new
+`uq_modifier_groups_business_id_id` target; deliberately no such target
+on options), the three named selection-domain CHECKs, the price-delta
+range CHECKs, DEFERRABLE dense-position uniques, case-insensitive name
+expression indexes, and application-side value defaults (a direct SQL
+insert omitting a value column fails explicitly). Nine operations landed
+(`catalog_item_modifier_groups_get` + eight mutations; pinned
+operation-id total 49); option mutations return the recomputed parent
+`ModifierGroupView`; no existing M3A operation or schema changed. The
+modifier workflows live in `catalog/modifier_service.py` over the shared
+`service_support` preamble; R-1 landed (M3A category/item reorders now
+no-op-suppress identical permutations, tests updated). Eight audit
+actions recorded with the explicit max-mode convention; stored details
+carry explicit nulls for inapplicable fields (the M2A recorder's
+`model_dump` behavior, matching M3A price details) while the typed
+read-time projection omits them — the D6 field-presence rules bind at
+the API projection, and tests assert both layers. Delivered with unit,
+migration/constraint (five named selection-CHECK rejections, both
+cross-tenant FK rejections, cascade chains), API, satisfiability-
+transition, count-limit, authorization/isolation, audit-atomicity, and
+two-session concurrency coverage, plus the full local gate and
+exact-head clean-copy verification.
 
 ### M3C–M3F
 

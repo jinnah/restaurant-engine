@@ -119,7 +119,23 @@ items/business, 100 items/category, 6 featured (hidden items count;
 hiding never clears the flag), 3 dietary tags/item; prices are
 0–10,000,000 minor units (F1 ruling), DB-CHECK-enforced. Categories
 delete only when empty. Nine audit actions record every mutation in its own
-transaction. Modifiers, media, and the public menu API are M3B–M3D.
+transaction.
+
+**Implemented in M3B (ADR-017):** catalog also owns `modifier_groups`
+(per-item, min/max selection rules with a DB-enforced 0-30 numeric
+domain, NULL max = unlimited) and `modifier_options` (per-group, price
+delta 0-10,000,000 minor units DB-enforced, `is_available` operator
+toggle). Satisfiability — at least one available option, min
+reachable, finite max not above available options — is computed and
+report-only: admin construction is never blocked, and every group
+response carries `active_option_count` + `is_satisfiable`. Limits: 10
+groups/item, 600 groups/business, 30 options/group, 3000
+options/business. Same authorization as the rest of the catalog
+(owner/manager write; staff read-only — no modifier authority);
+identical no-op-suppressed exact-set reorders (M3A reorders aligned per
+R-1). Group deletion cascades options with one audited event; item
+deletion cascades without modifier-event fan-out. Media and the public
+menu API are M3C–M3D.
 
 ## Storefront composition
 
