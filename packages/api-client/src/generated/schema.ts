@@ -889,6 +889,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/media/{asset_id}/{variant}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public Media File Get
+         * @description Deliver one image of the Business resolved from the Host.
+         *
+         *     Serves the re-encoded WebP canonical rendition or one of its
+         *     responsive variants, addressed by opaque asset id and logical variant
+         *     name. Supports conditional requests through a strong derived ETag;
+         *     ``Range`` is ignored and the complete representation is returned.
+         */
+        get: operations["public_media_file_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/menu": {
         parameters: {
             query?: never;
@@ -5418,6 +5443,54 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    public_media_file_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: string;
+                variant: "canonical" | "w320" | "w640" | "w1280";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/webp": unknown;
+                };
+            };
+            /** @description Cached representation is current. */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -9,6 +9,7 @@ orchestrate more than one domain. The router establishes the permanent
 from fastapi import APIRouter
 
 from app.api.audit_router import audit_business_router, audit_platform_router
+from app.api.public_media_router import public_media_router
 from app.api.session_router import session_router
 from app.domains.businesses.router import business_router
 from app.domains.businesses.router_invitations import invitations_router
@@ -50,3 +51,7 @@ api_v1_router.include_router(catalog_admin_router)
 api_v1_router.include_router(catalog_public_router)
 # Media (M3C): business-scoped image upload/list/get/preview/delete.
 api_v1_router.include_router(media_admin_router)
+# Application composition (M3D): public media delivery joins catalog's
+# public-attachment rule with media's inventory and storage, so neither
+# domain imports the other.
+api_v1_router.include_router(public_media_router)

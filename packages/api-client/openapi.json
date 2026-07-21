@@ -7108,6 +7108,74 @@
         ]
       }
     },
+    "/api/v1/public/media/{asset_id}/{variant}": {
+      "get": {
+        "description": "Deliver one image of the Business resolved from the Host.\n\nServes the re-encoded WebP canonical rendition or one of its\nresponsive variants, addressed by opaque asset id and logical variant\nname. Supports conditional requests through a strong derived ETag;\n``Range`` is ignored and the complete representation is returned.",
+        "operationId": "public_media_file_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variant",
+            "required": true,
+            "schema": {
+              "enum": [
+                "canonical",
+                "w320",
+                "w640",
+                "w1280"
+              ],
+              "title": "Variant",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/webp": {}
+            },
+            "description": "Successful Response"
+          },
+          "304": {
+            "description": "Cached representation is current."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Public Media File Get",
+        "tags": [
+          "public"
+        ]
+      }
+    },
     "/api/v1/public/menu": {
       "get": {
         "description": "The public menu of the Business resolved from the Host.\n\nHidden items and invisible categories are excluded, categories with no\npublicly visible item are omitted, and unavailable modifier options and\nunsatisfiable groups are dropped. Prices are integer minor units in the\nbusiness's own currency.",

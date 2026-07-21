@@ -38,6 +38,23 @@ from app.domains.catalog.public_schemas import (
 )
 
 
+def media_is_publicly_visible(db: Session, *, business_id: uuid.UUID, media_id: uuid.UUID) -> bool:
+    """Is this media asset currently shown by a public menu item?
+
+    Catalog owns this question because the attachment is a catalog fact
+    (``menu_items.image_media_id``) governed by catalog visibility rules.
+    The public media endpoint composes it with media's own inventory check
+    at the application layer, so media never imports catalog (ADR-017 M3C
+    final correction M).
+
+    An asset detached after promotion, or one left referenced only by
+    hidden items or items in invisible categories, is not publicly
+    visible: ``status = 'active'`` is one-way, so without this check such
+    an asset would stay retrievable forever by anyone holding its URL.
+    """
+    return repository.media_is_publicly_attached(db, business_id=business_id, media_id=media_id)
+
+
 def _option_view(option: ModifierOption) -> PublicModifierOption:
     return PublicModifierOption(
         id=option.id,

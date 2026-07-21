@@ -74,6 +74,7 @@ EXPECTED_OPERATION_IDS = {
     "media_asset_delete",
     # M3D (ADR-017): the host-resolved public surface.
     "public_menu_get",
+    "public_media_file_get",
 }
 
 
@@ -103,9 +104,10 @@ def test_exported_operation_ids_are_expected_and_unique() -> None:
     ]
     assert len(operation_ids) == len(set(operation_ids))
     assert set(operation_ids) == EXPECTED_OPERATION_IDS
-    # M3C brought the contract to 55; M3D adds the public menu here and
-    # public media delivery next, for a final total of 57.
-    assert len(EXPECTED_OPERATION_IDS) == 56
+    # M3C brought the contract to 55; M3D adds the public menu and public
+    # media delivery: the contract is exactly 57 operations. The two
+    # schema-hidden HEAD companions add none (see below).
+    assert len(EXPECTED_OPERATION_IDS) == 57
 
 
 def test_head_companions_add_no_operation() -> None:
