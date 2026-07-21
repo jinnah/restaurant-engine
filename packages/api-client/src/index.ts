@@ -88,7 +88,17 @@ export type {
   MediaVariant,
   MediaVariantView,
 } from './media';
-export type { PublicApi, PublicSiteSummary } from './public';
+export type {
+  PublicApi,
+  PublicMenu,
+  PublicMenuCategory,
+  PublicMenuImage,
+  PublicMenuImageVariant,
+  PublicMenuItem,
+  PublicModifierGroup,
+  PublicModifierOption,
+  PublicSiteSummary,
+} from './public';
 export { isErrorEnvelope } from './errors';
 export type {
   ErrorCode,
