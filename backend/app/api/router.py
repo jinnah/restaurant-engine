@@ -16,6 +16,7 @@ from app.domains.businesses.router_onboarding import onboarding_router
 from app.domains.businesses.router_platform import platform_router
 from app.domains.businesses.router_public import public_router
 from app.domains.catalog.router_admin import catalog_admin_router
+from app.domains.catalog.router_public import catalog_public_router
 from app.domains.identity.router import auth_router
 from app.domains.identity.router_recovery import (
     recovery_platform_router,
@@ -45,5 +46,7 @@ api_v1_router.include_router(audit_platform_router)
 api_v1_router.include_router(audit_business_router)
 # Catalog (M3A): business-scoped menu administration.
 api_v1_router.include_router(catalog_admin_router)
+# Catalog (M3D): the host-resolved public menu projection; unauthenticated.
+api_v1_router.include_router(catalog_public_router)
 # Media (M3C): business-scoped image upload/list/get/preview/delete.
 api_v1_router.include_router(media_admin_router)

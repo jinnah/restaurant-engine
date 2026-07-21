@@ -889,6 +889,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/menu": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public Menu Get
+         * @description The public menu of the Business resolved from the Host.
+         *
+         *     Hidden items and invisible categories are excluded, categories with no
+         *     publicly visible item are omitted, and unavailable modifier options and
+         *     unsatisfiable groups are dropped. Prices are integer minor units in the
+         *     business's own currency.
+         */
+        get: operations["public_menu_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/site": {
         parameters: {
             query?: never;
@@ -1895,6 +1920,152 @@ export interface components {
              * @constant
              */
             status: "password_reset";
+        };
+        /**
+         * PublicMenu
+         * @description The complete public menu of the host-resolved Business.
+         *
+         *     `business` is the sole source of name, slug, timezone, and currency.
+         *     `featured_item_ids` lists at most the featured-policy maximum and
+         *     refers only to items present in `categories`.
+         */
+        PublicMenu: {
+            business: components["schemas"]["PublicSiteSummary"];
+            /** Categories */
+            categories: components["schemas"]["PublicMenuCategory"][];
+            /** Featured Item Ids */
+            featured_item_ids: string[];
+        };
+        /**
+         * PublicMenuCategory
+         * @description One visible menu section with at least one publicly visible item.
+         */
+        PublicMenuCategory: {
+            /** Description */
+            description: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["PublicMenuItem"][];
+            /** Name */
+            name: string;
+        };
+        /**
+         * PublicMenuImage
+         * @description The item's image: canonical dimensions plus responsive renditions.
+         *
+         *     Carries no asset id, storage key, path, or checksum — the URL is the
+         *     resource identity (ADR-017 R3). `alt_text` is the contextual alt text
+         *     of this attachment, not a property of the asset, and may be null.
+         */
+        PublicMenuImage: {
+            /** Alt Text */
+            alt_text: string | null;
+            /** Height */
+            height: number;
+            /** Url */
+            url: string;
+            /** Variants */
+            variants: components["schemas"]["PublicMenuImageVariant"][];
+            /** Width */
+            width: number;
+        };
+        /**
+         * PublicMenuImageVariant
+         * @description One responsive rendition, with its true pixel dimensions.
+         *
+         *     The client selects a rendition (``srcset``); the API publishes every
+         *     one it has. `url` is relative — the storefront is served same-origin
+         *     with the tenant host (ADR-013).
+         */
+        PublicMenuImageVariant: {
+            /** Height */
+            height: number;
+            /** Url */
+            url: string;
+            /**
+             * Variant
+             * @enum {string}
+             */
+            variant: "w320" | "w640" | "w1280";
+            /** Width */
+            width: number;
+        };
+        /**
+         * PublicMenuItem
+         * @description One publicly visible menu item.
+         *
+         *     `is_available` is the "sold out today" state; a sold-out item stays
+         *     listed. `is_orderable` is computed: available **and** every required
+         *     modifier group currently satisfiable. M6 remains authoritative at
+         *     order time — these are display facts, not a checkout guarantee.
+         */
+        PublicMenuItem: {
+            /** Description */
+            description: string | null;
+            /** Dietary Tags */
+            dietary_tags: string[];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            image: components["schemas"]["PublicMenuImage"] | null;
+            /** Is Available */
+            is_available: boolean;
+            /** Is Orderable */
+            is_orderable: boolean;
+            /** Modifier Groups */
+            modifier_groups: components["schemas"]["PublicModifierGroup"][];
+            /** Name */
+            name: string;
+            /** Price Minor */
+            price_minor: number;
+        };
+        /**
+         * PublicModifierGroup
+         * @description One customization group a guest can currently complete.
+         *
+         *     Only satisfiable groups are projected, so `is_satisfiable` and
+         *     `active_option_count` (administrative diagnostics) are absent —
+         *     `options` is exactly the selectable set. `max_select` null means
+         *     unlimited by configuration.
+         */
+        PublicModifierGroup: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Max Select */
+            max_select: number | null;
+            /** Min Select */
+            min_select: number;
+            /** Name */
+            name: string;
+            /** Options */
+            options: components["schemas"]["PublicModifierOption"][];
+        };
+        /**
+         * PublicModifierOption
+         * @description One selectable option (available options only).
+         *
+         *     Unavailable options are omitted from the projection entirely, so no
+         *     availability flag is needed: everything present is selectable.
+         */
+        PublicModifierOption: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Price Delta Minor */
+            price_delta_minor: number;
         };
         /**
          * PublicSiteSummary
@@ -5261,6 +5432,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    public_menu_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMenu"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
         };

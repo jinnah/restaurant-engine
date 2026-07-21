@@ -72,6 +72,8 @@ EXPECTED_OPERATION_IDS = {
     "media_asset_get",
     "media_asset_file_get",
     "media_asset_delete",
+    # M3D (ADR-017): the host-resolved public surface.
+    "public_menu_get",
 }
 
 
@@ -101,9 +103,20 @@ def test_exported_operation_ids_are_expected_and_unique() -> None:
     ]
     assert len(operation_ids) == len(set(operation_ids))
     assert set(operation_ids) == EXPECTED_OPERATION_IDS
-    # M3C adds five media operations + the catalog image command to the M3B
-    # total of 49: the contract is exactly 55 operations.
-    assert len(EXPECTED_OPERATION_IDS) == 55
+    # M3C brought the contract to 55; M3D adds the public menu here and
+    # public media delivery next, for a final total of 57.
+    assert len(EXPECTED_OPERATION_IDS) == 56
+
+
+def test_head_companions_add_no_operation() -> None:
+    """Schema-hidden HEAD routes must not enter the contract (M3D, R11).
+
+    ``HEAD`` is served by a companion route on the same handler; declaring
+    it as a method instead would emit a second operation reusing the GET's
+    operation id, inflating the count and breaking the generated client.
+    """
+    document = json.loads(canonical_openapi_json())
+    assert not [path for path, item in document["paths"].items() if "head" in item]
 
 
 def test_media_upload_multipart_request_body_is_pinned() -> None:
