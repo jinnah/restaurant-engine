@@ -134,3 +134,70 @@ duplicate protection, and the `business_domains` table); the M8 reverse-proxy
 topology (finalizes forwarded-header handling and wildcard TLS); a
 cross-origin public consumer (revisits the same-origin/no-CORS decision); a
 demonstrated need for a development host override (with a security review).
+
+---
+
+## Amendment — 2026-07-21: method-scoped public host-guard exemption (M3D, ADR-017)
+
+Approved at the M3D architecture gate, before implementation.
+
+### Why the exact `/public/site` exemption no longer works
+
+This ADR exempted **exactly one path** from `KnownHostGuardMiddleware`
+(`_PUBLIC_SITE_PATH = "/api/v1/public/site"`), on the reasoning that the
+public resolver owns all of its own Host failures and must always answer
+with the neutral 404 rather than the guard's 400. M3D adds two more public
+routes, one of them templated (`/api/v1/public/media/{asset_id}/{variant}`).
+An exact-path set cannot express a templated path at all — the guard reads
+the raw ASGI `scope["path"]` **before** routing, so no path parameter has
+been matched yet. Left unamended, the new routes would answer an off-apex,
+IP-literal, malformed, or missing Host with a **400** while `/public/site`
+answers the identical request with a **404**: two sibling endpoints on one
+router with two different public contracts, and a storefront forced to
+handle both. The exemption therefore moves from an exact path to the
+`/api/v1/public/` **prefix**, which is safe here because that prefix is
+used by exactly one router — the host-resolved public router. The other
+unauthenticated surfaces (`/api/v1/password-resets`,
+`/api/v1/invitations`) sit outside it and keep their guard protection
+unchanged.
+
+### Why the exemption is method-scoped
+
+Only `GET` and `HEAD` are exempt. The justification for exempting a public
+route is that its handler resolves the tenant itself and owns its failure
+contract; that argument applies solely to the safe, read-only methods the
+public surface actually serves. A `POST`, `PUT`, `PATCH`, or `DELETE` under
+`/api/v1/public/` matches no public route, so there is no resolver to own
+the failure and no neutral-404 contract to honor — such a request keeps the
+guard's ADR-008 400 from an unrecognized Host, and a 405 from a recognized
+one. Scoping by method also means a future unsafe public route cannot
+silently inherit a Host exemption it was never reviewed for.
+
+### Why this remains routing hardening, not tenant authentication
+
+Unchanged from the original decision: the guard is coarse input validation
+over an unauthenticated client-supplied header. It never selects a
+Business, never grants access, and never substitutes for authorization —
+which continues to rest on the session cookie, CSRF checks, membership, and
+route identifiers. Widening the exemption removes a **400** for requests
+that were already going to be rejected by the resolver with a **404**; it
+grants no read that the resolver would not otherwise permit, because the
+resolver still requires a Host that names an active Business by canonical
+slug. Tenant selection remains Host-only, with no header, query, cookie, or
+forwarded-header alternative.
+
+### How CI prevents a future public route from omitting tenant resolution
+
+The exemption's safety rests on every exempt route resolving the tenant
+itself, so that property is now a permanent test rather than a convention.
+A unit test composes the real application and, for **every** registered
+route under `/api/v1/public/` whose methods include `GET` or `HEAD`,
+recursively walks the FastAPI `Dependant` graph (`route.dependant`, its
+`.dependencies`, and each `.call`) and asserts that
+`resolve_public_business` appears in it. The walk covers schema-hidden
+routes, so the M3D companion `HEAD` routes are checked exactly like their
+`GET` counterparts. A companion test asserts that only `GET`/`HEAD` are
+exempt and that the non-public unauthenticated routers remain guarded.
+Adding a public route without the resolver dependency therefore fails the
+suite in plain `uv run pytest` and in CI — it cannot reach a reviewer as a
+silent omission.

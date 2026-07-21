@@ -258,7 +258,7 @@ role matrix, CSRF, no mutation or audit side effects on rejection), the
 full local gate, the existing Playwright suite, and clean-copy
 verification.
 
-### M3B — Modifiers backend: in progress (2026-07-20)
+### M3B — Modifiers backend: delivered, 2026-07-20
 
 Approved architecture (proposal + addendum rulings), recorded before
 implementation:
@@ -335,7 +335,7 @@ transition, count-limit, authorization/isolation, audit-atomicity, and
 two-session concurrency coverage, plus the full local gate and
 exact-head clean-copy verification.
 
-### M3C — Media backend: in progress (2026-07-20)
+### M3C — Media backend: delivered, 2026-07-21
 
 Approved architecture (discovery proposal → addendum → final binding
 corrections), recorded before implementation:
@@ -485,6 +485,131 @@ corrections), recorded before implementation:
 - **Dependencies (D11).** `pillow==12.3.0`, `python-multipart==0.0.32`
   (exact-pinned; backend only).
 
-### M3D–M3F
+### M3D — Public menu API and public media delivery: in progress (2026-07-21)
+
+Approved architecture (discovery proposal → architecture-gate rulings
+R1–R15 → addendum → authorization refinements), recorded before
+implementation:
+
+- **Surface.** Two schema-visible operations (55 → 57):
+  `public_menu_get` (`GET /public/menu`) and `public_media_file_get`
+  (`GET /public/media/{asset_id}/{variant}`), each with a **schema-hidden
+  companion `HEAD` route** (`include_in_schema=False`) sharing its
+  handler, dependencies, and behavior. FastAPI does **not** auto-register
+  HEAD (`APIRoute` sets `methods = {"GET"}`; Starlette's HEAD addition
+  applies only to plain `Route`), so HEAD is added deliberately and, being
+  schema-hidden, adds no operation id and no OpenAPI operation.
+  `/public/site` deliberately gains no HEAD in M3D.
+- **Resolution and disclosure.** Both families resolve the Business from
+  the request Host through the existing `resolve_public_business`
+  (ADR-013) — no path, query, header, or cookie tenant selector, no
+  authentication, session, or CSRF. Every ineligible input renders as the
+  identical neutral 404 (`not_found` / `Not found.`).
+- **Host guard.** The exact-path `/api/v1/public/site` exemption is
+  replaced by a **method-scoped prefix exemption**: `GET` and `HEAD` under
+  `/api/v1/public/` only. Other methods stay guarded and receive the
+  ADR-008 400 from an unrecognized Host. A permanent invariant test walks
+  each route's `dependant` tree (schema-hidden routes included) and fails
+  if any public GET/HEAD route omits `resolve_public_business`. See the
+  ADR-013 amendment of the same date.
+- **Public catalog projection.** Separate `Public*` schemas — never
+  administrative schema reuse, so `position`, `is_hidden`, `is_featured`,
+  `image_media_id`, `active_option_count`, `is_satisfiable`, and
+  timestamps never leave the admin surface. `PublicMenu` carries a nested
+  `business: PublicSiteSummary` (the sole currency source), `categories`,
+  and `featured_item_ids` — ids only, referring to the one canonical item
+  representation in the category tree (no duplicated item objects).
+  Visibility: invisible categories and hidden items are excluded;
+  categories with no publicly eligible item are suppressed; unavailable
+  modifier options are omitted; an unsatisfiable **optional** group is
+  omitted harmlessly; an unsatisfiable **required** group is omitted and
+  makes the item `is_orderable = false`; a sold-out item stays listed with
+  `is_available = false` and `is_orderable = false`. Satisfiability reuses
+  `catalog.policies.is_group_satisfiable` exactly — one formula, two
+  projections. M6 remains the authority for order-time revalidation.
+- **Public media eligibility (seven conditions, all current).** Active
+  host-resolved business; same-business asset; asset `status='active'`;
+  the requested canonical or derived representation present in the
+  authoritative database inventory; **at least one current same-business
+  menu item references the asset**; that item is not hidden; its category
+  is visible. Sold-out and non-orderable items still authorize their
+  images. Detached assets, hidden-only attachments, and hidden-category-
+  only attachments return the same neutral 404 as unknown or foreign ones.
+  The attachment predicate is a bounded tenant-scoped `EXISTS`; attachment
+  information never appears in a response. `status='active'` alone is
+  deliberately **not** sufficient: promotion is one-way, so an asset
+  detached after promotion would otherwise stay retrievable forever by
+  anyone holding its URL.
+- **Composition and dependency direction.** The eligibility predicate is
+  catalog's (`catalog.public_service`) and the asset/variant inventory and
+  storage access are media's (`media.public_service`); they are joined by
+  an application-layer router (`app/api/public_media_router.py`) following
+  the M2D audit-list precedent. **Media never imports catalog**, so the
+  recorded catalog → media direction (M3C final correction M) is
+  preserved.
+- **Caching.** The public menu is `no-store`. A successful media `200` and
+  a validator-matching `304` are
+  `Cache-Control: public, max-age=3600, immutable`; **every** media error
+  — 404, 405, 5xx, storage failure, resolution failure — is `no-store`.
+  One hour, not a day: the bytes at a URL are immutable, but that URL's
+  _authorization_ can change through detachment, hiding, deletion, or
+  business suspension, so the stale-publicity window is bounded (recorded
+  in docs/04 and docs/07). `NoStoreApiMiddleware` remains the single
+  authority and decides from (path prefix, method, status) — deliberately
+  **not** a general "trust any downstream `Cache-Control`" change, which
+  could let an authenticated route escape the global policy.
+- **Validators.** Strong ETag = the full quoted SHA-256 hex digest of a
+  versioned tuple (`rem1|asset_id|variant|checksum`) over the checksum of
+  the **exact delivered representation** (asset row for `canonical`,
+  variant row for `w320`/`w640`/`w1280`). The stored checksum itself is
+  never returned; the ETag is opaque. `If-None-Match` supports `*`,
+  comma-separated lists, and weak comparison for GET/HEAD; a nonmatching
+  or unusable header falls through to 200. A matching validator still
+  performs full eligibility, inventory lookup, `storage.stat`, and the
+  byte-size check — it must never 304 a missing or size-mismatched object
+  — and never calls `storage.open`. A 304 carries the ETag and the
+  approved `Cache-Control`, with no body and no `Content-Length`.
+- **Corruption detection, exactly bounded.** Synchronous delivery detects
+  a **missing object** and a **byte-size disagreement** between storage
+  and the database. It does **not** hash the object per request, so
+  same-size corruption is detected by `sweep_media.py --verify` and the
+  docs/07 backup gate — never claimed as a delivery-time guarantee.
+- **Stat/open race.** A nonmatching GET establishes eligibility, stats,
+  verifies the size, and **opens the object before any response header is
+  committed**; an object that disappears or fails to open between stat and
+  open yields the neutral 404 with `no-store` and one structured warning,
+  never a truncated 200. Once streaming has begun the M3C close
+  guarantees apply, and ordinary completion or a client disconnect emits
+  no corruption warning.
+- **Range, HEAD, and conditional headers.** `Range` is ignored and the
+  complete representation is returned; `Accept-Ranges` is never
+  advertised. `Last-Modified`/`If-Modified-Since` are deliberately absent
+  — filesystem mtime is rewritten by the docs/07 media-root restore, so it
+  is not a sound validator for this system. HEAD returns the
+  representation headers with no body and never opens the object.
+- **Queries and concurrency.** Existing READ COMMITTED; no
+  transaction-isolation infrastructure. Child rows load only for currently
+  relevant public parents (tags/groups for eligible item ids, options for
+  loaded group ids, assets/variants for referenced image ids), so hidden
+  items' modifier and media data are never read. Defensive assembly —
+  children attach only to parents present in the same projection —
+  guarantees no cross-tenant row, no dangling nested reference, no parent
+  lookup exception, and no image block for an asset not confirmed active
+  during assembly.
+- **Audit, logging, and abuse.** Public GET/HEAD/304 create **no** audit
+  events (the ADR-013 amplification/enumeration rationale). A warning is
+  emitted only after full database eligibility is established and the
+  physical object is then missing, size-mismatched, or unopenable, and
+  carries only a reason code plus business id, asset id, and logical
+  variant — never a Host, key, path, checksum, filename, or exception
+  text. Expected public misses are never logged, so the surface is not an
+  unauthenticated log-amplification vector. No application rate limiter:
+  per-IP limiting requires a trusted deployment boundary and remains the
+  mandatory M8 reverse-proxy item (docs/04).
+- **No migration, no dependency, no configuration.** Every field the
+  projection and delivery need already exists; the Alembic head stays
+  `59b463781dcc`.
+
+### M3E–M3F
 
 Not started.
