@@ -91,6 +91,22 @@ class TestM2dCapabilityAdditions:
                 require_platform_capability(_actor(is_platform_admin=False), capability)
 
 
+class TestM3cMediaCapability:
+    """ADR-017 D4: media write is owner/manager; staff hold none."""
+
+    def test_owner_and_manager_hold_media_write(self) -> None:
+        for role in (Role.OWNER, Role.MANAGER):
+            assert role_has_capability(role, Capability.BUSINESS_MEDIA_WRITE)
+
+    def test_staff_cannot_write_media(self) -> None:
+        assert not role_has_capability(Role.STAFF, Capability.BUSINESS_MEDIA_WRITE)
+        # ...but staff can still view (and thus list/preview) media.
+        assert role_has_capability(Role.STAFF, Capability.BUSINESS_VIEW)
+
+    def test_media_write_is_not_a_platform_capability(self) -> None:
+        assert Capability.BUSINESS_MEDIA_WRITE not in PLATFORM_CAPABILITIES
+
+
 class TestRoleRank:
     """Invitation role ceiling (ADR-014): owner > manager > staff."""
 

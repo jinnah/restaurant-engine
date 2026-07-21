@@ -12,5 +12,8 @@ def test_ready_returns_200_with_database_up(test_database_url: str) -> None:
     assert response.status_code == 200
     assert response.json() == {
         "status": "ready",
-        "checks": {"database": {"status": "up"}},
+        "checks": {
+            "database": {"status": "up"},
+            "media_storage": {"status": "up"},
+        },
     }

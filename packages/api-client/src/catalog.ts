@@ -23,6 +23,7 @@ export type ItemCreate = components['schemas']['ItemCreate'];
 export type ItemUpdate = components['schemas']['ItemUpdate'];
 export type ItemReorder = components['schemas']['ItemReorder'];
 export type ItemAvailabilitySet = components['schemas']['ItemAvailabilitySet'];
+export type ItemImageSet = components['schemas']['ItemImageSet'];
 export type CatalogDeletedResponse = components['schemas']['DeletedResponse'];
 export type ModifierGroupsView = components['schemas']['ModifierGroupsView'];
 export type ModifierGroupView = components['schemas']['ModifierGroupView'];
@@ -95,6 +96,13 @@ export interface CatalogApi {
     businessId: string,
     itemId: string,
     body: ItemAvailabilitySet,
+    csrfToken: string,
+  ): Promise<ApiResult<ItemSummary>>;
+  /** Attach/replace/clear the item's image and contextual alt text (M3C). */
+  setItemImage(
+    businessId: string,
+    itemId: string,
+    body: ItemImageSet,
     csrfToken: string,
   ): Promise<ApiResult<ItemSummary>>;
   /** The item's bounded modifier tree with computed satisfiability. */
@@ -319,6 +327,22 @@ export function createCatalogApi(client: Client<paths>): CatalogApi {
       try {
         const { data, error, response } = await client.POST(
           '/api/v1/businesses/{business_id}/catalog/items/{item_id}/availability',
+          {
+            params: { path: { business_id: businessId, item_id: itemId } },
+            body,
+            headers: csrf(csrfToken),
+          },
+        );
+        return toResult(data, error, response);
+      } catch {
+        return { ok: false, status: null, envelope: null };
+      }
+    },
+
+    async setItemImage(businessId, itemId, body, csrfToken) {
+      try {
+        const { data, error, response } = await client.POST(
+          '/api/v1/businesses/{business_id}/catalog/items/{item_id}/image',
           {
             params: { path: { business_id: businessId, item_id: itemId } },
             body,

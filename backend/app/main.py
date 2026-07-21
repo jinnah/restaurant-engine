@@ -20,6 +20,7 @@ from app.core.host_guard import KnownHostGuardMiddleware
 from app.core.logging import RequestLoggingMiddleware, configure_logging
 from app.core.openapi import assert_contract_operation_ids
 from app.core.settings import Settings, load_settings
+from app.domains.media.storage import LocalFilesystemStorage
 
 
 @asynccontextmanager
@@ -50,6 +51,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     engine = create_database_engine(settings)
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
+
+    # Media storage (M3C). Production requires the configured root to exist
+    # and be writable (fail-fast probe); development/test create the
+    # gitignored default lazily so the dev stack needs no manual setup.
+    media_root = settings.media_storage_root_path
+    media_storage = LocalFilesystemStorage(media_root)
+    if settings.is_production:
+        media_storage.startup_check()
+    else:
+        media_root.mkdir(parents=True, exist_ok=True)
+    app.state.media_storage = media_storage
+    # The upload worker's processing scratch location is supplied through
+    # composition, NOT read off the storage object (final correction 2): the
+    # MediaStorage protocol is exactly put/open/delete/stat, so a future
+    # provider adapter never needs a filesystem ``root``. It lives under the
+    # local root's ``.tmp`` today; the sweep's stale-temp cleanup owns it.
+    media_scratch_dir = media_root / ".tmp"
+    if not settings.is_production:
+        media_scratch_dir.mkdir(parents=True, exist_ok=True)
+    app.state.media_scratch_dir = media_scratch_dir
 
     # add_middleware wraps outward, so the LAST call is the OUTERMOST layer.
     # Resulting order, outer → inner:

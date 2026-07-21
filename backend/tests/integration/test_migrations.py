@@ -66,7 +66,7 @@ def test_upgrade_head_runs_on_empty_database(empty_database_url: str) -> None:
     try:
         tables = set(inspect(engine).get_table_names())
         # M2A identity/audit + M2B tenancy + M2D onboarding/recovery/
-        # entitlements + M3A catalog core + M3B modifiers.
+        # entitlements + M3A catalog core + M3B modifiers + M3C media.
         assert tables == {
             "alembic_version",
             "users",
@@ -82,6 +82,8 @@ def test_upgrade_head_runs_on_empty_database(empty_database_url: str) -> None:
             "menu_item_dietary_tags",
             "modifier_groups",
             "modifier_options",
+            "media_assets",
+            "media_asset_variants",
         }
         with engine.connect() as connection:
             version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar()
@@ -209,6 +211,7 @@ def test_model_metadata_matches_migrated_schema(empty_database_url: str) -> None
     from app.domains.businesses import models as _businesses_models  # noqa: F401
     from app.domains.catalog import models as _catalog_models  # noqa: F401
     from app.domains.identity import models as _identity_models  # noqa: F401
+    from app.domains.media import models as _media_models  # noqa: F401
 
     config = _config(empty_database_url)
     command.upgrade(config, "head")
@@ -775,5 +778,253 @@ def test_m3b_constraints_and_round_trip_with_real_rows(empty_database_url: str) 
         assert "menu_categories" in tables
         command.upgrade(config, "head")
         assert "modifier_options" in set(inspect(engine).get_table_names())
+    finally:
+        engine.dispose()
+
+
+# The M3B revision (down_revision of the M3C media migration).
+_M3B_REVISION = "f8ad809962f8"
+
+_SHA_OK = "0" * 63 + "a"
+
+
+def test_m3c_constraints_and_round_trip_with_real_rows(empty_database_url: str) -> None:
+    """M3C media tables behave with real data (ADR-017).
+
+    Exercises the kind/status/pairing/format/range CHECKs, the checksum
+    shape CHECK, the cross-tenant composite FKs for variants and the
+    menu-item attachment, the RESTRICT protecting referenced assets, the
+    alt-requires-image pairing, the asset->variant cascade, and the
+    fail-explicit NOT NULL value columns; then proves the downgrade
+    drops the attachment and both tables with earlier data intact and
+    the chain re-applies. Scratch database only.
+    """
+    config = _config(empty_database_url)
+    command.upgrade(config, "head")
+
+    engine = create_engine(empty_database_url, connect_args={"connect_timeout": 3})
+    try:
+        with engine.begin() as connection:
+            business_a = connection.execute(
+                text(
+                    "INSERT INTO businesses (id, name, slug, status) VALUES"
+                    " (gen_random_uuid(), 'A', 'med-a', 'active') RETURNING id"
+                )
+            ).scalar_one()
+            business_b = connection.execute(
+                text(
+                    "INSERT INTO businesses (id, name, slug, status) VALUES"
+                    " (gen_random_uuid(), 'B', 'med-b', 'active') RETURNING id"
+                )
+            ).scalar_one()
+            category_a = connection.execute(
+                text(
+                    "INSERT INTO menu_categories (id, business_id, name, position,"
+                    " is_visible) VALUES (gen_random_uuid(), :bid, 'Mains', 0, true)"
+                    " RETURNING id"
+                ),
+                {"bid": business_a},
+            ).scalar_one()
+            item_a = connection.execute(
+                text(
+                    "INSERT INTO menu_items (id, business_id, category_id, name,"
+                    " price_minor, position, is_available, is_hidden, is_featured)"
+                    " VALUES (gen_random_uuid(), :bid, :cid, 'Kacchi', 1500, 0, true,"
+                    " false, false) RETURNING id"
+                ),
+                {"bid": business_a, "cid": category_a},
+            ).scalar_one()
+            asset_a = connection.execute(
+                text(
+                    "INSERT INTO media_assets (id, business_id, kind, status,"
+                    " pending_expires_at, original_filename, declared_content_type,"
+                    " source_format, width, height, byte_size, checksum_sha256)"
+                    " VALUES (gen_random_uuid(), :bid, 'image', 'pending',"
+                    " now() + interval '48 hours', 'kacchi.jpg', 'image/jpeg',"
+                    " 'jpeg', 1600, 1200, 123456, :sha) RETURNING id"
+                ),
+                {"bid": business_a, "sha": _SHA_OK},
+            ).scalar_one()
+            connection.execute(
+                text(
+                    "INSERT INTO media_asset_variants (id, business_id, asset_id,"
+                    " variant, width, height, byte_size, checksum_sha256) VALUES"
+                    " (gen_random_uuid(), :bid, :aid, 'w320', 320, 240, 4567, :sha)"
+                ),
+                {"bid": business_a, "aid": asset_a, "sha": _SHA_OK},
+            )
+
+        def _rejected_with(statement: str, params: dict[str, object], fragment: str) -> None:
+            try:
+                with engine.begin() as connection:
+                    connection.execute(text(statement), params)
+            except Exception as exc:
+                assert fragment in str(exc), (
+                    f"expected {fragment!r} to be the violated constraint, got: {exc}"
+                )
+                return
+            raise AssertionError(f"statement must be rejected by {fragment!r}")
+
+        asset_insert = (
+            "INSERT INTO media_assets (id, business_id, kind, status,"
+            " pending_expires_at, original_filename, declared_content_type,"
+            " source_format, width, height, byte_size, checksum_sha256) VALUES"
+            " (gen_random_uuid(), :bid, :kind, :status, :exp, :fname, :ctype,"
+            " :fmt, :w, :h, :bytes, :sha)"
+        )
+        base = {
+            "bid": business_a,
+            "kind": "image",
+            "status": "active",
+            "exp": None,
+            "fname": "ok.png",
+            "ctype": "image/png",
+            "fmt": "png",
+            "w": 100,
+            "h": 100,
+            "bytes": 1000,
+            "sha": _SHA_OK,
+        }
+        # Closed-set CHECKs, each rejected by its named constraint.
+        _rejected_with(asset_insert, {**base, "kind": "video"}, "ck_media_assets_kind_known")
+        _rejected_with(asset_insert, {**base, "status": "failed"}, "ck_media_assets_status_known")
+        _rejected_with(asset_insert, {**base, "fmt": "gif"}, "ck_media_assets_source_format_known")
+        # Pairing CHECK: pending requires an expiry; active forbids one.
+        _rejected_with(
+            asset_insert,
+            {**base, "status": "pending"},
+            "ck_media_assets_pending_expiry_pairing",
+        )
+        with engine.begin() as connection:  # active + expiry also violates
+            try:
+                connection.execute(
+                    text(asset_insert.replace(":exp", "now() + interval '1 hour'")),
+                    {k: v for k, v in base.items() if k != "exp"},
+                )
+                raise AssertionError("active asset with an expiry must be rejected")
+            except AssertionError:
+                raise
+            except Exception as exc:
+                assert "ck_media_assets_pending_expiry_pairing" in str(exc)
+        # Checksum shape: raw/uppercase/short values are unstorable.
+        _rejected_with(asset_insert, {**base, "sha": "RAW" * 21 + "X"}, "ck_media_assets_checksum")
+        _rejected_with(asset_insert, {**base, "sha": "a" * 63}, "ck_media_assets_checksum")
+        # Dimension and byte bounds.
+        _rejected_with(asset_insert, {**base, "w": 2561}, "ck_media_assets_width_range")
+        _rejected_with(asset_insert, {**base, "h": 0}, "ck_media_assets_height_range")
+        _rejected_with(asset_insert, {**base, "bytes": 0}, "ck_media_assets_byte_size_positive")
+        # Fail-explicit defaults: omitting a NOT NULL value column fails.
+        _rejected_with(
+            "INSERT INTO media_assets (id, business_id, status, pending_expires_at,"
+            " original_filename, declared_content_type, source_format, width,"
+            " height, byte_size, checksum_sha256) VALUES (gen_random_uuid(), :bid,"
+            " 'active', NULL, 'x.png', 'image/png', 'png', 10, 10, 10, :sha)",
+            {"bid": business_a, "sha": _SHA_OK},
+            "kind",
+        )
+
+        variant_insert = (
+            "INSERT INTO media_asset_variants (id, business_id, asset_id, variant,"
+            " width, height, byte_size, checksum_sha256) VALUES (gen_random_uuid(),"
+            " :bid, :aid, :variant, :w, :h, :bytes, :sha)"
+        )
+        vbase = {
+            "bid": business_a,
+            "aid": asset_a,
+            "variant": "w640",
+            "w": 640,
+            "h": 480,
+            "bytes": 9000,
+            "sha": _SHA_OK,
+        }
+        _rejected_with(
+            variant_insert,
+            {**vbase, "variant": "w2000"},
+            "ck_media_asset_variants_variant_known",
+        )
+        # One row per logical variant.
+        _rejected_with(
+            variant_insert,
+            {**vbase, "variant": "w320"},
+            "uq_media_asset_variants_business_id_asset_id_variant",
+        )
+        # Cross-tenant composite FK: B cannot hang a variant on A's asset.
+        _rejected_with(
+            variant_insert,
+            {**vbase, "bid": business_b},
+            "fk_media_asset_variants_business_id_asset_id_media_assets",
+        )
+
+        # Attachment: same-tenant reference succeeds.
+        with engine.begin() as connection:
+            connection.execute(
+                text("UPDATE menu_items SET image_media_id = :aid WHERE id = :iid"),
+                {"aid": asset_a, "iid": item_a},
+            )
+        item_b = None
+        with engine.begin() as connection:
+            category_b = connection.execute(
+                text(
+                    "INSERT INTO menu_categories (id, business_id, name, position,"
+                    " is_visible) VALUES (gen_random_uuid(), :bid, 'Mains', 0, true)"
+                    " RETURNING id"
+                ),
+                {"bid": business_b},
+            ).scalar_one()
+            item_b = connection.execute(
+                text(
+                    "INSERT INTO menu_items (id, business_id, category_id, name,"
+                    " price_minor, position, is_available, is_hidden, is_featured)"
+                    " VALUES (gen_random_uuid(), :bid, :cid, 'Borrowed', 900, 0,"
+                    " true, false, false) RETURNING id"
+                ),
+                {"bid": business_b, "cid": category_b},
+            ).scalar_one()
+        _rejected_with(
+            "UPDATE menu_items SET image_media_id = :aid WHERE id = :iid",
+            {"aid": asset_a, "iid": item_b},
+            "fk_menu_items_business_id_image_media_id_media_assets",
+        )
+        # Alt requires image; alt is bounded at 300.
+        _rejected_with(
+            "UPDATE menu_items SET image_alt_text = 'alone' WHERE id = :iid",
+            {"iid": item_b},
+            "ck_menu_items_image_alt_requires_image",
+        )
+        _rejected_with(
+            "UPDATE menu_items SET image_alt_text = :alt WHERE id = :iid",
+            {"alt": "x" * 301, "iid": item_a},
+            "ck_menu_items_image_alt_text_length",
+        )
+        # RESTRICT: a referenced asset cannot be deleted...
+        _rejected_with(
+            "DELETE FROM media_assets WHERE id = :aid",
+            {"aid": asset_a},
+            "fk_menu_items_business_id_image_media_id_media_assets",
+        )
+        # ...but after clearing the reference, deletion cascades variants.
+        with engine.begin() as connection:
+            connection.execute(
+                text("UPDATE menu_items SET image_media_id = NULL WHERE id = :iid"),
+                {"iid": item_a},
+            )
+            connection.execute(text("DELETE FROM media_assets WHERE id = :aid"), {"aid": asset_a})
+            variants_left = connection.execute(
+                text("SELECT count(*) FROM media_asset_variants")
+            ).scalar_one()
+        assert variants_left == 0, "variants must CASCADE with their asset"
+
+        # Round trip: downgrade drops the attachment and both tables,
+        # earlier data survives, and the chain re-applies.
+        command.downgrade(config, _M3B_REVISION)
+        tables = set(inspect(engine).get_table_names())
+        assert "media_assets" not in tables
+        assert "media_asset_variants" not in tables
+        assert "menu_items" in tables
+        item_columns = {col["name"] for col in inspect(engine).get_columns("menu_items")}
+        assert "image_media_id" not in item_columns
+        assert "image_alt_text" not in item_columns
+        command.upgrade(config, "head")
+        assert "media_asset_variants" in set(inspect(engine).get_table_names())
     finally:
         engine.dispose()

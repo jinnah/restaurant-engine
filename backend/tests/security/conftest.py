@@ -12,6 +12,7 @@ precomputed hash for the standard password instead of hashing per user.
 
 import uuid
 from collections.abc import Callable, Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -70,9 +71,16 @@ def clean_tables(migrated_engine: Engine) -> None:
 
 
 @pytest.fixture
-def app(migrated_engine: Engine) -> FastAPI:
-    """App under test: real settings, the TestClient origin trusted."""
-    settings = make_settings(trusted_origins=f"{TRUSTED_ORIGIN},http://localhost:5173")
+def app(migrated_engine: Engine, tmp_path: Path) -> FastAPI:
+    """App under test: real settings, the TestClient origin trusted.
+
+    The media storage root is a per-test temporary directory so uploads
+    never touch the development media root (MEDIA_STORAGE_ROOT hygiene).
+    """
+    settings = make_settings(
+        trusted_origins=f"{TRUSTED_ORIGIN},http://localhost:5173",
+        media_storage_root=str(tmp_path / "media"),
+    )
     return create_app(settings)
 
 

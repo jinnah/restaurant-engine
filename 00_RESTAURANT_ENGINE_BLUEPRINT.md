@@ -1159,3 +1159,21 @@ vocabulary through `docs/decisions/ADR-012-business-tenant-aggregate.md`.
 Vertical differences must be expressed through reusable platform
 capabilities and configuration — never customer-specific code. Product,
 repository, and package branding remain Restaurant Engine.
+
+---
+
+## Amendment — 2026-07-20: Media storage protocol (M3C, ADR-017)
+
+Approved at the M3C architecture gate. The illustrative `MediaStorage`
+snippet in §7.5 (`put` / `delete` / `public_url`) is superseded by the
+ruled interfaces recorded in ADR-017: a runtime protocol of
+`put` / `open` / `delete` / `stat` plus a maintenance-only
+`iter_objects` extension for operator tooling. `public_url` was removed
+deliberately — M3C neither exposes nor generates storage-provider URLs;
+application URLs are constructed from opaque asset ids and logical
+variant names outside the storage adapter, internal storage keys never
+appear in API responses, audit details, logs, or URLs, and a future
+signed-URL/CDN resolver is a delivery-layer concern (M3D+), not part of
+the storage protocol. Every other §7.5 control (validation, limits,
+randomized tenant-prefixed keys, re-encoding, orphan handling,
+responsive variants) stands unchanged.

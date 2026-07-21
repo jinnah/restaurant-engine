@@ -115,10 +115,11 @@ never in a URL. The M2E control center adds the human pages.
 
 ### Identity commands (from Milestone 2A)
 
-| Command                                                                   | Purpose                                                                                        |
-| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `uv run --directory backend python -m scripts.create_platform_admin`      | Create a platform admin (`--email`, `--display-name`; password prompted or `--password-stdin`) |
-| `uv run --directory backend python -m scripts.benchmark_password_hashing` | Verify Argon2id timing against the 100–500 ms window (ADR-010)                                 |
+| Command                                                                   | Purpose                                                                                                                               |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `uv run --directory backend python -m scripts.create_platform_admin`      | Create a platform admin (`--email`, `--display-name`; password prompted or `--password-stdin`)                                        |
+| `uv run --directory backend python -m scripts.benchmark_password_hashing` | Verify Argon2id timing against the 100–500 ms window (ADR-010)                                                                        |
+| `uv run --directory backend python -m scripts.sweep_media`                | Media sweep (M3C): dry run by default; `--apply` deletes expired-pending assets + storage orphans; `--verify` is the backup preflight |
 
 New environment variables (all optional, safe defaults; see
 `.env.example`): `SESSION_IDLE_TIMEOUT_MINUTES`,

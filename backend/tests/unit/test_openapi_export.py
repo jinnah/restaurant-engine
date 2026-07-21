@@ -55,6 +55,7 @@ EXPECTED_OPERATION_IDS = {
     "catalog_item_delete",
     "catalog_items_reorder",
     "catalog_item_availability_set",
+    "catalog_item_image_set",
     # M3B (ADR-017): modifier administration.
     "catalog_item_modifier_groups_get",
     "catalog_modifier_group_create",
@@ -65,6 +66,12 @@ EXPECTED_OPERATION_IDS = {
     "catalog_modifier_option_update",
     "catalog_modifier_option_delete",
     "catalog_modifier_options_reorder",
+    # M3C (ADR-017): media administration.
+    "media_asset_upload",
+    "media_assets_list",
+    "media_asset_get",
+    "media_asset_file_get",
+    "media_asset_delete",
 }
 
 
@@ -94,6 +101,42 @@ def test_exported_operation_ids_are_expected_and_unique() -> None:
     ]
     assert len(operation_ids) == len(set(operation_ids))
     assert set(operation_ids) == EXPECTED_OPERATION_IDS
+    # M3C adds five media operations + the catalog image command to the M3B
+    # total of 49: the contract is exactly 55 operations.
+    assert len(EXPECTED_OPERATION_IDS) == 55
+
+
+def test_media_upload_multipart_request_body_is_pinned() -> None:
+    """The upload declares no body param; its multipart contract is supplied
+    manually via ``openapi_extra`` (ADR-009 + the binding upload ruling), so
+    the exported requestBody must stay exactly this single-file schema."""
+    document = json.loads(canonical_openapi_json())
+    operations = [
+        operation
+        for path_item in document["paths"].values()
+        for operation in path_item.values()
+        if operation.get("operationId") == "media_asset_upload"
+    ]
+    assert len(operations) == 1
+    request_body = operations[0]["requestBody"]
+    assert request_body["required"] is True
+    content = request_body["content"]
+    # Exactly one media type: multipart/form-data.
+    assert list(content.keys()) == ["multipart/form-data"]
+    schema = content["multipart/form-data"]["schema"]
+    assert schema["type"] == "object"
+    assert schema["required"] == ["file"]
+    # Exactly ONE property — the single binary file — and no other form
+    # fields are advertised (the pin is exact).
+    assert list(schema["properties"].keys()) == ["file"]
+    assert schema["properties"]["file"] == {
+        "type": "string",
+        "format": "binary",
+        "description": "A single static JPEG, PNG, or WebP image.",
+    }
+    # additionalProperties must be present and exactly False — no omission
+    # permitted (no ``.get`` fallback).
+    assert schema["additionalProperties"] is False
 
 
 def test_price_bound_is_advertised_in_the_contract() -> None:

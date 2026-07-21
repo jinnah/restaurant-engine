@@ -7,13 +7,26 @@ consumed here must have a safe placeholder in the repository-root
 """
 
 from enum import StrEnum
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Literal
 
 from pydantic import Field, PostgresDsn, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.hosts import normalize_host
+
+# M3C media upload cap bounds (ADR-017 R2). The default is the safe
+# floor; deployments may raise it up to the maximum. This is the one
+# deployment-tunable media limit — quotas and pixel bounds are code policy.
+_DEFAULT_UPLOAD_MAX_BYTES = 10_485_760  # 10 MiB
+_MAX_UPLOAD_MAX_BYTES = 20_971_520  # 20 MiB
+
+# The development-only default media storage root (gitignored). Production
+# must set an explicit durable absolute path (validated below). Stored as a
+# string so absoluteness is judged on the literal configured value, not on
+# a host-OS-coerced Path (a POSIX production path must validate even when
+# the config is checked on a Windows developer machine).
+_DEV_MEDIA_ROOT = str(Path(__file__).resolve().parents[2] / "var" / "media")
 
 # Development placeholders that must never reach production (blueprint §11.2:
 # production startup fails when insecure example secrets are detected).
@@ -77,6 +90,21 @@ class Settings(BaseSettings):
     invitation_expiry_days: int = Field(default=7, ge=1, le=30)
     password_reset_expiry_minutes: int = Field(default=60, ge=5, le=1440)
 
+    # --- Media storage (M3C, ADR-017) --------------------------------------
+    # The filesystem root for stored media objects. Development defaults to
+    # a gitignored path inside the repo; production must set an explicit
+    # durable absolute directory outside any static-served path (validated
+    # below, and probed at startup by the media storage adapter). Held as a
+    # string; use ``media_storage_root_path`` for a Path.
+    media_storage_root: str = _DEV_MEDIA_ROOT
+    # The uploaded-file size cap (the file payload, not multipart overhead).
+    # The one deployment-tunable media limit; bounded 10-20 MiB (R2).
+    media_upload_max_bytes: int = Field(
+        default=_DEFAULT_UPLOAD_MAX_BYTES,
+        ge=_DEFAULT_UPLOAD_MAX_BYTES,
+        le=_MAX_UPLOAD_MAX_BYTES,
+    )
+
     @field_validator("platform_base_domain")
     @classmethod
     def _valid_base_domain(cls, value: str) -> str:
@@ -135,6 +163,21 @@ class Settings(BaseSettings):
             problems.append(
                 "PLATFORM_BASE_DOMAIN must be a real domain (not localhost) in production"
             )
+        # Media root (M3C): production must set an explicit, absolute,
+        # durable path — never the repo-local development default inside an
+        # ephemeral container. Existence and writability are probed at
+        # startup by the storage adapter (not here, to keep settings pure).
+        if self.media_storage_root == _DEV_MEDIA_ROOT:
+            problems.append(
+                "MEDIA_STORAGE_ROOT must be set to an explicit durable path in production"
+            )
+        else:
+            # Absoluteness is judged cross-platform on the literal configured
+            # string: the deployment target is Linux (POSIX paths), but
+            # validation may run on the config author's Windows machine.
+            raw = self.media_storage_root
+            if not (PurePosixPath(raw).is_absolute() or PureWindowsPath(raw).is_absolute()):
+                problems.append("MEDIA_STORAGE_ROOT must be an absolute path in production")
         if problems:
             raise ValueError("; ".join(sorted(problems)))
         return self
@@ -142,6 +185,11 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env is AppEnv.PRODUCTION
+
+    @property
+    def media_storage_root_path(self) -> Path:
+        """The configured media root as a Path (M3C)."""
+        return Path(self.media_storage_root)
 
     @property
     def platform_base_domain_labels(self) -> tuple[str, ...]:

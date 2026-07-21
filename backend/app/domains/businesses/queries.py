@@ -40,6 +40,20 @@ def lock_business_status(db: Session, business_id: uuid.UUID) -> str | None:
     ).scalar_one_or_none()
 
 
+def read_business_status(db: Session, business_id: uuid.UUID) -> str | None:
+    """Read a business status WITHOUT locking (M3C pre-body gate).
+
+    The media upload flow validates the mutation lifecycle before parsing
+    the request body (ADR-017 upload correction), where taking the
+    ``FOR UPDATE`` lock is both premature and undesirable. The authoritative
+    re-check under the lock still happens in the final transaction via
+    ``lock_business_status``. Returns ``None`` for a nonexistent business.
+    """
+    return db.execute(
+        select(Business.status).where(Business.id == business_id)
+    ).scalar_one_or_none()
+
+
 def get_business_summaries(
     db: Session, business_ids: list[uuid.UUID]
 ) -> dict[uuid.UUID, BusinessSummaryView]:

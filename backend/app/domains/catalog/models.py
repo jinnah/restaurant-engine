@@ -113,6 +113,13 @@ class MenuItem(Base):
     # Counted against the centralized featured policy (R1: max 6 per
     # business, hidden items included; hiding never clears the flag).
     is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # M3C item image attachment: at most one image per item, referenced
+    # by media identifier through the composite tenant-safe FK below
+    # (RESTRICT backs "referenced media cannot be deleted"). Alt text is
+    # contextual — it belongs to this attachment, not the asset (R2
+    # "contextual image alt") — and requires an image (pairing CHECK).
+    image_media_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    image_alt_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -140,6 +147,22 @@ class MenuItem(Base):
         ForeignKeyConstraint(
             ["business_id", "category_id"],
             ["menu_categories.business_id", "menu_categories.id"],
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "image_alt_text IS NULL OR image_media_id IS NOT NULL",
+            name="image_alt_requires_image",
+        ),
+        CheckConstraint(
+            "image_alt_text IS NULL OR char_length(image_alt_text) <= 300",
+            name="image_alt_text_length",
+        ),
+        # Tenant-safe attachment (M3C): the pair must exist in
+        # media_assets, so an item can never show another tenant's image;
+        # RESTRICT makes deleting a referenced asset a database error.
+        ForeignKeyConstraint(
+            ["business_id", "image_media_id"],
+            ["media_assets.business_id", "media_assets.id"],
             ondelete="RESTRICT",
         ),
         # Composite-FK target for menu_item_dietary_tags.

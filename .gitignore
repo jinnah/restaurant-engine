@@ -40,4 +40,7 @@ Thumbs.db
 
 # --- Local databases and media (never committed) ---
 *.sqlite3
-media/
+# The development media storage root (M3C): stored objects only. The
+# earlier bare `media/` pattern also swallowed the app/domains/media
+# source package and is deliberately narrowed to the storage path.
+backend/var/

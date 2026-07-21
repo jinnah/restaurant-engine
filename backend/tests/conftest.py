@@ -5,6 +5,9 @@ Non-integration tests construct explicit ``Settings`` (no environment or
 connects lazily, so building the app is safe without one.
 """
 
+import tempfile
+from pathlib import Path
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -15,6 +18,11 @@ from sqlalchemy.exc import OperationalError
 
 from app.core.settings import AppEnv, Settings
 from app.main import create_app
+
+# A process-wide temporary media root so no test ever writes into the
+# gitignored development media root (backend/var/media). Created once and
+# reused; the OS reclaims it after the run.
+_TEST_MEDIA_ROOT = Path(tempfile.mkdtemp(prefix="re-test-media-"))
 
 # 127.0.0.1, not localhost: the compose database binds only the IPv4
 # loopback, and a dead ::1 attempt would add seconds to every connection.
@@ -81,6 +89,8 @@ def make_settings(**overrides: object) -> Settings:
         "app_env": AppEnv.TEST,
         "database_url": TEST_DATABASE_URL,
         "log_level": "WARNING",
+        # Never the development media root; a throwaway temp directory.
+        "media_storage_root": str(_TEST_MEDIA_ROOT),
     }
     values.update(overrides)
     return ExplicitSettings.model_validate(values)

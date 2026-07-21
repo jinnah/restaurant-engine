@@ -163,10 +163,37 @@ Versioned, schema-validated configuration:
 ## Media
 
 Business domains store **media identifiers, not filesystem paths**, behind a
-narrow storage protocol (`put` / `delete` / `public_url`). Minimum controls:
+narrow storage protocol — runtime `put` / `open` / `delete` / `stat`, plus a
+maintenance-only `iter_objects` extension for operator tooling (ADR-017 M3C
+ruling; the blueprint's earlier `public_url` sketch is superseded — delivery
+URLs are built from opaque asset ids and logical variant names outside the
+adapter, and internal keys never leave storage/sweep code). Minimum controls:
 content-type and file-signature validation, dimension/byte limits, randomized
 tenant-prefixed keys, safe re-encoding to strip metadata, orphan detection,
 server-generated responsive variants.
+
+**Implemented in M3C (ADR-017):** media owns `media_assets` (immutable
+identity; `kind` = `image` for now; `status` pending/active on the database
+clock — pending expires 48 h after upload, expiry compares `now()` in SQL,
+at equality the asset is expired) and `media_asset_variants` (relational
+320/640/1280 rows, each with size and checksum of the bytes actually
+retained). The canonical stored asset is the re-encoded WebP (EXIF
+orientation applied, ≤ 2560 px longest side, quality 82 method 4 lossy,
+alpha preserved, all metadata stripped); the original upload is not
+retained. Static JPEG/PNG/WebP only. Limits: 500 assets/business
+(pending + active), 1 GiB stored bytes/business, 32 MiB combined encoded
+output per asset, upload file cap 10 MiB default / 20 MiB deployment
+maximum — all checked under the Business row lock from authoritative rows
+(no denormalized totals). `business.media.write` (owner/manager) mutates;
+every member reads/previews; the platform holds no membership (404).
+Menu items attach at most one image through a composite RESTRICT FK with
+contextual alt text (≤ 300; alt requires image); attach/replace/clear/alt
+is one catalog command with exact no-op suppression; first valid
+attachment promotes pending → active (one-way); ever-attached assets are
+never auto-deleted; referenced assets cannot be deleted. Expired
+never-attached pending assets are cleaned by the operator sweep CLI
+regardless of business lifecycle (system maintenance, NULL-actor audit);
+rows whose objects are missing are report-only, always.
 
 ## Hours and fulfillment
 

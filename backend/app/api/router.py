@@ -21,6 +21,7 @@ from app.domains.identity.router_recovery import (
     recovery_platform_router,
     recovery_public_router,
 )
+from app.domains.media.router_admin import media_admin_router
 
 api_v1_router = APIRouter()
 # Identity credential operations (login/logout).
@@ -44,3 +45,5 @@ api_v1_router.include_router(audit_platform_router)
 api_v1_router.include_router(audit_business_router)
 # Catalog (M3A): business-scoped menu administration.
 api_v1_router.include_router(catalog_admin_router)
+# Media (M3C): business-scoped image upload/list/get/preview/delete.
+api_v1_router.include_router(media_admin_router)

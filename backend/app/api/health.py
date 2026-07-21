@@ -9,6 +9,7 @@ outage can not cause restart loops; readiness reports dependency health
 
 from typing import Literal
 
+import structlog
 from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -16,6 +17,24 @@ from sqlalchemy.engine import Engine
 
 from app.core.database import check_database
 from app.core.errors import ErrorCode, ErrorEnvelope, error_response
+from app.domains.media.storage import LocalFilesystemStorage
+
+_logger = structlog.get_logger("app.health")
+
+
+def _check_media_storage(storage: LocalFilesystemStorage) -> bool:
+    """Cheap collision-safe write/stat/delete probe (M3C, ADR-017).
+
+    Never iterates the media inventory and never exposes the root path in
+    the response — a failure is logged by exception name only.
+    """
+    try:
+        storage.probe()
+    except OSError as exc:
+        _logger.warning("media_storage_check_failed", error=type(exc).__name__)
+        return False
+    return True
+
 
 health_router = APIRouter(tags=["health"])
 
@@ -57,13 +76,22 @@ def health_ready(request: Request) -> ReadinessResponse | JSONResponse:
     ``error.details.checks``.
     """
     engine: Engine = request.app.state.engine
-    database_up = check_database(engine)
-    if not database_up:
+    media_storage: LocalFilesystemStorage = request.app.state.media_storage
+    checks = {
+        "database": check_database(engine),
+        "media_storage": _check_media_storage(media_storage),
+    }
+    if not all(checks.values()):
         return error_response(
             request,
             status.HTTP_503_SERVICE_UNAVAILABLE,
             ErrorCode.DEPENDENCY_UNAVAILABLE,
             "Service dependencies are unavailable.",
-            details={"checks": {"database": "down"}},
+            details={
+                "checks": {name: "up" if healthy else "down" for name, healthy in checks.items()}
+            },
         )
-    return ReadinessResponse(status="ready", checks={"database": CheckResult(status="up")})
+    return ReadinessResponse(
+        status="ready",
+        checks={name: CheckResult(status="up") for name in checks},
+    )

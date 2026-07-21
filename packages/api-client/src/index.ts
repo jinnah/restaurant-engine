@@ -52,6 +52,7 @@ export type {
   CategoryWithItems,
   ItemAvailabilitySet,
   ItemCreate,
+  ItemImageSet,
   ItemReorder,
   ItemSummary,
   ItemUpdate,
@@ -78,6 +79,15 @@ export type {
   PasswordResetRedeemResponse,
   PasswordResetsApi,
 } from './passwordResets';
+export type {
+  MediaApi,
+  MediaAssetPage,
+  MediaAssetView,
+  MediaDeletedResponse,
+  MediaListParams,
+  MediaVariant,
+  MediaVariantView,
+} from './media';
 export type { PublicApi, PublicSiteSummary } from './public';
 export { isErrorEnvelope } from './errors';
 export type {

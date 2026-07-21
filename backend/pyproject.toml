@@ -13,8 +13,10 @@ dependencies = [
     "argon2-cffi==25.1.0",
     "email-validator==2.3.0",
     "fastapi==0.139.0",
+    "pillow==12.3.0",
     "psycopg[binary]==3.3.4",
     "pydantic-settings==2.14.2",
+    "python-multipart==0.0.32",
     "sqlalchemy==2.0.51",
     "structlog==26.1.0",
     "uvicorn[standard]==0.51.0",
@@ -71,6 +73,12 @@ pretty = true
 # tests/ is checked as well as app/ but is not an installed package.
 mypy_path = "."
 explicit_package_bases = true
+
+# python-multipart ships no type stubs / py.typed marker; the upload module
+# validates its returns explicitly (M3C).
+[[tool.mypy.overrides]]
+module = "multipart.*"
+ignore_missing_imports = true
 
 # --- pytest -----------------------------------------------------------------
 

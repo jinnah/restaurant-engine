@@ -38,6 +38,7 @@ from app.domains.audit.details import (
     CatalogItemAvailabilityDetails,
     CatalogItemCreatedDetails,
     CatalogItemDeletedDetails,
+    CatalogItemImageChangedDetails,
     CatalogItemUpdatedDetails,
     CatalogReorderDetails,
 )
@@ -52,6 +53,7 @@ from app.domains.catalog.schemas import (
     CategoryWithItems,
     ItemAvailabilitySet,
     ItemCreate,
+    ItemImageSet,
     ItemReorder,
     ItemSummary,
     ItemUpdate,
@@ -64,6 +66,7 @@ from app.domains.catalog.service_support import (
 )
 from app.domains.identity.actor import ActorContext
 from app.domains.identity.policies import Capability
+from app.domains.media import service as media_service
 
 
 def _category_summary(category: MenuCategory) -> CategorySummary:
@@ -92,6 +95,8 @@ def _item_summary(item: MenuItem, tags: list[str]) -> ItemSummary:
         is_hidden=item.is_hidden,
         is_featured=item.is_featured,
         dietary_tags=dietary.filter_known(tags),
+        image_media_id=item.image_media_id,
+        image_alt_text=item.image_alt_text,
         created_at=item.created_at,
         updated_at=item.updated_at,
     )
@@ -600,6 +605,78 @@ def set_item_availability(
                 availability="available" if payload.is_available else "sold_out"
             ),
         )
+    safe_commit(db)
+    db.refresh(item)
+    tags = repository.list_tags_for_item(db, business_id=business_id, item_id=item_id)
+    return _item_summary(item, tags)
+
+
+def set_item_image(
+    db: Session,
+    actor: ActorContext,
+    business_id: uuid.UUID,
+    item_id: uuid.UUID,
+    payload: ItemImageSet,
+) -> ItemSummary:
+    """Attach, replace, clear, or re-describe an item's image (M3C).
+
+    One command covers four substantive changes and suppresses exact
+    no-ops (final correction 3): a no-op returns the current item unchanged
+    (no ``updated_at`` bump, no media promotion, no audit event). Attaching
+    a media asset promotes it ``pending → active`` through the media domain
+    (``claim_for_attachment``), inside this transaction which already holds
+    the Business lock — the acyclic catalog → media dependency.
+    """
+    authorize_write(db, actor, business_id, Capability.BUSINESS_CATALOG_WRITE)
+    item = repository.get_item(db, business_id=business_id, item_id=item_id)
+    if item is None:
+        raise ResourceNotFoundError("Item not found.")
+
+    old_media = item.image_media_id
+    old_alt = item.image_alt_text
+    new_media = payload.media_id
+    new_alt = payload.alt_text if new_media is not None else None
+
+    media_changed = old_media != new_media
+    alt_changed = old_alt != new_alt
+
+    if not media_changed and not alt_changed:
+        # Exact no-op: no write, no promotion, no audit, no updated_at bump.
+        tags = repository.list_tags_for_item(db, business_id=business_id, item_id=item_id)
+        return _item_summary(item, tags)
+
+    # Classify the change for the audit record (exact presence rules).
+    if media_changed and old_media is None:
+        change = "attached"
+    elif media_changed and new_media is None:
+        change = "cleared"
+    elif media_changed:
+        change = "replaced"
+    else:
+        change = "alt_updated"
+
+    if new_media is not None and media_changed:
+        # Validate same-business + kind + unexpired, and promote to active.
+        media_service.claim_for_attachment(db, business_id, new_media)
+
+    item.image_media_id = new_media
+    item.image_alt_text = new_alt
+    item.updated_at = func.now()
+    safe_flush(db)  # a cross-tenant/expired media reference converts to 409
+    recorder.record(
+        db,
+        AuditAction.CATALOG_ITEM_IMAGE_CHANGED,
+        actor_user_id=actor.user.id,
+        business_id=business_id,
+        target_type="menu_item",
+        target_id=str(item.id),
+        details=CatalogItemImageChangedDetails(
+            change=change,  # type: ignore[arg-type]
+            media_id_old=str(old_media) if old_media is not None else None,
+            media_id_new=str(new_media) if new_media is not None else None,
+            alt_text_changed="changed" if alt_changed else "unchanged",
+        ),
+    )
     safe_commit(db)
     db.refresh(item)
     tags = repository.list_tags_for_item(db, business_id=business_id, item_id=item_id)
