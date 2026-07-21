@@ -62,6 +62,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     else:
         media_root.mkdir(parents=True, exist_ok=True)
     app.state.media_storage = media_storage
+    # The upload worker's processing scratch location is supplied through
+    # composition, NOT read off the storage object (final correction 2): the
+    # MediaStorage protocol is exactly put/open/delete/stat, so a future
+    # provider adapter never needs a filesystem ``root``. It lives under the
+    # local root's ``.tmp`` today; the sweep's stale-temp cleanup owns it.
+    media_scratch_dir = media_root / ".tmp"
+    if not settings.is_production:
+        media_scratch_dir.mkdir(parents=True, exist_ok=True)
+    app.state.media_scratch_dir = media_scratch_dir
 
     # add_middleware wraps outward, so the LAST call is the OUTERMOST layer.
     # Resulting order, outer → inner:

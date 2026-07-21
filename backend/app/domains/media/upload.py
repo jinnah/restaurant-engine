@@ -14,6 +14,7 @@ one file part named ``file`` and zero other form fields are accepted.
 Every temporary buffer is cleaned up on every path.
 """
 
+import shutil
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -89,7 +90,7 @@ async def read_bounded_body(
 
 
 def extract_single_file(
-    request: Request,
+    content_type_header: str,
     body: SpooledTemporaryFile[bytes],
     *,
     file_max_bytes: int,
@@ -97,11 +98,15 @@ def extract_single_file(
 ) -> ExtractedUpload:
     """Parse the bounded body and extract exactly one ``file`` part.
 
+    Runs inside the AnyIO worker thread (final correction 2): it takes the
+    already-captured ``Content-Type`` header string rather than the live
+    ``Request`` object, so no request/loop state crosses the boundary.
     Enforces the file-part cap independently of the request cap, rejects
     any unexpected field or a missing/duplicate file part, and writes the
-    file bytes to a fresh temp path under ``work_dir`` (caller-owned).
+    file bytes to a fresh temp path under ``work_dir`` (caller-owned). A
+    failure while copying the extracted bytes removes the partial temp
+    file before propagating (final correction 5).
     """
-    content_type_header = request.headers.get("content-type", "")
     content_type, params = parse_options_header(content_type_header)
     if content_type != b"multipart/form-data" or b"boundary" not in params:
         raise _validation_error("Upload must be multipart/form-data with one file part.")
@@ -146,8 +151,14 @@ def extract_single_file(
 
         target = work_dir / f"upload-{uuid.uuid4()}"
         part.file_object.seek(0)
-        with target.open("wb") as handle:
-            handle.write(part.file_object.read())
+        try:
+            with target.open("wb") as handle:
+                shutil.copyfileobj(part.file_object, handle)
+        except BaseException:
+            # Partial extracted-part cleanup (final correction 5): a copy
+            # failure must not leave an ``upload-*`` scratch file behind.
+            target.unlink(missing_ok=True)
+            raise
     finally:
         _close_files(files)
 

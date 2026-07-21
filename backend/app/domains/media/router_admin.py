@@ -16,6 +16,7 @@ SQLAlchemy session crosses the thread boundary (final correction 2).
 """
 
 import uuid
+from pathlib import Path
 from typing import Annotated, Any
 
 import anyio
@@ -33,7 +34,7 @@ from app.domains.media.policies import CANONICAL_VARIANT
 from app.domains.media.schemas import MediaAssetPage, MediaAssetView, MediaDeletedResponse
 from app.domains.media.service_support import authorize_write_nonlocking
 from app.domains.media.storage import MediaStorage
-from app.domains.media.upload import extract_single_file, read_bounded_body
+from app.domains.media.upload import read_bounded_body
 
 media_admin_router = APIRouter(prefix="/businesses/{business_id}/media", tags=["media"])
 
@@ -91,40 +92,39 @@ async def media_asset_upload(
 
     Auth and CSRF run as dependencies (before any body parse); the handler
     then completes the pre-body gate (capability + non-locking lifecycle)
-    on the request session, streams the bounded body, and hands processing
-    and the authoritative transaction to a worker thread.
+    on the request session and streams the bounded body. Multipart
+    extraction, processing, object storage, and the authoritative
+    transaction all run in an AnyIO worker thread — only the bounded async
+    streaming stays on the event loop (final correction 2).
     """
     settings: Settings = request.app.state.settings
     storage: MediaStorage = request.app.state.media_storage
     session_factory: sessionmaker[Session] = request.app.state.session_factory
+    scratch_dir: Path = request.app.state.media_scratch_dir
 
     # Pre-body gate (final correction F): capability + non-locking lifecycle
     # BEFORE any body byte is parsed. Closed businesses are rejected here.
     authorize_write_nonlocking(db, actor, business_id)
 
-    work_dir = service.storage_tmp_dir(storage)
+    # The Content-Type header (multipart boundary) is captured on the loop;
+    # the live Request object never crosses into the worker thread.
+    content_type_header = request.headers.get("content-type", "")
     body = await read_bounded_body(request, file_max_bytes=settings.media_upload_max_bytes)
     try:
-        extracted = extract_single_file(
-            request, body, file_max_bytes=settings.media_upload_max_bytes, work_dir=work_dir
-        )
-    finally:
-        body.close()
-
-    try:
         return await anyio.to_thread.run_sync(
-            lambda: service.process_and_store(
+            lambda: service.process_upload(
                 session_factory=session_factory,
                 storage=storage,
                 business_id=business_id,
                 actor=actor,
-                spooled_path=extracted.path,
-                original_filename=policies.sanitize_filename(extracted.filename),
-                declared_content_type=extracted.content_type,
+                content_type_header=content_type_header,
+                body=body,
+                file_max_bytes=settings.media_upload_max_bytes,
+                scratch_dir=scratch_dir,
             )
         )
     finally:
-        extracted.path.unlink(missing_ok=True)
+        body.close()
 
 
 @media_admin_router.get(

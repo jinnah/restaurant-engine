@@ -91,7 +91,11 @@ class TestExtractSingleFile:
         request = _request(body, content_type=content_type, content_length=str(len(body)))
         buffer = _read(request)
         try:
-            return extract_single_file(request, buffer, file_max_bytes=FILE_CAP, work_dir=tmp_path)
+            # extract_single_file now takes the captured Content-Type header
+            # string (worker-thread safe), not the live Request (correction 2).
+            return extract_single_file(
+                content_type, buffer, file_max_bytes=FILE_CAP, work_dir=tmp_path
+            )
         finally:
             buffer.close()
 

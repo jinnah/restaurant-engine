@@ -19,6 +19,7 @@ deleted — and never masks the original error (final corrections G/N).
 
 import uuid
 from pathlib import Path
+from tempfile import SpooledTemporaryFile
 from typing import BinaryIO
 
 from sqlalchemy import func, select
@@ -46,6 +47,7 @@ from app.domains.media.service_support import (
     safe_flush,
 )
 from app.domains.media.storage import MediaStorage, ObjectNotFoundError, object_key
+from app.domains.media.upload import extract_single_file
 
 
 class AttachmentClaim:
@@ -243,10 +245,48 @@ def claim_for_attachment(
     return AttachmentClaim(asset_id=media_id, promoted=False)
 
 
-# --- Upload (worker-thread transaction; final corrections 2/G/N) --------------
+# --- Upload (worker-thread transaction; final corrections 1/2/G/N) ------------
 
 
-def process_and_store(
+def process_upload(
+    *,
+    session_factory: sessionmaker[Session],
+    storage: MediaStorage,
+    business_id: uuid.UUID,
+    actor: ActorContext,
+    content_type_header: str,
+    body: SpooledTemporaryFile[bytes],
+    file_max_bytes: int,
+    scratch_dir: Path,
+) -> MediaAssetView:
+    """The complete upload worker — runs entirely in an AnyIO worker thread.
+
+    Multipart extraction, scratch-file creation, Pillow processing, object
+    storage, and the authoritative transaction all run here off the event
+    loop (final correction 2); only the bounded async body streaming that
+    produced ``body`` ran on the loop. The extracted part's temp file is
+    always removed.
+    """
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+    extracted = extract_single_file(
+        content_type_header, body, file_max_bytes=file_max_bytes, work_dir=scratch_dir
+    )
+    try:
+        return _process_and_store(
+            session_factory=session_factory,
+            storage=storage,
+            business_id=business_id,
+            actor=actor,
+            spooled_path=extracted.path,
+            original_filename=policies.sanitize_filename(extracted.filename),
+            declared_content_type=extracted.content_type,
+            scratch_dir=scratch_dir,
+        )
+    finally:
+        extracted.path.unlink(missing_ok=True)
+
+
+def _process_and_store(
     *,
     session_factory: sessionmaker[Session],
     storage: MediaStorage,
@@ -255,22 +295,27 @@ def process_and_store(
     spooled_path: Path,
     original_filename: str,
     declared_content_type: str,
+    scratch_dir: Path,
 ) -> MediaAssetView:
-    """Process one upload and persist it — runs inside a worker thread.
+    """Process one upload and persist it (final correction 1).
 
-    Opens its own session; writes objects (tracking keys) before the final
-    short transaction; compensates by deleting every written key on any
-    later failure. The encoded temp files under ``work_dir`` are always
-    cleaned up.
+    All fallible database work — the quota check, insert, audit, and the
+    full response projection — happens **before** commit; a successful
+    commit is the last database operation. A failure that definitely
+    occurs before commit compensates every written object. Once the commit
+    has been attempted, the outcome is treated as ambiguous: objects are
+    deleted only if a separate transaction positively proves the asset row
+    is absent; otherwise they are retained for reconciliation (the
+    row-to-object invariant always wins over eager orphan cleanup).
     """
-    work_dir = storage_tmp_dir(storage)
     asset_id = uuid.uuid4()
     written_keys: list[str] = []
     processed: ProcessedImage | None = None
+    commit_attempted = False
     try:
         try:
             with spooled_path.open("rb") as source:
-                processed = process_image(source, work_dir)
+                processed = process_image(source, scratch_dir)
         except ImageValidationError as exc:
             # A rejected image is a client validation error (422), not a 500.
             raise ApiError(422, ErrorCode.VALIDATION_ERROR, str(exc)) from exc
@@ -288,26 +333,31 @@ def process_and_store(
             written_keys.append(key)
 
         with session_factory() as db:
-            return _commit_uploaded_asset(
+            # Every fallible database read/write AND the response projection
+            # are built here, before commit.
+            view = _prepare_uploaded_asset(
                 db,
-                storage=storage,
                 business_id=business_id,
                 actor=actor,
                 asset_id=asset_id,
                 processed=processed,
                 original_filename=original_filename,
                 declared_content_type=declared_content_type,
-                written_keys=written_keys,
             )
+            commit_attempted = True
+            safe_commit(db)  # the FINAL database operation
+        return view
     except BaseException:
-        # Compensation: remove every object already written. Failures here
-        # are swallowed (they become sweep-visible orphans) so they cannot
-        # mask the original error.
-        for key in written_keys:
-            try:
-                storage.delete(key=key)
-            except Exception:  # noqa: S110 - orphan-on-failure is acceptable (swept later)
-                pass
+        if commit_attempted:
+            # Outcome-ambiguous: the commit may or may not have persisted the
+            # row. Delete objects ONLY if a fresh transaction positively
+            # proves the row is absent; otherwise retain them (a committed
+            # row must never lose its objects — final correction 1).
+            if _asset_row_absent(session_factory, business_id, asset_id):
+                _compensate(storage, written_keys)
+        else:
+            # Definitely before commit: no row can exist, so compensate.
+            _compensate(storage, written_keys)
         raise
     finally:
         if processed is not None:
@@ -316,19 +366,24 @@ def process_and_store(
                 variant.path.unlink(missing_ok=True)
 
 
-def _commit_uploaded_asset(
+def _prepare_uploaded_asset(
     db: Session,
     *,
-    storage: MediaStorage,
     business_id: uuid.UUID,
     actor: ActorContext,
     asset_id: uuid.UUID,
     processed: ProcessedImage,
     original_filename: str,
     declared_content_type: str,
-    written_keys: list[str],
 ) -> MediaAssetView:
-    # Authoritative preamble: capability + Business FOR UPDATE + lifecycle.
+    """All pre-commit database work + the response projection (correction 1).
+
+    Runs the authoritative preamble (capability + Business ``FOR UPDATE`` +
+    lifecycle), the quota check, the insert, the audit event, and then
+    loads and projects the stored asset — all inside the open transaction,
+    before the caller commits. The returned view therefore needs no further
+    database access after commit.
+    """
     authorize_write_locking_by_user_id(db, actor.user.id, business_id)
 
     usage = repository.business_usage(db, business_id=business_id)
@@ -391,19 +446,42 @@ def _commit_uploaded_asset(
             variant_count=len(processed.variants),
         ),
     )
-    safe_commit(db)
+    # Load the server-assigned values (timestamps, pending_expires_at) and
+    # project the response NOW — the last fallible work before commit.
     db.refresh(asset)
     variants = repository.list_variants(db, business_id=business_id, asset_id=asset_id)
     return _asset_view(asset, variants)
 
 
-def storage_tmp_dir(storage: MediaStorage) -> Path:
-    """The processing work directory (the adapter's ``.tmp``).
+def _asset_row_absent(
+    session_factory: sessionmaker[Session], business_id: uuid.UUID, asset_id: uuid.UUID
+) -> bool:
+    """Prove, in a fresh transaction, that the asset row does not exist.
 
-    Duck-typed on ``root`` (the local adapter and test fakes both expose
-    it); the storage protocol itself has no filesystem concept.
+    Returns ``True`` only on a positive absence proof. If the probe itself
+    fails (the database is unreachable, etc.), absence cannot be proved, so
+    it returns ``False`` and the caller retains the objects (correction 1).
     """
-    root = Path(storage.root)  # type: ignore[attr-defined]
-    work = root / ".tmp"
-    work.mkdir(parents=True, exist_ok=True)
-    return work
+    try:
+        with session_factory() as db:
+            found = db.execute(
+                select(MediaAsset.id).where(
+                    MediaAsset.business_id == business_id, MediaAsset.id == asset_id
+                )
+            ).scalar_one_or_none()
+        return found is None
+    except Exception:
+        return False
+
+
+def _compensate(storage: MediaStorage, written_keys: list[str]) -> None:
+    """Best-effort deletion of every written object (correction 1/N).
+
+    Failures are swallowed — a failed compensation leaves a sweep-visible
+    orphan and must never mask the original error.
+    """
+    for key in written_keys:
+        try:
+            storage.delete(key=key)
+        except Exception:  # noqa: S110 - orphan-on-failure is acceptable (swept later)
+            pass
