@@ -72,6 +72,9 @@ EXPECTED_OPERATION_IDS = {
     "media_asset_get",
     "media_asset_file_get",
     "media_asset_delete",
+    # M3D (ADR-017): the host-resolved public surface.
+    "public_menu_get",
+    "public_media_file_get",
 }
 
 
@@ -101,9 +104,83 @@ def test_exported_operation_ids_are_expected_and_unique() -> None:
     ]
     assert len(operation_ids) == len(set(operation_ids))
     assert set(operation_ids) == EXPECTED_OPERATION_IDS
-    # M3C adds five media operations + the catalog image command to the M3B
-    # total of 49: the contract is exactly 55 operations.
-    assert len(EXPECTED_OPERATION_IDS) == 55
+    # M3C brought the contract to 55; M3D adds the public menu and public
+    # media delivery: the contract is exactly 57 operations. The two
+    # schema-hidden HEAD companions add none (see below).
+    assert len(EXPECTED_OPERATION_IDS) == 57
+
+
+def test_public_media_documents_no_validation_error() -> None:
+    """The public media route must not advertise a 422 (M3D correction C1).
+
+    Its identifiers are hand-parsed so a malformed one is the neutral
+    public 404, never a detailed validation envelope. FastAPI appends a 422
+    to any operation with flat parameters, so the route declares none and
+    publishes its parameter contract through ``openapi_extra`` instead —
+    which must still document a uuid-formatted asset id and the closed
+    variant set.
+    """
+    document = json.loads(canonical_openapi_json())
+    operation = document["paths"]["/api/v1/public/media/{asset_id}/{variant}"]["get"]
+    assert operation["operationId"] == "public_media_file_get"
+    assert sorted(operation["responses"]) == ["200", "304", "404"]
+    assert "422" not in operation["responses"]
+    assert list(operation["responses"]["200"]["content"]) == ["image/webp"]
+    assert operation["responses"]["404"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/ErrorEnvelope"
+    }
+    parameters = {parameter["name"]: parameter for parameter in operation["parameters"]}
+    assert parameters["asset_id"]["schema"] == {
+        "type": "string",
+        "format": "uuid",
+        "title": "Asset Id",
+    }
+    assert parameters["variant"]["schema"]["enum"] == ["canonical", "w320", "w640", "w1280"]
+    assert all(parameter["in"] == "path" for parameter in operation["parameters"])
+    assert all(parameter["required"] for parameter in operation["parameters"])
+
+
+def test_parameterized_administrative_contracts_are_unchanged() -> None:
+    """The 422 suppression is route-local (M3D correction C1).
+
+    Administrative endpoints keep FastAPI's automatic validation-error
+    response, so nothing global was altered to remove it from one public
+    route. The admin media preview is the closest analogue — same shape,
+    same domain — and must still document its 422.
+    """
+    document = json.loads(canonical_openapi_json())
+    admin_preview = document["paths"][
+        "/api/v1/businesses/{business_id}/media/{asset_id}/file/{variant}"
+    ]["get"]
+    assert sorted(admin_preview["responses"]) == ["200", "401", "404", "422"]
+
+    parameterized = [
+        operation["operationId"]
+        for item in document["paths"].values()
+        for operation in item.values()
+        if operation.get("parameters") or operation.get("requestBody")
+    ]
+    with_422 = {
+        operation["operationId"]
+        for item in document["paths"].values()
+        for operation in item.values()
+        if "422" in operation["responses"]
+    }
+    # Every parameterized operation except the one deliberately suppressed
+    # still documents a 422.
+    missing = [op for op in parameterized if op not in with_422]
+    assert missing == ["public_media_file_get"]
+
+
+def test_head_companions_add_no_operation() -> None:
+    """Schema-hidden HEAD routes must not enter the contract (M3D, R11).
+
+    ``HEAD`` is served by a companion route on the same handler; declaring
+    it as a method instead would emit a second operation reusing the GET's
+    operation id, inflating the count and breaking the generated client.
+    """
+    document = json.loads(canonical_openapi_json())
+    assert not [path for path, item in document["paths"].items() if "head" in item]
 
 
 def test_media_upload_multipart_request_body_is_pinned() -> None:

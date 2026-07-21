@@ -2,7 +2,39 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (Milestone 2F)
+## Current state (Milestone 3D)
+
+The public surface carries permanent contract tests of its own. Three
+kinds are worth naming because they exist to protect decisions rather
+than behavior:
+
+- **Route invariants.** Every registered `GET`/`HEAD` route under
+  `/api/v1/public/` must carry `resolve_public_business` in its effective
+  dependency graph — a recursive walk of the FastAPI dependency tree that
+  includes schema-hidden `HEAD` companions, with a positive control (the
+  route list may not be empty) and a negative control (a route without
+  the resolver is detected). The host-guard exemption is only safe
+  because of this test, so it fails the suite rather than a review.
+- **Non-disclosure by denylist.** Public schemas are checked against a
+  denylist of administrative and storage field names rather than an
+  allowlist, so the check keeps failing as the contract grows. Response
+  bodies, headers, and captured logs are asserted free of storage keys,
+  paths, checksums, and filenames on both success and every failure path.
+- **Bounded queries.** A one-category menu and a twelve-item,
+  three-category menu with modifiers and images must cost exactly the
+  same number of statements; an all-hidden menu must cost fewer, proving
+  child reads are genuinely skipped rather than fetched and discarded.
+  Representative sizes are deliberate — building a policy-maximum fixture
+  to prove absence of N+1 would cost runtime without adding evidence.
+
+Concurrency cases force their interleaving by patching a single
+repository call to mutate the database just before it reads, which is
+deterministic where racing real clients is not. Public media delivery is
+covered for eligibility (detached, hidden-only, hidden-category-only,
+pending, foreign), conditional requests, header contracts, the stat/open
+race, and the discipline that expected public misses emit no warning.
+
+## Earlier state (Milestone 2F)
 
 The end-to-end layer exists (ADR-016): four Playwright journeys —
 onboarding (the blueprint's mandatory journey #1: create → honest

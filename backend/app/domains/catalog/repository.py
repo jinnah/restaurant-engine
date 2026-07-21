@@ -8,7 +8,7 @@ and the business-row lock that serializes these operations per tenant.
 
 import uuid
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, exists, func, select, update
 from sqlalchemy.orm import Session
 
 from app.domains.catalog.models import (
@@ -486,3 +486,135 @@ def set_option_positions(
             )
             .values(position=index)
         )
+
+
+# --- Public projection reads (M3D) --------------------------------------------
+#
+# Public reads filter in SQL rather than loading the administrative tree and
+# discarding rows: hidden items' dietary, modifier, and media data are never
+# read at all. Every list takes the parent ids already established as
+# publicly eligible, so child rows load only for relevant parents and the
+# statement count does not grow with the number of parents.
+
+
+def list_visible_categories(db: Session, *, business_id: uuid.UUID) -> list[MenuCategory]:
+    """Publicly visible categories in display order."""
+    return list(
+        db.execute(
+            select(MenuCategory)
+            .where(MenuCategory.business_id == business_id, MenuCategory.is_visible.is_(True))
+            .order_by(MenuCategory.position, MenuCategory.id)
+        ).scalars()
+    )
+
+
+def list_public_items(
+    db: Session, *, business_id: uuid.UUID, category_ids: list[uuid.UUID]
+) -> list[MenuItem]:
+    """Non-hidden items of the given visible categories, in display order."""
+    if not category_ids:
+        return []
+    return list(
+        db.execute(
+            select(MenuItem)
+            .where(
+                MenuItem.business_id == business_id,
+                MenuItem.is_hidden.is_(False),
+                MenuItem.category_id.in_(category_ids),
+            )
+            .order_by(MenuItem.category_id, MenuItem.position, MenuItem.id)
+        ).scalars()
+    )
+
+
+def list_tags_for_items(
+    db: Session, *, business_id: uuid.UUID, item_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[str]]:
+    """(item_id -> tags) for the given items only, tag-ascending."""
+    if not item_ids:
+        return {}
+    rows = db.execute(
+        select(MenuItemDietaryTag.item_id, MenuItemDietaryTag.tag)
+        .where(
+            MenuItemDietaryTag.business_id == business_id,
+            MenuItemDietaryTag.item_id.in_(item_ids),
+        )
+        .order_by(MenuItemDietaryTag.item_id, MenuItemDietaryTag.tag)
+    ).all()
+    tags_by_item: dict[uuid.UUID, list[str]] = {}
+    for item_id, tag in rows:
+        tags_by_item.setdefault(item_id, []).append(tag)
+    return tags_by_item
+
+
+def list_groups_for_items(
+    db: Session, *, business_id: uuid.UUID, item_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[ModifierGroup]]:
+    """(item_id -> ordered groups) for the given items only."""
+    if not item_ids:
+        return {}
+    rows = db.execute(
+        select(ModifierGroup)
+        .where(ModifierGroup.business_id == business_id, ModifierGroup.item_id.in_(item_ids))
+        .order_by(ModifierGroup.item_id, ModifierGroup.position, ModifierGroup.id)
+    ).scalars()
+    groups_by_item: dict[uuid.UUID, list[ModifierGroup]] = {}
+    for group in rows:
+        groups_by_item.setdefault(group.item_id, []).append(group)
+    return groups_by_item
+
+
+def list_available_options_for_groups(
+    db: Session, *, business_id: uuid.UUID, group_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[ModifierOption]]:
+    """(group_id -> ordered **available** options) for the given groups.
+
+    Unavailable options never reach the public projection, so they are
+    excluded in SQL — the returned count is exactly the active-option
+    count the satisfiability policy consumes.
+    """
+    if not group_ids:
+        return {}
+    rows = db.execute(
+        select(ModifierOption)
+        .where(
+            ModifierOption.business_id == business_id,
+            ModifierOption.is_available.is_(True),
+            ModifierOption.group_id.in_(group_ids),
+        )
+        .order_by(ModifierOption.group_id, ModifierOption.position, ModifierOption.id)
+    ).scalars()
+    options_by_group: dict[uuid.UUID, list[ModifierOption]] = {}
+    for option in rows:
+        options_by_group.setdefault(option.group_id, []).append(option)
+    return options_by_group
+
+
+def media_is_publicly_attached(db: Session, *, business_id: uuid.UUID, media_id: uuid.UUID) -> bool:
+    """Does a currently public menu item of this business show this asset?
+
+    The M3D public-media authorization predicate (ADR-017): an asset is
+    publicly deliverable only while at least one non-hidden item in a
+    visible category references it. ``status = 'active'`` alone is
+    deliberately insufficient — promotion is one-way, so a detached asset
+    would otherwise stay retrievable forever by anyone holding its URL.
+    Sold-out and non-orderable items still authorize their image.
+
+    One bounded tenant-scoped ``EXISTS``; the result is a boolean, so no
+    attachment detail can leak into a response.
+    """
+    predicate = exists(
+        select(MenuItem.id)
+        .join(
+            MenuCategory,
+            (MenuCategory.business_id == MenuItem.business_id)
+            & (MenuCategory.id == MenuItem.category_id),
+        )
+        .where(
+            MenuItem.business_id == business_id,
+            MenuItem.image_media_id == media_id,
+            MenuItem.is_hidden.is_(False),
+            MenuCategory.is_visible.is_(True),
+        )
+    )
+    return bool(db.execute(select(predicate)).scalar_one())

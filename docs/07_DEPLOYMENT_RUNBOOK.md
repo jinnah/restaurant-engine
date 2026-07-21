@@ -37,6 +37,29 @@ account writes there (Windows development machines rely on default
 inherited ACLs). The development default `backend/var/media` is
 gitignored and development-only.
 
+### Public media caching: the one-hour stale-publicity window (M3D)
+
+Successful public media responses are `public, max-age=3600, immutable`.
+The bytes at a URL never change, but its **authorization** can: an image
+can be detached from its menu item, hidden, deleted, or taken offline
+with the whole Business through suspension. For up to an hour afterwards,
+browsers and any shared cache in front of the API may still serve the
+representation they already hold — the API stops serving it immediately,
+but caches are not reachable by that decision.
+
+Operational consequences:
+
+- Suspending a Business removes its public menu at once; already-cached
+  images can persist for up to an hour. Treat one hour as the removal
+  SLA for anything image-borne, and say so when support promises a
+  takedown time.
+- When the M8 reverse proxy is introduced, do not configure it to extend
+  this lifetime (no proxy-level `max-age` override, no stale-while-
+  revalidate on this path). If a CDN is ever added, an explicit purge
+  step becomes part of suspension and deletion runbooks.
+- Media **errors** are never cacheable, so a takedown never leaves a
+  cached 404 behind either.
+
 ## Domain strategy
 
 Launch tenants on `{slug}.platform-domain.com` with a wildcard DNS record and

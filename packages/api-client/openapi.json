@@ -1979,6 +1979,298 @@
         "title": "PasswordResetRedeemResponse",
         "type": "object"
       },
+      "PublicMenu": {
+        "description": "The complete public menu of the host-resolved Business.\n\n`business` is the sole source of name, slug, timezone, and currency.\n`featured_item_ids` lists at most the featured-policy maximum and\nrefers only to items present in `categories`.",
+        "properties": {
+          "business": {
+            "$ref": "#/components/schemas/PublicSiteSummary"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/PublicMenuCategory"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "featured_item_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Featured Item Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "business",
+          "categories",
+          "featured_item_ids"
+        ],
+        "title": "PublicMenu",
+        "type": "object"
+      },
+      "PublicMenuCategory": {
+        "description": "One visible menu section with at least one publicly visible item.",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicMenuItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "items"
+        ],
+        "title": "PublicMenuCategory",
+        "type": "object"
+      },
+      "PublicMenuImage": {
+        "description": "The item's image: canonical dimensions plus responsive renditions.\n\nCarries no asset id, storage key, path, or checksum — the URL is the\nresource identity (ADR-017 R3). `alt_text` is the contextual alt text\nof this attachment, not a property of the asset, and may be null.",
+        "properties": {
+          "alt_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Text"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/PublicMenuImageVariant"
+            },
+            "title": "Variants",
+            "type": "array"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "alt_text",
+          "width",
+          "height",
+          "url",
+          "variants"
+        ],
+        "title": "PublicMenuImage",
+        "type": "object"
+      },
+      "PublicMenuImageVariant": {
+        "description": "One responsive rendition, with its true pixel dimensions.\n\nThe client selects a rendition (``srcset``); the API publishes every\none it has. `url` is relative — the storefront is served same-origin\nwith the tenant host (ADR-013).",
+        "properties": {
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "variant": {
+            "enum": [
+              "w320",
+              "w640",
+              "w1280"
+            ],
+            "title": "Variant",
+            "type": "string"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "variant",
+          "width",
+          "height",
+          "url"
+        ],
+        "title": "PublicMenuImageVariant",
+        "type": "object"
+      },
+      "PublicMenuItem": {
+        "description": "One publicly visible menu item.\n\n`is_available` is the \"sold out today\" state; a sold-out item stays\nlisted. `is_orderable` is computed: available **and** every required\nmodifier group currently satisfiable. M6 remains authoritative at\norder time — these are display facts, not a checkout guarantee.",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "dietary_tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Dietary Tags",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicMenuImage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_available": {
+            "title": "Is Available",
+            "type": "boolean"
+          },
+          "is_orderable": {
+            "title": "Is Orderable",
+            "type": "boolean"
+          },
+          "modifier_groups": {
+            "items": {
+              "$ref": "#/components/schemas/PublicModifierGroup"
+            },
+            "title": "Modifier Groups",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "price_minor": {
+            "title": "Price Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "price_minor",
+          "is_available",
+          "is_orderable",
+          "dietary_tags",
+          "image",
+          "modifier_groups"
+        ],
+        "title": "PublicMenuItem",
+        "type": "object"
+      },
+      "PublicModifierGroup": {
+        "description": "One customization group a guest can currently complete.\n\nOnly satisfiable groups are projected, so `is_satisfiable` and\n`active_option_count` (administrative diagnostics) are absent —\n`options` is exactly the selectable set. `max_select` null means\nunlimited by configuration.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "max_select": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Select"
+          },
+          "min_select": {
+            "title": "Min Select",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/PublicModifierOption"
+            },
+            "title": "Options",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "min_select",
+          "max_select",
+          "options"
+        ],
+        "title": "PublicModifierGroup",
+        "type": "object"
+      },
+      "PublicModifierOption": {
+        "description": "One selectable option (available options only).\n\nUnavailable options are omitted from the projection entirely, so no\navailability flag is needed: everything present is selectable.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "price_delta_minor": {
+            "title": "Price Delta Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "price_delta_minor"
+        ],
+        "title": "PublicModifierOption",
+        "type": "object"
+      },
       "PublicSiteSummary": {
         "description": "Minimal public projection returned for a resolved active business\n(M2C, ADR-013).\n\nDeliberately narrow: a 200 already proves the business is active, so no\n``status`` field is needed, and no id/timestamps/management data are\nexposed on the unauthenticated surface.",
         "properties": {
@@ -6813,6 +7105,96 @@
         "summary": "Platform Password Reset Issue",
         "tags": [
           "platform"
+        ]
+      }
+    },
+    "/api/v1/public/media/{asset_id}/{variant}": {
+      "get": {
+        "description": "Deliver one image of the Business resolved from the Host.\n\nServes the re-encoded WebP canonical rendition or one of its\nresponsive variants, addressed by opaque asset id and logical variant\nname. Supports conditional requests through a strong derived ETag;\n``Range`` is ignored and the complete representation is returned. An\nunknown, ineligible, or malformed request is the neutral not-found\nresponse — never a validation error.",
+        "operationId": "public_media_file_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variant",
+            "required": true,
+            "schema": {
+              "enum": [
+                "canonical",
+                "w320",
+                "w640",
+                "w1280"
+              ],
+              "title": "Variant",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/webp": {}
+            },
+            "description": "Successful Response"
+          },
+          "304": {
+            "description": "Cached representation is current."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "summary": "Public Media File Get",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/api/v1/public/menu": {
+      "get": {
+        "description": "The public menu of the Business resolved from the Host.\n\nHidden items and invisible categories are excluded, categories with no\npublicly visible item are omitted, and unavailable modifier options and\nunsatisfiable groups are dropped. Prices are integer minor units in the\nbusiness's own currency.",
+        "operationId": "public_menu_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicMenu"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "summary": "Public Menu Get",
+        "tags": [
+          "public"
         ]
       }
     },

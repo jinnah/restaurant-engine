@@ -139,9 +139,57 @@ For every tenant-owned resource, tests must prove:
   Per-account exponential backoff (5 failures → 1 s doubling to a 60 s
   cap) replaces lockout; attempts inside the window neither count nor
   extend it. Per-IP limiting belongs to the reverse proxy and is a
-  **mandatory M8 item before production**.
-- Every `/api/v1` response is `Cache-Control: no-store` until the M4
-  public-caching decision.
+  **mandatory M8 item before production** — this includes the M3D public
+  surface, which deliberately ships **no** application-level rate limiter
+  because no trusted deployment boundary exists yet (forwarded headers are
+  untrusted, so an application limiter would key on a spoofable source).
+- Every `/api/v1` response is `Cache-Control: no-store`, with exactly one
+  approved exception (M3D, ADR-017): a **successful** public media
+  delivery (`GET`/`HEAD` under `/api/v1/public/media/`, status 200 or 304) is `public, max-age=3600, immutable`. Every media error — 404,
+  405, 5xx, storage failure, business-resolution failure — is `no-store`,
+  as is the public menu. The policy is decided by `NoStoreApiMiddleware`
+  from path, method, and status; it deliberately does **not** respect a
+  route-provided `Cache-Control`, so no authenticated route can grant
+  itself caching. The unhandled-exception 500 sets the header itself,
+  because Starlette renders it outside the middleware stack.
+- **Stale-publicity window (one hour).** The bytes at a media URL are
+  immutable, but that URL's _authorization_ is not: an image can be
+  detached from its item, hidden, deleted, or taken offline with the whole
+  Business through suspension. `max-age=3600` is the bound on how long a
+  browser or shared cache may keep serving something that is no longer
+  public. Anything requiring immediate public removal must also account
+  for caches already holding the representation.
+
+### Public surface (implemented in M3D — ADR-017)
+
+The public menu and public media delivery are unauthenticated, host-
+resolved reads with no session and no CSRF. Beyond the ADR-013 resolution
+rules they add:
+
+- **Method-scoped host-guard exemption.** `GET`/`HEAD` under
+  `/api/v1/public/` bypass the known-Host guard so the resolver can own
+  its own neutral 404; unsafe methods stay guarded (ADR-013 amendment). A
+  permanent test proves every public read route carries
+  `resolve_public_business` in its dependency graph.
+- **Public media authorization.** `status = 'active'` is necessary but
+  **not sufficient**: promotion is one-way, so delivery additionally
+  requires at least one non-hidden menu item in a visible category to
+  reference the asset right now. A detached asset, or one attached only
+  through hidden content, returns the same neutral 404 as an unknown or
+  foreign one — otherwise a retained URL would stay retrievable forever.
+  Sold-out and non-orderable items still authorize their image.
+- **No public-read audit.** `GET`, `HEAD`, and `304` write no audit
+  events (the ADR-013 amplification and enumeration rationale). Storage
+  anomalies are _logged_ — and only after the database has established
+  eligibility, so expected public misses cannot be used to amplify logs.
+  Warnings carry a reason code plus business, asset, and variant ids;
+  never a Host, storage key, path, filename, checksum, or exception text.
+- **Bounded, opaque, non-disclosing responses.** Public schemas are
+  separate from administrative ones; identifiers are opaque asset ids and
+  logical variant names; `Range` is ignored and `Accept-Ranges` is never
+  advertised; delivery detects a missing object and a byte-size
+  disagreement, and never hashes per request (same-size corruption is the
+  sweep's and the backup preflight's job).
 
 ### Proxy trust (fixed now, revisited at M8)
 

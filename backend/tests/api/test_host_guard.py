@@ -115,6 +115,54 @@ class TestKnownHostGuard:
         assert client.get(_PLATFORM_LIST, headers={"host": "www.localhost"}).status_code == 401
 
 
+class TestPublicPrefixExemptionIsMethodScoped:
+    """GET/HEAD under /api/v1/public/ are exempt; unsafe methods are not.
+
+    (M3D, ADR-013 amendment.) The public router owns its own Host failures
+    for the methods it serves; an unsafe method matches no public route, so
+    nothing there owns the neutral contract and the guard still answers.
+    """
+
+    def test_public_get_from_unrecognized_host_is_the_neutral_404(self) -> None:
+        client = _client()
+        response = client.get(_PUBLIC_SITE, headers={"host": "evil.example.net"})
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "not_found"
+        assert response.headers["cache-control"] == "no-store"
+
+    def test_public_unsafe_method_from_unrecognized_host_is_the_guard_400(self) -> None:
+        client = _client()
+        for request in (client.post, client.put, client.patch, client.delete):
+            response = request(_PUBLIC_SITE, headers={"host": "evil.example.net"})
+            assert response.status_code == 400, request.__name__
+            assert response.json()["error"]["code"] == "http_error"
+            assert response.headers["cache-control"] == "no-store"
+
+    def test_public_unsafe_method_from_known_host_reaches_routing(self) -> None:
+        # Past the guard, an unsafe method on a GET-only route is a 405 from
+        # routing — never a silent success and never the guard's 400.
+        client = _client()
+        response = client.post(_PUBLIC_SITE, headers={"host": "shalik.localhost"})
+        assert response.status_code == 405
+        assert response.json()["error"]["code"] == "method_not_allowed"
+
+    def test_lookalike_public_prefixes_are_not_exempt(self) -> None:
+        client = _client()
+        for path in ("/api/v1/publicity", "/api/v1/public", "/api/v1/publicx/thing"):
+            response = client.get(path, headers={"host": "evil.example.net"})
+            assert response.status_code == 400, path
+            assert response.json()["error"]["code"] == "http_error"
+
+    def test_other_unauthenticated_routers_remain_guarded(self) -> None:
+        # Password reset and invitation redemption are unauthenticated but do
+        # NOT sit under /api/v1/public/, so they keep the guard.
+        client = _client()
+        for path in ("/api/v1/password-resets/redeem", "/api/v1/invitations/accept"):
+            response = client.post(path, headers={"host": "evil.example.net"}, json={})
+            assert response.status_code == 400, path
+            assert response.json()["error"]["code"] == "http_error"
+
+
 class TestDuplicateHostHeaders:
     """Separate duplicate Host header values fail closed (review R-1)."""
 
