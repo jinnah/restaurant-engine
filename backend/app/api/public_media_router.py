@@ -27,7 +27,7 @@ import uuid
 from collections.abc import Iterator
 from typing import Annotated, Any, BinaryIO
 
-from fastapi import APIRouter, Depends, Path, Request, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
@@ -51,16 +51,41 @@ _RESPONSES: dict[int | str, dict[str, Any]] = {
     status.HTTP_404_NOT_FOUND: {"model": ErrorEnvelope},
 }
 
-# The path parameters are plain strings, validated by hand, so a malformed
-# identifier renders as the neutral public 404 instead of FastAPI's
-# detailed 422 envelope (which would advertise the identifier's shape and
-# break the uniform public contract). ``json_schema_extra`` keeps the
-# documented contract honest — the generated client still sees a
-# uuid-formatted string and the closed variant set — without turning a bad
-# value into a validation error. No global validation behavior changes and
-# administrative endpoints are untouched.
-_AssetId = Annotated[str, Path(json_schema_extra={"format": "uuid"})]
-_Variant = Annotated[str, Path(json_schema_extra={"enum": list(media_public.PUBLIC_VARIANTS)})]
+# The identifiers are read from ``request.path_params`` and validated by
+# hand, so a malformed one renders as the neutral public 404 rather than
+# FastAPI's detailed 422 envelope (which would advertise the identifier's
+# shape and break the uniform public contract).
+#
+# Declaring them as typed path *parameters* would document a 422 this route
+# can never return: FastAPI appends the validation-error response to any
+# operation with flat parameters or a body (``fastapi/openapi/utils.py``),
+# and that addition cannot be suppressed per route — declaring a 422 only
+# replaces its shape. Taking no parameters removes the cause instead of
+# patching the symptom, and the documented contract is supplied manually
+# through ``openapi_extra``, exactly as M3C's upload route documents its
+# multipart body. The parameters below are therefore the *whole* published
+# parameter contract: a uuid-formatted asset id and the closed variant set.
+#
+# This is route-local. No global OpenAPI hook, no validation-handler
+# change, and no administrative endpoint is affected.
+_PARAMETERS = [
+    {
+        "name": "asset_id",
+        "in": "path",
+        "required": True,
+        "schema": {"type": "string", "format": "uuid", "title": "Asset Id"},
+    },
+    {
+        "name": "variant",
+        "in": "path",
+        "required": True,
+        "schema": {
+            "type": "string",
+            "enum": list(media_public.PUBLIC_VARIANTS),
+            "title": "Variant",
+        },
+    },
+]
 
 
 def _representation_headers(representation: PublicRepresentation) -> dict[str, str]:
@@ -104,10 +129,9 @@ def _stream_and_close(stream: BinaryIO) -> Iterator[bytes]:
     operation_id="public_media_file_get",
     response_class=StreamingResponse,
     responses=_RESPONSES,
+    openapi_extra={"parameters": _PARAMETERS},
 )
 def public_media_file_get(
-    asset_id: _AssetId,
-    variant: _Variant,
     request: Request,
     business: Annotated[ResolvedBusiness, Depends(resolve_public_business)],
     db: Annotated[Session, Depends(get_session)],
@@ -117,10 +141,21 @@ def public_media_file_get(
     Serves the re-encoded WebP canonical rendition or one of its
     responsive variants, addressed by opaque asset id and logical variant
     name. Supports conditional requests through a strong derived ETag;
-    ``Range`` is ignored and the complete representation is returned.
+    ``Range`` is ignored and the complete representation is returned. An
+    unknown, ineligible, or malformed request is the neutral not-found
+    response — never a validation error.
     """
+    # Implementation note (not published): the identifiers are read from
+    # ``request.path_params`` rather than declared as typed parameters, so
+    # the operation publishes no 422 — see the ``_PARAMETERS`` comment.
+    # This docstring becomes the OpenAPI operation description, so it
+    # describes behavior only and names no internal symbol.
     storage: MediaStorage = request.app.state.media_storage
     business_id = business.business_id
+    # Starlette leaves matched path segments as strings; both are validated
+    # below and neither ever reaches storage unvalidated.
+    asset_id = str(request.path_params["asset_id"])
+    variant = str(request.path_params["variant"])
 
     parsed_asset_id = media_public.parse_public_uuid(asset_id)
     if parsed_asset_id is None:

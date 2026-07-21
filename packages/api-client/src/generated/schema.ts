@@ -903,7 +903,9 @@ export interface paths {
          *     Serves the re-encoded WebP canonical rendition or one of its
          *     responsive variants, addressed by opaque asset id and logical variant
          *     name. Supports conditional requests through a strong derived ETag;
-         *     ``Range`` is ignored and the complete representation is returned.
+         *     ``Range`` is ignored and the complete representation is returned. An
+         *     unknown, ineligible, or malformed request is the neutral not-found
+         *     response — never a validation error.
          */
         get: operations["public_media_file_get"];
         put?: never;
@@ -5496,15 +5498,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

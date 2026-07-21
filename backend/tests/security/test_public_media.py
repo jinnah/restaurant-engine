@@ -448,6 +448,33 @@ class TestResolutionAndIsolation:
             _assert_neutral_404(response)
             assert response.json()["error"]["field_errors"] == []
 
+    def test_malformed_identifiers_never_produce_a_validation_envelope(
+        self,
+        client: TestClient,
+        create_business: CreateBusiness,
+        migrated_engine: Engine,
+        media_root: Path,
+    ) -> None:
+        """Runtime companion to the contract assertion (M3D correction C1).
+
+        The route publishes no 422; this proves it can also never *return*
+        one, for either identifier, however malformed.
+        """
+        _, _, asset_id = _publishable(migrated_engine, media_root, create_business)
+        for path in (
+            _url("not-a-uuid"),
+            _url("11111111-1111-1111-1111-11111111111"),  # one digit short
+            _url("{11111111-1111-1111-1111-111111111111}"),
+            _url(asset_id, "w9999"),
+            _url(asset_id, ""),
+            _url("", "canonical"),
+        ):
+            response = client.get(path, headers=_host())
+            assert response.status_code == 404, path
+            assert response.json()["error"]["code"] == "not_found", path
+            assert response.json()["error"]["field_errors"] == [], path
+            assert response.headers["cache-control"] == "no-store", path
+
     def test_unknown_variant_is_neutral_404(
         self,
         client: TestClient,

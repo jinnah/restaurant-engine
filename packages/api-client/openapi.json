@@ -7110,7 +7110,7 @@
     },
     "/api/v1/public/media/{asset_id}/{variant}": {
       "get": {
-        "description": "Deliver one image of the Business resolved from the Host.\n\nServes the re-encoded WebP canonical rendition or one of its\nresponsive variants, addressed by opaque asset id and logical variant\nname. Supports conditional requests through a strong derived ETag;\n``Range`` is ignored and the complete representation is returned.",
+        "description": "Deliver one image of the Business resolved from the Host.\n\nServes the re-encoded WebP canonical rendition or one of its\nresponsive variants, addressed by opaque asset id and logical variant\nname. Supports conditional requests through a strong derived ETag;\n``Range`` is ignored and the complete representation is returned. An\nunknown, ineligible, or malformed request is the neutral not-found\nresponse — never a validation error.",
         "operationId": "public_media_file_get",
         "parameters": [
           {
@@ -7158,16 +7158,6 @@
               }
             },
             "description": "Not Found"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
           }
         },
         "summary": "Public Media File Get",
