@@ -393,7 +393,7 @@ corrections), recorded before implementation:
   supplied through composition (`app.state.media_scratch_dir`), not read
   off the storage object, so `MediaStorage` stays exactly the four-method
   protocol. **Commit/compensation boundary (correction 1):** every
-  fallible database operation *and* the response projection run before
+  fallible database operation _and_ the response projection run before
   commit, and the commit is the final database step. A failure that
   definitely precedes commit deletes every written object; once the
   commit has been attempted the outcome is treated as ambiguous — objects
