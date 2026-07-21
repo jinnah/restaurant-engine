@@ -610,6 +610,56 @@ implementation:
   projection and delivery need already exists; the Alembic head stays
   `59b463781dcc`.
 
+**Delivered (local) 2026-07-21, in review.** Two schema-visible
+operations landed exactly as ruled (`public_menu_get`,
+`public_media_file_get`; pinned total 57) with schema-hidden `HEAD`
+companions on the same handlers, and no migration, dependency, or
+configuration change — the Alembic head is unchanged. The public menu
+lives in `catalog/router_public.py` over `catalog/public_service.py` and
+`catalog/public_schemas.py`; public delivery composes
+`catalog.public_service.media_is_publicly_visible` with
+`media.public_service` in `app/api/public_media_router.py`, so media
+still imports no catalog. `NoStoreApiMiddleware` gained the narrow
+public-media exception decided from path, method, and status.
+
+Two source realities were discovered during implementation and are
+recorded because they change how the rulings are met:
+
+1. **FastAPI does not auto-register `HEAD`.** `APIRoute` sets
+   `methods = {"GET"}` (Starlette's HEAD addition applies only to plain
+   `Route`), so `HEAD` reached no route before M3D and had to be added
+   deliberately. Declaring it as a method would emit a second OpenAPI
+   operation reusing the GET's id, so the companions are
+   `include_in_schema=False` and the operation count is unaffected.
+2. **`assert_contract_operation_ids` was inspecting nothing.** This
+   FastAPI version does not flatten `include_router` into `APIRoute`
+   objects on the application, so the old `app.routes` walk found zero
+   routes and the ADR-009 boot-time guarantee was vacuous for the
+   composed app (the OpenAPI export test still enforced the same contract
+   from the other side, so no operation id was actually wrong). Route
+   enumeration now follows the included-router structure, and a
+   regression test pins the walked operation-id set to the documented
+   OpenAPI set.
+
+One related pre-existing gap was closed: an unhandled-exception 500
+carried no `Cache-Control` at all, because Starlette renders the
+`Exception` handler in its outermost `ServerErrorMiddleware`, outside the
+middleware that stamps the policy. The handler now sets `no-store`
+itself, which the binding M3D requirement (every media error including
+5xx is uncacheable) needs and which every other route inherits.
+
+Coverage landed for the full approved matrix: resolution and neutral-404
+uniformity with a menu seeded behind each failing host as a negative
+control, per-host isolation, visibility and suppression rules, modifier
+projection and orderability, deterministic ordering, images and featured
+ids, the seven-condition media eligibility (including the detach-stops-
+delivery case that motivates it), conditional requests with `*`,
+comma-separated and weak validators, the 304-never-for-a-broken-object
+rule, the stat/open race, HEAD and Range policy, the cache matrix
+including error statuses, warning discipline for expected misses,
+bounded-query stability, concurrent-edit structural validity, response
+and log hygiene, and the absence of audit events for public reads.
+
 ### M3E–M3F
 
 Not started.

@@ -134,8 +134,37 @@ options/business. Same authorization as the rest of the catalog
 (owner/manager write; staff read-only — no modifier authority);
 identical no-op-suppressed exact-set reorders (M3A reorders aligned per
 R-1). Group deletion cascades options with one audited event; item
-deletion cascades without modifier-event fan-out. Media and the public
-menu API are M3C–M3D.
+deletion cascades without modifier-event fan-out.
+
+**Public menu projection (M3D, ADR-017).** `GET /api/v1/public/menu` is
+the unauthenticated, Host-resolved projection of the catalog; only
+**active** Businesses have one, and every failure is the neutral 404.
+Persisted validity and public availability are separate concerns: the
+database decides what may be stored, the projection decides what a guest
+may currently see and order, and nothing in it is a write gate.
+
+- Invisible categories and hidden items are excluded; a category left
+  with no publicly eligible item is suppressed rather than shown empty.
+- Sold-out items stay listed (`is_available = false`); "sold out" and
+  "hidden" remain separate states.
+- Unavailable modifier options are omitted. An **unsatisfiable optional**
+  group is omitted harmlessly; an **unsatisfiable required** group is
+  omitted and makes the item `is_orderable = false` — the item stays
+  listed and priced, because hiding is an explicit administrative state
+  and a transient option toggle should not remove an indexed page.
+  Satisfiability is the same `is_group_satisfiable` policy the admin
+  projection uses — one formula, two projections.
+- `is_orderable` is true only when the item is available and every
+  required group is satisfiable. M6 remains authoritative at order time;
+  these are display facts, not a checkout guarantee.
+- Prices are integer minor units and the currency appears once, from the
+  Business. Dietary reads stay registry-filtered.
+- Ordering is explicit everywhere with stable id tie-breakers; array
+  order is the contract, so no `position` is exposed. Items appear
+  exactly once, inside their category, and `featured_item_ids` references
+  those canonical representations by id rather than duplicating them.
+- Public schemas are separate types, never administrative ones, so
+  management-only fields cannot leak by default.
 
 ## Storefront composition
 
@@ -194,6 +223,35 @@ never auto-deleted; referenced assets cannot be deleted. Expired
 never-attached pending assets are cleaned by the operator sweep CLI
 regardless of business lifecycle (system maintenance, NULL-actor audit);
 rows whose objects are missing are report-only, always.
+
+**Public delivery (M3D, ADR-017).**
+`GET /api/v1/public/media/{asset_id}/{variant}` serves the canonical WebP
+or one of its responsive variants, addressed by opaque asset id and
+logical variant name — never a storage key, path, or checksum. Delivery
+requires **every** condition to hold now: an active Host-resolved
+Business, a same-Business asset, `status = 'active'`, the representation
+present in the database inventory, and at least one non-hidden menu item
+in a visible category referencing it. Active status alone is deliberately
+insufficient — promotion is one-way, so a detached asset would otherwise
+stay retrievable forever by anyone holding its URL. Sold-out and
+non-orderable items still authorize their image. Every ineligible case
+returns the same neutral 404, and the public menu never advertises a URL
+for an asset it did not confirm active while assembling the projection.
+
+Validators are strong derived ETags over the checksum of the exact
+delivered representation; the stored checksum itself is never returned.
+`If-None-Match` supports `*`, comma-separated lists, and weak comparison,
+and a matching validator still verifies eligibility, inventory, and the
+physical object before answering 304 — it just never reads the bytes. The
+object is opened before any response header is committed, so an object
+that vanishes between verification and read is a clean 404 rather than a
+truncated 200. Delivery detects a **missing object** and a **byte-size
+disagreement**; it does not hash per request, so same-size corruption is
+detected by `sweep_media.py --verify` and the backup preflight, and is
+never claimed as a delivery-time guarantee. `Range` is ignored (the full
+representation is returned, `Accept-Ranges` is never advertised) and
+`Last-Modified`/`If-Modified-Since` are deliberately unsupported, because
+restoring the media root rewrites filesystem timestamps.
 
 ## Hours and fulfillment
 
