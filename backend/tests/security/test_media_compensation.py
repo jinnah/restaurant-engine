@@ -198,6 +198,63 @@ class TestCompensationBoundary:
         assert len(_stored_objects(storage)) >= 1
 
 
+class TestDeleteDurability:
+    def test_object_delete_failure_does_not_make_a_committed_delete_500(
+        self,
+        app: FastAPI,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
+    ) -> None:
+        """The DB delete commits; a failing object delete is swallowed per
+        object (no misleading 500), and the row is gone (final correction 5)."""
+        business_id = _seed_owner(create_user, create_business, create_membership)
+        real_storage: LocalFilesystemStorage = app.state.media_storage
+
+        client = TestClient(app, raise_server_exceptions=False)
+        with client:
+            csrf = login_as(client, OWNER)
+            asset_id = _upload(client, csrf, business_id).json()["id"]
+
+            class DeleteFailingStorage:
+                root = real_storage.root
+
+                def put(self, **kwargs: Any) -> None:  # pragma: no cover
+                    real_storage.put(**kwargs)
+
+                def open(self, **kwargs: Any) -> Any:  # pragma: no cover
+                    return real_storage.open(**kwargs)
+
+                def stat(self, **kwargs: Any) -> Any:
+                    return real_storage.stat(**kwargs)
+
+                def delete(self, **kwargs: Any) -> None:
+                    raise OSError("object store unavailable")
+
+            app.state.media_storage = DeleteFailingStorage()
+            try:
+                response = client.delete(
+                    f"{_base(business_id)}/{asset_id}", headers=csrf_headers(csrf)
+                )
+            finally:
+                app.state.media_storage = real_storage
+
+        # The committed row deletion is not masked by the object-delete failure.
+        assert response.status_code == 200
+        with migrated_engine.connect() as connection:
+            count = connection.execute(
+                text("SELECT count(*) FROM media_assets WHERE id = :id"),
+                {"id": asset_id},
+            ).scalar_one()
+        assert count == 0
+        # The objects remain as sweep-visible orphans (never silently lost).
+        assert (
+            real_storage.stat(key=object_key(business_id, uuid.UUID(asset_id), "canonical"))
+            is not None
+        )
+
+
 class TestWorkerThreadIsolation:
     def test_extraction_and_processing_run_off_the_event_loop(
         self,

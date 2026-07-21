@@ -22,6 +22,7 @@ from pathlib import Path
 from tempfile import SpooledTemporaryFile
 from typing import BinaryIO
 
+import structlog
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -48,6 +49,8 @@ from app.domains.media.service_support import (
 )
 from app.domains.media.storage import MediaStorage, ObjectNotFoundError, object_key
 from app.domains.media.upload import extract_single_file
+
+_logger = structlog.get_logger("app.media")
 
 
 class AttachmentClaim:
@@ -204,9 +207,34 @@ def delete_asset(
         ),
     )
     safe_commit(db)
-    # Best-effort object deletion after the row is durably gone.
+    # The row is durably gone. Object deletion is best-effort and each key
+    # is attempted independently: a failure must NOT surface as a misleading
+    # 500 for an already-committed deletion (final correction 5). Failures
+    # become sweep-visible orphans and are logged by count only — never a
+    # key or path.
+    _delete_objects_best_effort(storage, keys, business_id=business_id, asset_id=asset_id)
+
+
+def _delete_objects_best_effort(
+    storage: MediaStorage,
+    keys: list[str],
+    *,
+    business_id: uuid.UUID,
+    asset_id: uuid.UUID,
+) -> None:
+    failures = 0
     for key in keys:
-        storage.delete(key=key)
+        try:
+            storage.delete(key=key)
+        except Exception:
+            failures += 1
+    if failures:
+        _logger.warning(
+            "media_object_delete_incomplete",
+            business_id=str(business_id),
+            asset_id=str(asset_id),
+            failed_objects=failures,
+        )
 
 
 # --- Attachment (called by the catalog service, within its transaction) -------

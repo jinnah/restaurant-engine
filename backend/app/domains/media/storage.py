@@ -39,6 +39,17 @@ KEY_RE = re.compile(
 TMP_DIR_NAME = ".tmp"
 
 
+def _fsync_directory(path: Path) -> None:
+    """fsync a directory so a rename into it is durable (POSIX only)."""
+    if os.name != "posix":  # pragma: no cover - exercised on Linux CI/deploy
+        return
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 class ObjectNotFoundError(Exception):
     """The addressed object does not exist in storage."""
 
@@ -143,6 +154,11 @@ class LocalFilesystemStorage:
                 handle.flush()
                 os.fsync(handle.fileno())
             os.replace(scratch, target)
+            # Durability (final correction 5): fsync the containing directory
+            # so the rename survives a crash before the database row commits.
+            # POSIX only — Windows cannot fsync a directory handle, and the
+            # deployment target is Linux (docs/07).
+            _fsync_directory(target.parent)
         finally:
             scratch.unlink(missing_ok=True)
 

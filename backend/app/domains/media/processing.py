@@ -119,9 +119,17 @@ def _normalized_mode(image: Image.Image) -> Image.Image:
 
 def _encode(image: Image.Image, variant: str, work_dir: Path) -> EncodedObject:
     path = work_dir / f"encode-{variant}-{uuid.uuid4()}.webp"
-    with path.open("wb") as handle:
-        image.save(handle, format="WEBP", quality=WEBP_QUALITY, method=WEBP_METHOD, lossless=False)
-    data = path.read_bytes()
+    try:
+        with path.open("wb") as handle:
+            image.save(
+                handle, format="WEBP", quality=WEBP_QUALITY, method=WEBP_METHOD, lossless=False
+            )
+        data = path.read_bytes()
+    except BaseException:
+        # Partial-encode cleanup (final correction 5): a failure in save or
+        # the subsequent read must not leave an ``encode-*`` scratch file.
+        path.unlink(missing_ok=True)
+        raise
     return EncodedObject(
         variant=variant,
         path=path,

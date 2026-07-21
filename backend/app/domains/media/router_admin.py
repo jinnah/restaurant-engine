@@ -16,8 +16,9 @@ SQLAlchemy session crosses the thread boundary (final correction 2).
 """
 
 import uuid
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, BinaryIO
 
 import anyio
 from fastapi import APIRouter, Depends, Query, Request, status
@@ -191,7 +192,7 @@ def media_asset_file_get(
     stream = service.open_asset_object(db, actor, business_id, asset_id, variant, storage)
     filename = f"{asset_id}-{variant}.webp"
     return StreamingResponse(
-        stream,
+        _stream_and_close(stream),
         media_type="image/webp",
         headers={
             "Content-Disposition": f'inline; filename="{filename}"',
@@ -199,6 +200,23 @@ def media_asset_file_get(
             "Cache-Control": "no-store",
         },
     )
+
+
+def _stream_and_close(stream: BinaryIO) -> Iterator[bytes]:
+    """Yield the object in bounded chunks, always closing the handle.
+
+    The ``finally`` runs on normal completion, on a streaming error, and on
+    client disconnect (the generator is closed with ``GeneratorExit``), so
+    the preview file descriptor is never leaked (final correction 5).
+    """
+    try:
+        while True:
+            chunk = stream.read(64 * 1024)
+            if not chunk:
+                break
+            yield chunk
+    finally:
+        stream.close()
 
 
 @media_admin_router.delete(
