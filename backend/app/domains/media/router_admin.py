@@ -24,6 +24,7 @@ import anyio
 from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, sessionmaker
+from starlette.background import BackgroundTask
 
 from app.core.database import get_session
 from app.core.errors import ErrorEnvelope
@@ -191,6 +192,15 @@ def media_asset_file_get(
     storage: MediaStorage = request.app.state.media_storage
     stream = service.open_asset_object(db, actor, business_id, asset_id, variant, storage)
     filename = f"{asset_id}-{variant}.webp"
+    # Closure is guaranteed through the real StreamingResponse/ASGI lifecycle
+    # by two independent mechanisms (round-2 finding 1):
+    #   * the generator's own ``finally`` closes on completion, on a
+    #     streaming error, and on client-disconnect cancellation
+    #     (``GeneratorExit``);
+    #   * a response-level ``BackgroundTask`` closes after the response, a
+    #     safety net for any path where the iterator is not driven to
+    #     finalization by the framework.
+    # ``close`` is idempotent on file objects, so a double close is safe.
     return StreamingResponse(
         _stream_and_close(stream),
         media_type="image/webp",
@@ -199,6 +209,7 @@ def media_asset_file_get(
             "X-Content-Type-Options": "nosniff",
             "Cache-Control": "no-store",
         },
+        background=BackgroundTask(stream.close),
     )
 
 
@@ -207,7 +218,9 @@ def _stream_and_close(stream: BinaryIO) -> Iterator[bytes]:
 
     The ``finally`` runs on normal completion, on a streaming error, and on
     client disconnect (the generator is closed with ``GeneratorExit``), so
-    the preview file descriptor is never leaked (final correction 5).
+    the preview file descriptor is never leaked (final correction 5). The
+    route additionally attaches a background close as a response-level
+    safety net (round-2 finding 1).
     """
     try:
         while True:
