@@ -22,11 +22,10 @@ from typing import Annotated, Any
 from fastapi import Depends, FastAPI
 from fastapi.dependencies.models import Dependant
 
-from app.core.cache_control import PUBLIC_MEDIA_PREFIX
 from app.core.host_guard import PUBLIC_EXEMPT_METHODS, PUBLIC_PATH_PREFIX
 from app.core.openapi import iter_route_contracts
 from app.domains.businesses.resolution import resolve_public_business
-from app.domains.media.public_service import public_media_url
+from app.domains.media.public_service import PUBLIC_MEDIA_PATH_PREFIX, public_media_url
 from app.main import create_app
 from tests.conftest import make_settings
 
@@ -113,13 +112,16 @@ class TestPublicRoutesResolveTheirTenant:
 
 
 class TestPublicMediaPathHasOneDefinition:
-    """The route, the composed URLs, and the cache policy share one prefix.
+    """The registered route and the composed URLs share one definition.
 
-    Three places need the public media path: the route registration, the
-    URLs the menu projection composes, and the cache-policy exception. If
-    they drifted, a menu could advertise URLs that 404 or that silently
-    lose their cache policy — so the constant is pinned to the registered
+    Two places need the public media path: the route registration and the
+    URLs the menu projection composes. If they drifted, a menu would
+    advertise URLs that 404 — so the constant is pinned to the registered
     route here.
+
+    This is now **defense in depth only**. The cache policy no longer
+    consumes the path at all: it is granted by route identity, so breaking
+    or removing this invariant cannot widen caching (M3D correction C2).
     """
 
     def test_registered_route_matches_the_shared_prefix(self) -> None:
@@ -127,17 +129,18 @@ class TestPublicMediaPathHasOneDefinition:
         media_routes = [
             route
             for route in iter_route_contracts(app)
-            if route.path.startswith(PUBLIC_MEDIA_PREFIX)
+            if route.path.startswith(PUBLIC_MEDIA_PATH_PREFIX)
         ]
         assert {route.operation_id for route in media_routes} == {"public_media_file_get", None}
         assert all(
-            route.path == f"{PUBLIC_MEDIA_PREFIX}{{asset_id}}/{{variant}}" for route in media_routes
+            route.path == f"{PUBLIC_MEDIA_PATH_PREFIX}{{asset_id}}/{{variant}}"
+            for route in media_routes
         )
 
     def test_composed_urls_address_the_registered_route(self) -> None:
         asset_id = uuid.uuid4()
         url = public_media_url(asset_id, "w320")
-        assert url == f"{PUBLIC_MEDIA_PREFIX}{asset_id}/w320"
+        assert url == f"{PUBLIC_MEDIA_PATH_PREFIX}{asset_id}/w320"
         # Relative, same-origin, and free of storage detail.
         assert url.startswith("/api/v1/")
         assert not url.startswith("http")

@@ -28,7 +28,6 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.cache_control import PUBLIC_MEDIA_PREFIX
 from app.domains.media import policies
 from app.domains.media.models import MediaAsset, MediaAssetVariant
 from app.domains.media.storage import (
@@ -47,6 +46,13 @@ PUBLIC_VARIANTS: tuple[str, ...] = (policies.CANONICAL_VARIANT, *policies.VARIAN
 # module into media's internal policy constants.
 CANONICAL_VARIANT = policies.CANONICAL_VARIANT
 
+# The single definition of the public delivery path. Media owns it because
+# media owns the public delivery contract; the router registers the route
+# beneath it and a permanent test pins the registered path against it, so
+# the two cannot drift. The cache policy deliberately does *not* consume
+# it — caching is granted by route identity, never by path shape.
+PUBLIC_MEDIA_PATH_PREFIX = "/api/v1/public/media/"
+
 
 def public_media_url(asset_id: uuid.UUID, variant: str) -> str:
     """The relative delivery URL for one representation.
@@ -55,10 +61,9 @@ def public_media_url(asset_id: uuid.UUID, variant: str) -> str:
     tenant host (ADR-013), so an absolute URL would need a configured
     public base and could pin or leak the wrong host. The URL is composed
     from the opaque asset id and the logical variant name — never a
-    storage key or path (ADR-017 R3) — and shares one prefix constant with
-    the route and the cache policy so the three cannot drift.
+    storage key or path (ADR-017 R3).
     """
-    return f"{PUBLIC_MEDIA_PREFIX}{asset_id}/{variant}"
+    return f"{PUBLIC_MEDIA_PATH_PREFIX}{asset_id}/{variant}"
 
 
 # Versioned ETag input prefix. Bumping it invalidates every previously
