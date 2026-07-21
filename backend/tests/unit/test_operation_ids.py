@@ -9,7 +9,7 @@ the composed application passes.
 import pytest
 from fastapi import FastAPI
 
-from app.core.openapi import assert_contract_operation_ids
+from app.core.openapi import assert_contract_operation_ids, iter_route_contracts
 from app.main import create_app
 from tests.conftest import make_settings
 
@@ -19,6 +19,27 @@ def test_composed_application_passes_validation() -> None:
     # exception is the contract. Re-running it directly must also pass.
     app = create_app(make_settings())
     assert_contract_operation_ids(app)
+
+
+def test_validation_actually_inspects_the_composed_routes() -> None:
+    """The validator must not pass by seeing nothing (M3D regression guard).
+
+    This FastAPI version does not flatten ``include_router`` into
+    ``APIRoute`` objects on the application, so a naive ``app.routes``
+    walk finds zero routes and every contract assertion above becomes
+    vacuously true. Pin the enumeration to the schema instead: every
+    schema-visible operation must be reachable through
+    ``iter_route_contracts``.
+    """
+    app = create_app(make_settings())
+    walked = {route.operation_id for route in iter_route_contracts(app) if route.include_in_schema}
+    documented = {
+        operation["operationId"]
+        for path_item in app.openapi()["paths"].values()
+        for operation in path_item.values()
+    }
+    assert walked == documented
+    assert len(walked) > 1
 
 
 def test_route_without_explicit_operation_id_is_rejected() -> None:
