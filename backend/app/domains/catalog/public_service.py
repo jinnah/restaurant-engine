@@ -32,10 +32,14 @@ from app.domains.catalog.models import MenuCategory, MenuItem, ModifierGroup, Mo
 from app.domains.catalog.public_schemas import (
     PublicMenu,
     PublicMenuCategory,
+    PublicMenuImage,
+    PublicMenuImageVariant,
     PublicMenuItem,
     PublicModifierGroup,
     PublicModifierOption,
 )
+from app.domains.media import public_service as media_public
+from app.domains.media.models import MediaAsset, MediaAssetVariant
 
 
 def media_is_publicly_visible(db: Session, *, business_id: uuid.UUID, media_id: uuid.UUID) -> bool:
@@ -99,10 +103,37 @@ def _project_groups(
     return views, required_dropped
 
 
+def _image_view(
+    item: MenuItem, asset: MediaAsset, variants: list[MediaAssetVariant]
+) -> PublicMenuImage:
+    """Describe an item's image by URL and true pixel dimensions.
+
+    The alt text belongs to the *attachment*, not the asset (ADR-017 M3C),
+    so it comes from the item. No asset id, key, path, or checksum is
+    exposed: the URL is the resource identity.
+    """
+    return PublicMenuImage(
+        alt_text=item.image_alt_text,
+        width=asset.width,
+        height=asset.height,
+        url=media_public.public_media_url(asset.id, media_public.CANONICAL_VARIANT),
+        variants=[
+            PublicMenuImageVariant(
+                variant=variant.variant,  # type: ignore[arg-type]
+                width=variant.width,
+                height=variant.height,
+                url=media_public.public_media_url(asset.id, variant.variant),
+            )
+            for variant in variants
+        ],
+    )
+
+
 def _item_view(
     item: MenuItem,
     tags: list[str],
     groups: list[PublicModifierGroup],
+    image: PublicMenuImage | None,
     *,
     required_group_unsatisfiable: bool,
 ) -> PublicMenuItem:
@@ -116,7 +147,7 @@ def _item_view(
         is_available=item.is_available,
         is_orderable=item.is_available and not required_group_unsatisfiable,
         dietary_tags=dietary.filter_known(tags),
-        image=None,
+        image=image,
         modifier_groups=groups,
     )
 
@@ -161,20 +192,46 @@ def get_public_menu(db: Session, business: ResolvedBusiness) -> PublicMenu:
         db, business_id=business.business_id, group_ids=group_ids
     )
 
+    # Images are described only for items that survived visibility, and only
+    # for assets confirmed active in this same projection: an item whose
+    # asset is pending or gone projects without an image rather than
+    # advertising a URL that would answer 404.
+    image_ids = [item.image_media_id for item in items if item.image_media_id is not None]
+    assets, variants_by_asset = media_public.list_public_representations(
+        db, business_id=business.business_id, asset_ids=image_ids
+    )
+
     items_by_category: dict[uuid.UUID, list[PublicMenuItem]] = {}
+    featured_ids: set[uuid.UUID] = set()
     for item in items:
         groups, required_dropped = _project_groups(
             groups_by_item.get(item.id, []), options_by_group
         )
+        asset = assets.get(item.image_media_id) if item.image_media_id is not None else None
+        image = (
+            _image_view(item, asset, variants_by_asset.get(asset.id, []))
+            if asset is not None
+            else None
+        )
+        if item.is_featured:
+            featured_ids.add(item.id)
         items_by_category.setdefault(item.category_id, []).append(
             _item_view(
                 item,
                 tags_by_item.get(item.id, []),
                 groups,
+                image,
                 required_group_unsatisfiable=required_dropped,
             )
         )
 
+    category_views = [
+        _category_view(category, items_by_category[category.id])
+        for category in categories
+        # Suppress a category with no publicly eligible item: an empty
+        # section reads as broken on a storefront.
+        if items_by_category.get(category.id)
+    ]
     return PublicMenu(
         business=PublicSiteSummary(
             name=business.name,
@@ -182,12 +239,15 @@ def get_public_menu(db: Session, business: ResolvedBusiness) -> PublicMenu:
             timezone=business.timezone,
             currency=business.currency,
         ),
-        categories=[
-            _category_view(category, items_by_category[category.id])
-            for category in categories
-            # Suppress a category with no publicly eligible item: an empty
-            # section reads as broken on a storefront.
-            if items_by_category.get(category.id)
+        categories=category_views,
+        # Ids only, never duplicated item objects (which would drag whole
+        # modifier trees along and invite the two copies to drift). Derived
+        # from the assembled tree, so a featured id can only ever name an
+        # item actually present in it, in menu order.
+        featured_item_ids=[
+            item.id
+            for category in category_views
+            for item in category.items
+            if item.id in featured_ids
         ],
-        featured_item_ids=[],
     )

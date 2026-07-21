@@ -177,25 +177,25 @@ class TestGroupProjection:
 
 class TestItemProjection:
     def test_available_item_without_broken_groups_is_orderable(self) -> None:
-        view = public_service._item_view(_item(), [], [], required_group_unsatisfiable=False)
+        view = public_service._item_view(_item(), [], [], None, required_group_unsatisfiable=False)
         assert view.is_available is True
         assert view.is_orderable is True
 
     def test_sold_out_item_stays_listed_but_is_not_orderable(self) -> None:
         view = public_service._item_view(
-            _item(is_available=False), [], [], required_group_unsatisfiable=False
+            _item(is_available=False), [], [], None, required_group_unsatisfiable=False
         )
         assert view.is_available is False
         assert view.is_orderable is False
 
     def test_unsatisfiable_required_group_makes_an_available_item_unorderable(self) -> None:
-        view = public_service._item_view(_item(), [], [], required_group_unsatisfiable=True)
+        view = public_service._item_view(_item(), [], [], None, required_group_unsatisfiable=True)
         assert view.is_available is True
         assert view.is_orderable is False
 
     def test_sold_out_and_broken_required_group_is_still_just_unorderable(self) -> None:
         view = public_service._item_view(
-            _item(is_available=False), [], [], required_group_unsatisfiable=True
+            _item(is_available=False), [], [], None, required_group_unsatisfiable=True
         )
         assert view.is_orderable is False
 
@@ -204,12 +204,15 @@ class TestItemProjection:
             _item(),
             ["halal", "not-a-real-tag", "vegan"],
             [],
+            None,
             required_group_unsatisfiable=False,
         )
         assert view.dietary_tags == ["halal", "vegan"]
 
     def test_item_projection_exposes_no_administrative_field(self) -> None:
-        view = public_service._item_view(_item(), ["halal"], [], required_group_unsatisfiable=False)
+        view = public_service._item_view(
+            _item(), ["halal"], [], None, required_group_unsatisfiable=False
+        )
         assert set(view.model_dump()) == {
             "id",
             "name",

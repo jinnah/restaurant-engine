@@ -15,15 +15,18 @@ counterparts. Routes are enumerated through ``iter_route_contracts`` so the
 effective (prefixed) paths are compared, matching what the guard sees.
 """
 
+import uuid
 from collections.abc import Callable
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI
 from fastapi.dependencies.models import Dependant
 
+from app.core.cache_control import PUBLIC_MEDIA_PREFIX
 from app.core.host_guard import PUBLIC_EXEMPT_METHODS, PUBLIC_PATH_PREFIX
 from app.core.openapi import iter_route_contracts
 from app.domains.businesses.resolution import resolve_public_business
+from app.domains.media.public_service import public_media_url
 from app.main import create_app
 from tests.conftest import make_settings
 
@@ -107,6 +110,37 @@ class TestPublicRoutesResolveTheirTenant:
 
         (route,) = _public_read_routes(app)
         assert resolve_public_business in _effective_calls(route.dependant)
+
+
+class TestPublicMediaPathHasOneDefinition:
+    """The route, the composed URLs, and the cache policy share one prefix.
+
+    Three places need the public media path: the route registration, the
+    URLs the menu projection composes, and the cache-policy exception. If
+    they drifted, a menu could advertise URLs that 404 or that silently
+    lose their cache policy — so the constant is pinned to the registered
+    route here.
+    """
+
+    def test_registered_route_matches_the_shared_prefix(self) -> None:
+        app = create_app(make_settings())
+        media_routes = [
+            route
+            for route in iter_route_contracts(app)
+            if route.path.startswith(PUBLIC_MEDIA_PREFIX)
+        ]
+        assert {route.operation_id for route in media_routes} == {"public_media_file_get", None}
+        assert all(
+            route.path == f"{PUBLIC_MEDIA_PREFIX}{{asset_id}}/{{variant}}" for route in media_routes
+        )
+
+    def test_composed_urls_address_the_registered_route(self) -> None:
+        asset_id = uuid.uuid4()
+        url = public_media_url(asset_id, "w320")
+        assert url == f"{PUBLIC_MEDIA_PREFIX}{asset_id}/w320"
+        # Relative, same-origin, and free of storage detail.
+        assert url.startswith("/api/v1/")
+        assert not url.startswith("http")
 
 
 class TestPublicExemptionIsMethodScoped:

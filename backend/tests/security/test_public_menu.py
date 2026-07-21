@@ -13,10 +13,14 @@ supplies them explicitly.
 """
 
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, text
+from sqlalchemy import Engine, event, text
 
 from tests.security.conftest import CreateBusiness
 
@@ -155,6 +159,68 @@ def _seed_group(
                 },
             )
     return group_id
+
+
+def _seed_media(
+    engine: Engine,
+    business_id: uuid.UUID,
+    *,
+    status: str = "active",
+    variant_sizes: dict[str, int] | None = None,
+) -> uuid.UUID:
+    """Seed a media asset row plus variant rows (no stored objects needed).
+
+    The projection describes images from the database inventory alone, so
+    these tests need no bytes on disk — delivery of the bytes is covered by
+    the public media suite.
+    """
+    asset_id = uuid.uuid4()
+    sizes = variant_sizes if variant_sizes is not None else {"w320": 900, "w640": 2400}
+    widths = {"w320": 320, "w640": 640, "w1280": 1280}
+    expiry = "now() + interval '48 hours'" if status == "pending" else "NULL"
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                # S608: expiry is one of two test-internal literals.
+                "INSERT INTO media_assets (id, business_id, kind, status,"  # noqa: S608
+                " pending_expires_at, original_filename, declared_content_type,"
+                " source_format, width, height, byte_size, checksum_sha256)"
+                f" VALUES (:id, :bid, 'image', :status, {expiry}, 'dish.jpg',"
+                " 'image/jpeg', 'jpeg', 1200, 800, 40000, :sha)"
+            ),
+            {"id": asset_id, "bid": business_id, "status": status, "sha": "a" * 64},
+        )
+        for variant, byte_size in sizes.items():
+            connection.execute(
+                text(
+                    "INSERT INTO media_asset_variants (id, business_id, asset_id,"
+                    " variant, width, height, byte_size, checksum_sha256) VALUES"
+                    " (:id, :bid, :aid, :variant, :width, :height, :bytes, :sha)"
+                ),
+                {
+                    "id": uuid.uuid4(),
+                    "bid": business_id,
+                    "aid": asset_id,
+                    "variant": variant,
+                    "width": widths[variant],
+                    "height": int(widths[variant] * 2 / 3),
+                    "bytes": byte_size,
+                    "sha": "b" * 64,
+                },
+            )
+    return asset_id
+
+
+def _attach_image(
+    engine: Engine, item_id: uuid.UUID, asset_id: uuid.UUID, *, alt: str | None = None
+) -> None:
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE menu_items SET image_media_id = :aid, image_alt_text = :alt WHERE id = :iid"
+            ),
+            {"aid": asset_id, "alt": alt, "iid": item_id},
+        )
 
 
 def _active(create_business: CreateBusiness, slug: str = "shalik") -> uuid.UUID:
@@ -513,6 +579,304 @@ class TestPublicMenuOrdering:
 
         first = _get(client).text
         assert all(_get(client).text == first for _ in range(3))
+
+
+class TestPublicMenuImages:
+    def test_attached_active_image_is_described_by_relative_urls(
+        self,
+        client: TestClient,
+        create_business: CreateBusiness,
+        migrated_engine: Engine,
+        tmp_path: Path,
+    ) -> None:
+        business_id = _active(create_business)
+        category_id = _seed_category(migrated_engine, business_id)
+        item_id = _seed_item(migrated_engine, business_id, category_id)
+        asset_id = _seed_media(migrated_engine, business_id)
+        _attach_image(migrated_engine, item_id, asset_id, alt="Golden samosa")
+        assert tmp_path  # the app's media root; objects are not needed to project
+
+        (item,) = _get(client).json()["categories"][0]["items"]
+        image = item["image"]
+        assert image["alt_text"] == "Golden samosa"
+        assert image["width"] == 1200
+        assert image["height"] == 800
+        assert image["url"] == f"/api/v1/public/media/{asset_id}/canonical"
+        assert [variant["variant"] for variant in image["variants"]] == ["w320", "w640"]
+        assert [variant["url"] for variant in image["variants"]] == [
+            f"/api/v1/public/media/{asset_id}/w320",
+            f"/api/v1/public/media/{asset_id}/w640",
+        ]
+        # No asset id, key, path, or checksum field on the image itself.
+        assert set(image) == {"alt_text", "width", "height", "url", "variants"}
+
+    def test_variants_are_width_ascending(
+        self, client: TestClient, create_business: CreateBusiness, migrated_engine: Engine
+    ) -> None:
+        business_id = _active(create_business)
+        category_id = _seed_category(migrated_engine, business_id)
+        item_id = _seed_item(migrated_engine, business_id, category_id)
+        # Seeded with a larger byte size on the smaller width, so a
+        # byte-size ordering would produce the wrong srcset order.
+        asset_id = _seed_media(migrated_engine, business_id, variant_sizes={"w640": 10, "w320": 99})
+        _attach_image(migrated_engine, item_id, asset_id)
+
+        image = _get(client).json()["categories"][0]["items"][0]["image"]
+        assert [variant["width"] for variant in image["variants"]] == [320, 640]
+
+    def test_item_without_an_image_projects_null(
+        self, client: TestClient, create_business: CreateBusiness, migrated_engine: Engine
+    ) -> None:
+        business_id = _active(create_business)
+        category_id = _seed_category(migrated_engine, business_id)
+        _seed_item(migrated_engine, business_id, category_id)
+        assert _get(client).json()["categories"][0]["items"][0]["image"] is None
+
+    def test_alt_text_is_null_when_none_was_set(
+        self, client: TestClient, create_business: CreateBusiness, migrated_engine: Engine
+    ) -> None:
+        business_id = _active(create_business)
+        category_id = _seed_category(migrated_engine, business_id)
+        item_id = _seed_item(migrated_engine, business_id, category_id)
+        _attach_image(migrated_engine, item_id, _seed_media(migrated_engine, business_id))
+        assert _get(client).json()["categories"][0]["items"][0]["image"]["alt_text"] is None
+
+    def test_pending_asset_is_never_advertised(
+        self, client: TestClient, create_business: CreateBusiness, migrated_engine: Engine
+    ) -> None:
+        # An item may reference a pending asset only through direct SQL, but
+        # the projection must still refuse to publish a URL that would 404.
+        business_id = _active(create_business)
+        category_id = _seed_category(migrated_engine, business_id)
+        item_id = _seed_item(migrated_engine, business_id, category_id)
+        pending = _seed_media(migrated_engine, business_id, status="pending")
+        _attach_image(migrated_engine, item_id, pending, alt="Should not appear")
+
+        body = _get(client).json()
+        assert body["categories"][0]["items"][0]["image"] is None
+        assert str(pending) not in _get(client).text
+
+    def test_hidden_items_images_are_not_described(
+        self, client: TestClient, create_business: CreateBusiness, migrated_engine: Engine
+    ) -> None:
+        business_id = _active(create_business)
+        category_id = _seed_category(migrated_engine, business_id)
+        shown = _seed_item(migrated_engine, business_id, category_id, name="Shown", position=0)
+        hidden = _seed_item(
+            migrated_engine, business_id, category_id, name="Hidden", position=1, is_hidden=True
+        )
+        shown_asset = _seed_media(migrated_engine, business_id)
+        hidden_asset = _seed_media(migrated_engine, business_id)
+        _attach_image(migrated_engine, shown, shown_asset)
+        _attach_image(migrated_engine, hidden, hidden_asset)
+
+        payload = _get(client).text
+        assert str(shown_asset) in payload
+        assert str(hidden_asset) not in payload
+
+
+class TestPublicMenuFeatured:
+    def test_featured_ids_reference_items_in_the_tree_without_duplication(
+        self, client: TestClient, create_business: CreateBusiness, migrated_engine: Engine
+    ) -> None:
+        business_id = _active(create_business)
+        category_id = _seed_category(migrated_engine, business_id)
+        featured = _seed_item(
+            migrated_engine, business_id, category_id, name="Featured", position=0, is_featured=True
+        )
+        _seed_item(migrated_engine, business_id, category_id, name="Plain", position=1)
+
+        body = _get(client).json()
+        assert body["featured_item_ids"] == [str(featured)]
+        # Ids only: the item appears exactly once, in the category tree.
+        assert body["categories"][0]["items"][0]["id"] == str(featured)
+        assert [key for key in body if key == "featured"] == []
+        item_ids = [item["id"] for c in body["categories"] for item in c["items"]]
+        assert len(item_ids) == len(set(item_ids))
+        assert set(body["featured_item_ids"]) <= set(item_ids)
+
+    def test_featured_order_follows_category_then_item_position(
+        self, client: TestClient, create_business: CreateBusiness, migrated_engine: Engine
+    ) -> None:
+        business_id = _active(create_business)
+        second = _seed_category(migrated_engine, business_id, name="Second", position=1)
+        first = _seed_category(migrated_engine, business_id, name="First", position=0)
+        in_second = _seed_item(
+            migrated_engine, business_id, second, name="C", position=0, is_featured=True
+        )
+        first_b = _seed_item(
+            migrated_engine, business_id, first, name="B", position=1, is_featured=True
+        )
+        first_a = _seed_item(
+            migrated_engine, business_id, first, name="A", position=0, is_featured=True
+        )
+
+        assert _get(client).json()["featured_item_ids"] == [
+            str(first_a),
+            str(first_b),
+            str(in_second),
+        ]
+
+    def test_hidden_and_invisible_category_featured_items_are_excluded(
+        self, client: TestClient, create_business: CreateBusiness, migrated_engine: Engine
+    ) -> None:
+        business_id = _active(create_business)
+        visible = _seed_category(migrated_engine, business_id, name="Visible", position=0)
+        invisible = _seed_category(
+            migrated_engine, business_id, name="Invisible", position=1, is_visible=False
+        )
+        shown = _seed_item(
+            migrated_engine, business_id, visible, name="Shown", position=0, is_featured=True
+        )
+        _seed_item(
+            migrated_engine,
+            business_id,
+            visible,
+            name="Hidden",
+            position=1,
+            is_hidden=True,
+            is_featured=True,
+        )
+        _seed_item(
+            migrated_engine, business_id, invisible, name="Secret", position=0, is_featured=True
+        )
+
+        assert _get(client).json()["featured_item_ids"] == [str(shown)]
+
+    def test_sold_out_featured_item_stays_featured(
+        self, client: TestClient, create_business: CreateBusiness, migrated_engine: Engine
+    ) -> None:
+        business_id = _active(create_business)
+        category_id = _seed_category(migrated_engine, business_id)
+        sold_out = _seed_item(
+            migrated_engine,
+            business_id,
+            category_id,
+            is_available=False,
+            is_featured=True,
+        )
+        assert _get(client).json()["featured_item_ids"] == [str(sold_out)]
+
+
+class TestBoundedQueries:
+    """The projection must not issue work per parent (M3D, R10).
+
+    Child collections load only for the parents that survived visibility,
+    so an empty menu genuinely costs fewer statements than a stocked one.
+    The invariant is therefore not a fixed number but *independence from
+    size*: two menus of the same shape and very different magnitude must
+    cost exactly the same number of statements.
+    """
+
+    @staticmethod
+    @contextmanager
+    def _statements(app: FastAPI) -> Iterator[list[str]]:
+        recorded: list[str] = []
+
+        def _before(_conn: Any, _cursor: Any, statement: str, *_rest: Any, **_kwargs: Any) -> None:
+            recorded.append(statement)
+
+        event.listen(app.state.engine, "before_cursor_execute", _before)
+        try:
+            yield recorded
+        finally:
+            event.remove(app.state.engine, "before_cursor_execute", _before)
+
+    def _stock(
+        self,
+        engine: Engine,
+        business_id: uuid.UUID,
+        *,
+        categories: int,
+        items_per_category: int,
+        options_per_group: int,
+    ) -> None:
+        for category_index in range(categories):
+            category_id = _seed_category(
+                engine, business_id, name=f"Cat {category_index}", position=category_index
+            )
+            for item_index in range(items_per_category):
+                item_id = _seed_item(
+                    engine,
+                    business_id,
+                    category_id,
+                    name=f"Item {category_index}-{item_index}",
+                    position=item_index,
+                    tags=("halal",),
+                )
+                _seed_group(
+                    engine,
+                    business_id,
+                    item_id,
+                    options=tuple(
+                        (f"Opt {index}", index, True) for index in range(options_per_group)
+                    ),
+                )
+                _attach_image(engine, item_id, _seed_media(engine, business_id))
+
+    def test_statement_count_does_not_grow_with_the_menu(
+        self,
+        client: TestClient,
+        app: FastAPI,
+        create_business: CreateBusiness,
+        migrated_engine: Engine,
+    ) -> None:
+        small = create_business(slug="small", status="active")
+        large = create_business(slug="large", status="active")
+        self._stock(migrated_engine, small, categories=1, items_per_category=1, options_per_group=1)
+        self._stock(migrated_engine, large, categories=3, items_per_category=4, options_per_group=5)
+
+        with self._statements(app) as recorded:
+            assert _get(client, "small.localhost").status_code == 200
+            small_count = len(recorded)
+        with self._statements(app) as recorded:
+            body = _get(client, "large.localhost").json()
+            large_count = len(recorded)
+
+        assert sum(len(category["items"]) for category in body["categories"]) == 12
+        assert small_count == large_count
+        # Host resolution plus categories, items, tags, groups, options,
+        # media assets, and media variants: a fixed, bounded plan.
+        assert small_count == 8
+
+    def test_child_statements_are_skipped_when_nothing_is_publicly_visible(
+        self,
+        client: TestClient,
+        app: FastAPI,
+        create_business: CreateBusiness,
+        migrated_engine: Engine,
+    ) -> None:
+        business_id = _active(create_business)
+        # Hidden items in a visible category: the category read runs, the
+        # item read runs, and every child read is skipped.
+        category_id = _seed_category(migrated_engine, business_id)
+        _seed_item(migrated_engine, business_id, category_id, is_hidden=True)
+
+        with self._statements(app) as recorded:
+            assert _get(client).json()["categories"] == []
+        assert len(recorded) == 3
+
+    def test_hidden_item_children_are_never_queried(
+        self,
+        client: TestClient,
+        app: FastAPI,
+        create_business: CreateBusiness,
+        migrated_engine: Engine,
+    ) -> None:
+        business_id = _active(create_business)
+        category_id = _seed_category(migrated_engine, business_id)
+        shown = _seed_item(migrated_engine, business_id, category_id, name="Shown", position=0)
+        hidden = _seed_item(
+            migrated_engine, business_id, category_id, name="Hidden", position=1, is_hidden=True
+        )
+        _seed_group(migrated_engine, business_id, hidden, options=(("Secret", 0, True),))
+
+        with self._statements(app) as recorded:
+            assert _get(client).status_code == 200
+        # The hidden item's id must not appear in any statement parameter
+        # binding path: it is filtered in SQL, never fetched then dropped.
+        assert not any(str(hidden) in statement for statement in recorded)
+        assert shown
 
 
 class TestPublicMenuHead:

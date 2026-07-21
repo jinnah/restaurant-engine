@@ -26,7 +26,10 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 _PREFIX = "/api/v1"
 _NO_STORE = "no-store"
 
-# The one cacheable public surface, and the exact conditions for it.
+# The one cacheable public surface, and the exact conditions for it. The
+# prefix is the single definition of the public media path: the route, the
+# URLs the menu projection composes, and this policy all derive from it, and
+# a route test pins the registered path against it.
 PUBLIC_MEDIA_PREFIX = "/api/v1/public/media/"
 PUBLIC_MEDIA_CACHE_CONTROL = "public, max-age=3600, immutable"
 _CACHEABLE_METHODS = frozenset({"GET", "HEAD"})

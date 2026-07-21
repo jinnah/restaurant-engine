@@ -28,6 +28,7 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.cache_control import PUBLIC_MEDIA_PREFIX
 from app.domains.media import policies
 from app.domains.media.models import MediaAsset, MediaAssetVariant
 from app.domains.media.storage import (
@@ -42,6 +43,23 @@ _LOGGER_NAME = "app.media.public"
 # The logical representations a public request may name. Mirrors the
 # database CHECK on media_asset_variants plus the canonical rendition.
 PUBLIC_VARIANTS: tuple[str, ...] = (policies.CANONICAL_VARIANT, *policies.VARIANT_NAMES)
+# Re-exported so consumers describing an image never reach past this
+# module into media's internal policy constants.
+CANONICAL_VARIANT = policies.CANONICAL_VARIANT
+
+
+def public_media_url(asset_id: uuid.UUID, variant: str) -> str:
+    """The relative delivery URL for one representation.
+
+    Relative on purpose: the storefront is served same-origin with the
+    tenant host (ADR-013), so an absolute URL would need a configured
+    public base and could pin or leak the wrong host. The URL is composed
+    from the opaque asset id and the logical variant name — never a
+    storage key or path (ADR-017 R3) — and shares one prefix constant with
+    the route and the cache policy so the three cannot drift.
+    """
+    return f"{PUBLIC_MEDIA_PREFIX}{asset_id}/{variant}"
+
 
 # Versioned ETag input prefix. Bumping it invalidates every previously
 # issued validator without touching stored bytes — the reason the tuple is
