@@ -22,6 +22,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, event, text
 
+from app.domains.catalog import policies
 from tests.security.conftest import CreateBusiness
 
 _MENU = "/api/v1/public/menu"
@@ -742,6 +743,88 @@ class TestPublicMenuFeatured:
         )
 
         assert _get(client).json()["featured_item_ids"] == [str(shown)]
+
+    def test_drifted_state_with_more_than_six_featured_items_is_capped(
+        self, client: TestClient, create_business: CreateBusiness, migrated_engine: Engine
+    ) -> None:
+        """A drifted database must not break the public contract (C3).
+
+        The write path caps featured items under the Business row lock, so
+        this state is unreachable through the API — it is seeded directly
+        to stand in for legacy, imported, or manually manipulated rows. The
+        response must still honour the documented maximum, returning the
+        first six in the approved deterministic order.
+        """
+        business_id = _active(create_business)
+        first = _seed_category(migrated_engine, business_id, name="First", position=0)
+        second = _seed_category(migrated_engine, business_id, name="Second", position=1)
+        expected = [
+            _seed_item(
+                migrated_engine,
+                business_id,
+                first,
+                name=f"A{index}",
+                position=index,
+                is_featured=True,
+            )
+            for index in range(4)
+        ]
+        expected += [
+            _seed_item(
+                migrated_engine,
+                business_id,
+                second,
+                name=f"B{index}",
+                position=index,
+                is_featured=True,
+            )
+            for index in range(5)
+        ]
+        assert len(expected) == 9
+
+        body = _get(client).json()
+        featured = body["featured_item_ids"]
+        assert len(featured) == policies.MAX_FEATURED_ITEMS == 6
+        # The first six by category position, then item position — not an
+        # arbitrary six.
+        assert featured == [str(item_id) for item_id in expected[:6]]
+        # Every returned id still names an item present in the tree, and no
+        # item is duplicated.
+        tree_ids = [item["id"] for c in body["categories"] for item in c["items"]]
+        assert set(featured) <= set(tree_ids)
+        assert len(tree_ids) == len(set(tree_ids)) == 9
+
+    def test_cap_counts_only_publicly_eligible_items(
+        self, client: TestClient, create_business: CreateBusiness, migrated_engine: Engine
+    ) -> None:
+        # Hidden featured items are excluded before the cap applies, so
+        # they cannot consume one of the six public slots.
+        business_id = _active(create_business)
+        category_id = _seed_category(migrated_engine, business_id)
+        for index in range(4):
+            _seed_item(
+                migrated_engine,
+                business_id,
+                category_id,
+                name=f"Hidden {index}",
+                position=index,
+                is_hidden=True,
+                is_featured=True,
+            )
+        visible = [
+            _seed_item(
+                migrated_engine,
+                business_id,
+                category_id,
+                name=f"Shown {index}",
+                position=4 + index,
+                is_featured=True,
+            )
+            for index in range(3)
+        ]
+
+        featured = _get(client).json()["featured_item_ids"]
+        assert featured == [str(item_id) for item_id in visible]
 
     def test_sold_out_featured_item_stays_featured(
         self, client: TestClient, create_business: CreateBusiness, migrated_engine: Engine

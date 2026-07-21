@@ -240,14 +240,28 @@ def get_public_menu(db: Session, business: ResolvedBusiness) -> PublicMenu:
             currency=business.currency,
         ),
         categories=category_views,
-        # Ids only, never duplicated item objects (which would drag whole
-        # modifier trees along and invite the two copies to drift). Derived
-        # from the assembled tree, so a featured id can only ever name an
-        # item actually present in it, in menu order.
-        featured_item_ids=[
-            item.id
-            for category in category_views
-            for item in category.items
-            if item.id in featured_ids
-        ],
+        featured_item_ids=_featured_ids(category_views, featured_ids),
     )
+
+
+def _featured_ids(
+    categories: list[PublicMenuCategory], featured: set[uuid.UUID]
+) -> list[uuid.UUID]:
+    """Featured ids in menu order, bounded by the featured policy.
+
+    Ids only, never duplicated item objects — those would drag whole
+    modifier trees along and invite the two copies to drift. Derived from
+    the assembled tree, so a featured id can only ever name an item
+    actually present in it, ordered by category position then item
+    position.
+
+    The bound is applied here as well as at write time. The service caps
+    featured items under the Business row lock, so a compliant database
+    can never exceed it; but legacy, imported, or directly manipulated
+    rows are outside that guarantee, and the public contract promises at
+    most ``MAX_FEATURED_ITEMS``. Truncating the already-ordered list keeps
+    the promise without a repair, an extra query, or a second constant —
+    it reuses the same policy the write path enforces.
+    """
+    ordered = [item.id for category in categories for item in category.items if item.id in featured]
+    return ordered[: policies.MAX_FEATURED_ITEMS]
