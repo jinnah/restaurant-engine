@@ -386,10 +386,28 @@ corrections), recorded before implementation:
   ≤ 2560 canonical + strictly-smaller 320/640/1280 variants (LANCZOS,
   deterministic rounding, no upscaling) → WebP quality 82 method 4 lossy,
   alpha preserved, all metadata dropped; the original upload is not
-  retained. Objects are written (every key tracked) before one short
-  final transaction (quotas + insert + audit); any later failure
-  compensates by deleting every tracked key; compensation failure leaves
-  a sweep-visible orphan and never masks the original error.
+  retained. **Worker isolation (correction 2):** multipart extraction,
+  scratch-file creation, Pillow work, object storage, and the final
+  transaction all run in the worker thread; only the bounded async body
+  streaming stays on the event loop; the processing scratch directory is
+  supplied through composition (`app.state.media_scratch_dir`), not read
+  off the storage object, so `MediaStorage` stays exactly the four-method
+  protocol. **Commit/compensation boundary (correction 1):** every
+  fallible database operation *and* the response projection run before
+  commit, and the commit is the final database step. A failure that
+  definitely precedes commit deletes every written object; once the
+  commit has been attempted the outcome is treated as ambiguous — objects
+  are deleted only when a separate transaction positively proves the
+  asset row is absent, otherwise retained for reconciliation (a committed
+  row never loses its objects). A partial encode/variant/put failure
+  cleans its own scratch and compensates written objects; compensation
+  failure leaves a sweep-visible orphan and never masks the original
+  error. Deletion after commit attempts every object independently and a
+  storage failure never turns an already-committed row delete into a 500.
+  The local adapter writes atomically (temp + `os.replace`) and fsyncs the
+  target directory on POSIX so the rename is durable before the row
+  commits; admin preview streams through a generator that always closes
+  the handle (completion, error, disconnect).
 - **Limits.** Product-policy constants: 500 assets/business (pending +
   active), 1 GiB stored bytes/business (canonical + variants), 32 MiB
   combined encoded output/asset (a processing 422, not a quota 409).
@@ -430,21 +448,34 @@ corrections), recorded before implementation:
   deleted without a database row (orphans, stale temps) are reported by
   the CLI only — deliberately uneventful.
 - **Sweep** (`scripts/sweep_media.py`; operator CLI, dry-run default,
-  `--apply`, bounded batches; scheduling M8). Lifecycle-independent
-  system maintenance: expired pending is cleaned for provisioning,
-  active, suspended, **and closed** businesses — the Business
-  `FOR UPDATE` lock is acquired and candidates re-read (status, expiry,
-  existence on the DB clock) but no user-mutation lifecycle guard
-  applies. Rows + `media.asset_expired` events delete atomically;
+  `--apply`, bounded keyset batches, `--batch-size` validated 1..100000;
+  scheduling M8). Lifecycle-independent system maintenance: expired
+  pending is cleaned for provisioning, active, suspended, **and closed**
+  businesses — the Business `FOR UPDATE` lock is acquired and candidates
+  re-read (status, expiry, existence). **Expiry selection uses the
+  PostgreSQL clock (`func.now()`), never the application clock
+  (correction 4);** the missing-object walk is likewise batched, not an
+  unbounded load. Rows + `media.asset_expired` events delete atomically;
   objects only after commit. Object-level orphan identity: an object is
   expected only when it is the canonical of an existing asset row or the
   exact logical variant of an existing variant row; validly-shaped
   unreferenced objects older than 24 h (storage last-modified, never
   filename assumptions) are deletable; malformed or unknown key shapes
   are report-only; rows without required objects are report-only, never
-  auto-deleted. Output reports business/asset ids, variants, and
-  counts — never keys or paths; one failed object deletion never stops
-  the batch report.
+  auto-deleted. Dry run counts eligible stale temps without deleting.
+  Output reports business/asset ids, variants, and counts — never keys or
+  paths; one failed object deletion never stops the batch report. Exit
+  codes: `0` clean, `1` a failure (verify inconsistency or an `--apply`
+  object-delete failure), `2` invalid arguments, `3` work remains.
+- **Backup verification (correction 3).** `--verify` (never mutates)
+  enumerates every expected canonical and variant object in bounded
+  batches, compares stored byte size and a recomputed SHA-256 against the
+  database rows, and flags **every** storage-only object regardless of
+  age (a quiesced backup set must contain none); malformed/unknown key
+  shapes get an explicit non-success disposition. Findings carry
+  business/asset/variant and a kind (`missing`/`size_mismatch`/
+  `checksum_mismatch`/`orphan`) only — never a key, path, or checksum
+  value.
 - **Dependencies (D11).** `pillow==12.3.0`, `python-multipart==0.0.32`
   (exact-pinned; backend only).
 

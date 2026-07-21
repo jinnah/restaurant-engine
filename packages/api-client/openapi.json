@@ -4987,7 +4987,7 @@
         ]
       },
       "post": {
-        "description": "Upload one image; returns the stored asset (pending).\n\nAuth and CSRF run as dependencies (before any body parse); the handler\nthen completes the pre-body gate (capability + non-locking lifecycle)\non the request session, streams the bounded body, and hands processing\nand the authoritative transaction to a worker thread.",
+        "description": "Upload one image; returns the stored asset (pending).\n\nAuth and CSRF run as dependencies (before any body parse); the handler\nthen completes the pre-body gate (capability + non-locking lifecycle)\non the request session and streams the bounded body. Multipart\nextraction, processing, object storage, and the authoritative\ntransaction all run in an AnyIO worker thread — only the bounded async\nstreaming stays on the event loop (final correction 2).",
         "operationId": "media_asset_upload",
         "parameters": [
           {

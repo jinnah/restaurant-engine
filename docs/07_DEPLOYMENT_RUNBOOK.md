@@ -62,12 +62,14 @@ maintenance window that quiesces media mutations is acceptable at
 first-VPS scale):
 
 1. Quiesce API/media mutations (stop the API for the window).
-2. Run the pre-backup verification (`sweep_media.py --verify`): the
-   media inventory and per-object checksums are compared against the
-   database rows.
-3. Require **zero** rows-without-required-objects and **zero** checksum
-   mismatches. A backup taken with an unresolved row-without-object
-   condition must not be labeled a verified complete backup.
+2. Run the pre-backup verification (`sweep_media.py --verify`): it
+   recomputes every stored object's SHA-256 and byte size against the
+   database rows and flags every storage-only object regardless of age.
+   It never mutates and exits non-zero on any inconsistency.
+3. Require **zero** findings — no missing objects, no size or checksum
+   mismatches, and no storage-only orphans. A backup taken with an
+   unresolved row-without-object condition must not be labeled a
+   verified complete backup.
 4. Deliberately clean eligible storage-only orphans (`--apply`), or
    record and resolve them, before declaring the set clean. Malformed or
    unknown storage entries are never deleted silently during preflight.

@@ -518,8 +518,10 @@ export interface paths {
          *
          *     Auth and CSRF run as dependencies (before any body parse); the handler
          *     then completes the pre-body gate (capability + non-locking lifecycle)
-         *     on the request session, streams the bounded body, and hands processing
-         *     and the authoritative transaction to a worker thread.
+         *     on the request session and streams the bounded body. Multipart
+         *     extraction, processing, object storage, and the authoritative
+         *     transaction all run in an AnyIO worker thread — only the bounded async
+         *     streaming stays on the event loop (final correction 2).
          */
         post: operations["media_asset_upload"];
         delete?: never;
