@@ -236,6 +236,14 @@ async def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResp
         status.HTTP_500_INTERNAL_SERVER_ERROR,
         ErrorCode.INTERNAL_ERROR,
         "An internal error occurred.",
+        # This is the one handler that renders *outside* the middleware
+        # stack: Starlette runs the ``Exception`` handler in its outermost
+        # ServerErrorMiddleware, so ``NoStoreApiMiddleware`` — which stamps
+        # the cache policy while wrapping ``send`` — never sees this
+        # response (the inner app raised before any response started). The
+        # header is therefore set here, so an unhandled failure can never be
+        # stored by a cache (ADR-010; M3D requires it for public media 5xx).
+        headers={"Cache-Control": "no-store"},
     )
 
 

@@ -74,3 +74,15 @@ def test_unhandled_exception_returns_opaque_internal_error(client: TestClient) -
     assert "secret internal detail" not in response.text
     assert "RuntimeError" not in response.text
     assert body["error"]["correlation_id"] == response.headers[REQUEST_ID_HEADER]
+
+
+def test_unhandled_exception_is_never_cacheable(client: TestClient) -> None:
+    """The 500 handler renders outside the middleware stack (M3D).
+
+    Starlette runs the ``Exception`` handler in its outermost
+    ServerErrorMiddleware, so ``NoStoreApiMiddleware`` — which stamps the
+    cache policy while wrapping ``send`` — never sees this response. The
+    handler sets the header itself; without that, an unhandled failure
+    would be the one response on the whole API carrying no cache policy.
+    """
+    assert client.get("/__probe__/boom").headers["cache-control"] == "no-store"
