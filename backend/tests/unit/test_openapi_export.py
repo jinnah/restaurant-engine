@@ -120,11 +120,21 @@ def test_media_upload_multipart_request_body_is_pinned() -> None:
     assert len(operations) == 1
     request_body = operations[0]["requestBody"]
     assert request_body["required"] is True
-    schema = request_body["content"]["multipart/form-data"]["schema"]
+    content = request_body["content"]
+    # Exactly one media type: multipart/form-data.
+    assert list(content.keys()) == ["multipart/form-data"]
+    schema = content["multipart/form-data"]["schema"]
     assert schema["type"] == "object"
     assert schema["required"] == ["file"]
-    assert schema["properties"]["file"]["type"] == "string"
-    assert schema["properties"]["file"]["format"] == "binary"
+    # Exactly ONE property — the single binary file — and no other form
+    # fields are advertised (round-2 finding 2: the pin is exact).
+    assert list(schema["properties"].keys()) == ["file"]
+    assert schema["properties"]["file"] == {
+        "type": "string",
+        "format": "binary",
+        "description": "A single static JPEG, PNG, or WebP image.",
+    }
+    assert schema.get("additionalProperties") in (None, False)
 
 
 def test_price_bound_is_advertised_in_the_contract() -> None:

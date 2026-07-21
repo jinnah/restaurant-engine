@@ -8,6 +8,7 @@ single-file-part extraction by calling the helpers directly with a small
 import asyncio
 from pathlib import Path
 from tempfile import SpooledTemporaryFile
+from typing import Any
 
 import pytest
 from starlette.requests import Request
@@ -157,3 +158,34 @@ class TestExtractSingleFile:
                 body, content_type="multipart/form-data; boundary=BOUNDARY", tmp_path=tmp_path
             )
         assert exc.value.status_code == 422
+
+    def test_copy_failure_removes_the_partial_upload_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # If shutil.copyfileobj raises after opening the target, the partial
+        # upload-* scratch file must be removed (round-2 finding 2).
+        import shutil
+
+        def _boom(src: object, dst: Any, *args: object, **kwargs: object) -> None:
+            dst.write(b"partial")
+            raise OSError("copy failed mid-write")
+
+        monkeypatch.setattr(shutil, "copyfileobj", _boom)
+        body = _multipart(b"hello-image-bytes")
+        request = _request(
+            body,
+            content_type="multipart/form-data; boundary=BOUNDARY",
+            content_length=str(len(body)),
+        )
+        buffer = _read(request)
+        try:
+            with pytest.raises(OSError, match="copy failed"):
+                extract_single_file(
+                    "multipart/form-data; boundary=BOUNDARY",
+                    buffer,
+                    file_max_bytes=FILE_CAP,
+                    work_dir=tmp_path,
+                )
+        finally:
+            buffer.close()
+        assert list(tmp_path.glob("upload-*")) == []

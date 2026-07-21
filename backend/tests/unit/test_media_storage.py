@@ -61,6 +61,22 @@ class TestKeys:
 
 
 class TestLocalFilesystemStorage:
+    def test_put_invokes_target_directory_fsync_after_replace(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Durability (round-2 finding 2): put fsyncs the target directory
+        # after os.replace. Proven cross-platform by observing the call
+        # (the fsync itself is a POSIX no-op on Windows).
+        from app.domains.media import storage as storage_module
+
+        calls: list[Path] = []
+        monkeypatch.setattr(storage_module, "_fsync_directory", calls.append)
+        storage = _adapter(tmp_path)
+        key = object_key(BIZ, ASSET, "canonical")
+        storage.put(key=key, content=io.BytesIO(b"webp"), content_type="image/webp")
+        target = storage._path(key)
+        assert calls == [target.parent]
+
     def test_put_open_stat_delete_round_trip(self, tmp_path: Path) -> None:
         storage = _adapter(tmp_path)
         key = object_key(BIZ, ASSET, "canonical")

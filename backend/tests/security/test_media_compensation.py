@@ -157,9 +157,21 @@ class TestCompensationBoundary:
                 text("SELECT id, status FROM media_assets WHERE business_id = :bid"),
                 {"bid": business_id},
             ).one()
+            variants = [
+                r[0]
+                for r in connection.execute(
+                    text("SELECT variant FROM media_asset_variants WHERE asset_id = :aid"),
+                    {"aid": row.id},
+                ).all()
+            ]
         assert row.status == "pending"
         assert _uploaded_events(migrated_engine, business_id) == 1
+        # Canonical AND every generated variant object remain present
+        # (round-2 finding 2). The 1000x500 upload yields w320 + w640.
+        assert set(variants) == {"w320", "w640"}
         assert storage.stat(key=object_key(business_id, row.id, "canonical")) is not None
+        for variant in variants:
+            assert storage.stat(key=object_key(business_id, row.id, variant)) is not None
 
     def test_ambiguous_commit_that_cannot_be_reconciled_retains_objects(
         self,
@@ -253,6 +265,48 @@ class TestDeleteDurability:
             real_storage.stat(key=object_key(business_id, uuid.UUID(asset_id), "canonical"))
             is not None
         )
+
+
+class TestFsyncFailureBoundary:
+    def test_target_dir_fsync_failure_commits_nothing_and_leaves_an_orphan(
+        self,
+        app: FastAPI,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
+        monkeypatch: Any,
+    ) -> None:
+        """If the post-replace directory fsync fails, put raises before the
+        key is tracked: no DB row/audit can commit, and the already-written
+        object is a sweep-visible orphan (round-2 finding 2)."""
+        business_id = _seed_owner(create_user, create_business, create_membership)
+        storage: LocalFilesystemStorage = app.state.media_storage
+
+        from app.domains.media import storage as storage_module
+
+        def _fsync_boom(_path: Any) -> None:
+            raise OSError("directory fsync failed")
+
+        monkeypatch.setattr(storage_module, "_fsync_directory", _fsync_boom)
+
+        client = TestClient(app, raise_server_exceptions=False)
+        with client:
+            csrf = login_as(client, OWNER)
+            response = _upload(client, csrf, business_id)
+        assert response.status_code == 500
+
+        # No row, no audit event committed.
+        with migrated_engine.connect() as connection:
+            count = connection.execute(
+                text("SELECT count(*) FROM media_assets WHERE business_id = :bid"),
+                {"bid": business_id},
+            ).scalar_one()
+        assert count == 0
+        assert _uploaded_events(migrated_engine, business_id) == 0
+        # The canonical object was written by os.replace before fsync failed;
+        # it was never tracked, so it survives as a sweep-visible orphan.
+        assert len(_stored_objects(storage)) >= 1
 
 
 class TestWorkerThreadIsolation:
