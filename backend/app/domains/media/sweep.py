@@ -21,6 +21,7 @@ Reports carry business ids, asset ids, logical variants, and counts —
 never internal keys or filesystem paths (final correction N).
 """
 
+import hashlib
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -36,6 +37,10 @@ from app.domains.media import policies, repository
 from app.domains.media.models import MediaAsset, MediaAssetVariant
 from app.domains.media.policies import CANONICAL_VARIANT
 from app.domains.media.storage import MaintenanceStorage, object_key, parse_key
+
+# A defensive ceiling on the number of batch iterations, so a logic error
+# (a cursor that fails to advance) can never spin forever.
+_MAX_BATCHES = 1_000_000
 
 
 @dataclass
@@ -65,60 +70,86 @@ def sweep_expired_pending(
     *,
     batch_size: int = 200,
 ) -> None:
-    """Delete expired-pending assets across all businesses (see module doc)."""
-    with session_factory() as db:
-        candidates = repository.get_expired_pending_ids(db, now=datetime.now(UTC), limit=batch_size)
-    # Group by business so each business is handled under one lock.
-    by_business: dict[uuid.UUID, list[uuid.UUID]] = {}
-    for business_id, asset_id in candidates:
-        by_business.setdefault(business_id, []).append(asset_id)
+    """Delete expired-pending assets across all businesses (see module doc).
 
-    for business_id, asset_ids in by_business.items():
-        object_keys: list[str] = []
+    Bounded keyset batches (final correction 4): each pass loads at most
+    ``batch_size`` candidates, advancing a cursor by ``id`` so the loop
+    terminates in both dry-run and apply modes without an unbounded
+    inventory load.
+    """
+    after_id: uuid.UUID | None = None
+    for _ in range(_MAX_BATCHES):
         with session_factory() as db:
-            # Lock the Business row first (deterministic order); note we do
-            # NOT reject closed businesses — expired-pending cleanup is
-            # lifecycle-independent system maintenance (final correction 4).
-            lock_business_status(db, business_id)
-            deleted_here = 0
-            for asset_id in asset_ids:
-                asset = _relock_expired(db, business_id, asset_id)
-                if asset is None:
-                    continue  # won the race elsewhere (attached/deleted/promoted)
-                variant_names = [
-                    variant.variant
-                    for variant in repository.list_variants(
-                        db, business_id=business_id, asset_id=asset_id
-                    )
-                ]
-                object_keys.append(object_key(business_id, asset_id, CANONICAL_VARIANT))
-                object_keys += [object_key(business_id, asset_id, name) for name in variant_names]
-                if report.apply:
-                    recorder.record(
-                        db,
-                        AuditAction.MEDIA_ASSET_EXPIRED,
-                        actor_user_id=None,  # system attribution (NULL actor)
-                        business_id=business_id,
-                        target_type="media_asset",
-                        target_id=str(asset_id),
-                        details=MediaAssetExpiredDetails(
-                            trigger="pending_ttl_sweep",
-                            variant_count=len(variant_names),
-                        ),
-                    )
-                    repository.delete_asset(db, asset)
-                deleted_here += 1
-            if report.apply:
-                db.commit()
-            report.expired_pending_deleted += deleted_here
+            candidates = repository.list_expired_pending_after(
+                db, after_id=after_id, limit=batch_size
+            )
+        if not candidates:
+            break
+        after_id = candidates[-1][1]  # advance the cursor (even in dry-run)
 
+        by_business: dict[uuid.UUID, list[uuid.UUID]] = {}
+        for business_id, asset_id in candidates:
+            by_business.setdefault(business_id, []).append(asset_id)
+
+        for business_id, asset_ids in by_business.items():
+            _sweep_business_expired(session_factory, storage, report, business_id, asset_ids)
+
+        if len(candidates) < batch_size:
+            break
+
+
+def _sweep_business_expired(
+    session_factory: sessionmaker[Session],
+    storage: MaintenanceStorage,
+    report: SweepReport,
+    business_id: uuid.UUID,
+    asset_ids: list[uuid.UUID],
+) -> None:
+    object_keys: list[str] = []
+    with session_factory() as db:
+        # Lock the Business row first (deterministic order); note we do NOT
+        # reject closed businesses — expired-pending cleanup is
+        # lifecycle-independent system maintenance (final correction 4).
+        lock_business_status(db, business_id)
+        deleted_here = 0
+        for asset_id in asset_ids:
+            asset = _relock_expired(db, business_id, asset_id)
+            if asset is None:
+                continue  # won the race elsewhere (attached/deleted/promoted)
+            variant_names = [
+                variant.variant
+                for variant in repository.list_variants(
+                    db, business_id=business_id, asset_id=asset_id
+                )
+            ]
+            object_keys.append(object_key(business_id, asset_id, CANONICAL_VARIANT))
+            object_keys += [object_key(business_id, asset_id, name) for name in variant_names]
+            if report.apply:
+                recorder.record(
+                    db,
+                    AuditAction.MEDIA_ASSET_EXPIRED,
+                    actor_user_id=None,  # system attribution (NULL actor)
+                    business_id=business_id,
+                    target_type="media_asset",
+                    target_id=str(asset_id),
+                    details=MediaAssetExpiredDetails(
+                        trigger="pending_ttl_sweep",
+                        variant_count=len(variant_names),
+                    ),
+                )
+                repository.delete_asset(db, asset)
+            deleted_here += 1
         if report.apply:
-            # Objects only after the row deletion committed.
-            for key in object_keys:
-                try:
-                    storage.delete(key=key)
-                except Exception:
-                    report.expired_object_delete_failures += 1
+            db.commit()
+        report.expired_pending_deleted += deleted_here
+
+    if report.apply:
+        # Objects only after the row deletion committed; per-object isolation.
+        for key in object_keys:
+            try:
+                storage.delete(key=key)
+            except Exception:
+                report.expired_object_delete_failures += 1
 
 
 def _relock_expired(db: Session, business_id: uuid.UUID, asset_id: uuid.UUID) -> MediaAsset | None:
@@ -206,21 +237,42 @@ def report_missing_objects(
     session_factory: sessionmaker[Session],
     storage: MaintenanceStorage,
     report: SweepReport,
+    *,
+    batch_size: int = 200,
 ) -> None:
-    """Report (never delete) asset/variant rows whose objects are absent."""
-    with session_factory() as db:
-        assets = db.execute(select(MediaAsset)).scalars().all()
-        for asset in assets:
-            expected = [(asset.business_id, asset.id, CANONICAL_VARIANT)]
-            variants = repository.list_variants(
-                db, business_id=asset.business_id, asset_id=asset.id
-            )
-            expected += [(asset.business_id, asset.id, v.variant) for v in variants]
-            for business_id, asset_id, variant in expected:
+    """Report (never delete) asset/variant rows whose objects are absent.
+
+    Bounded keyset walk (final correction 4): assets are read one batch at
+    a time rather than loaded whole with ``.all()``.
+    """
+    after_id: uuid.UUID | None = None
+    for _ in range(_MAX_BATCHES):
+        with session_factory() as db:
+            assets = repository.list_assets_after(db, after_id=after_id, limit=batch_size)
+            batch: list[tuple[uuid.UUID, uuid.UUID, list[str]]] = [
+                (
+                    asset.business_id,
+                    asset.id,
+                    [
+                        v.variant
+                        for v in repository.list_variants(
+                            db, business_id=asset.business_id, asset_id=asset.id
+                        )
+                    ],
+                )
+                for asset in assets
+            ]
+        if not batch:
+            break
+        after_id = batch[-1][1]
+        for business_id, asset_id, variant_names in batch:
+            for variant in (CANONICAL_VARIANT, *variant_names):
                 if storage.stat(key=object_key(business_id, asset_id, variant)) is None:
                     report.missing_objects.append(
                         MissingObject(business_id=business_id, asset_id=asset_id, variant=variant)
                     )
+        if len(batch) < batch_size:
+            break
 
 
 def cleanup_stale_temps(
@@ -229,11 +281,19 @@ def cleanup_stale_temps(
     *,
     safety_age_hours: int = policies.ORPHAN_SAFETY_AGE_HOURS,
 ) -> None:
-    """Delete stale ``.tmp`` scratch files (apply mode only)."""
+    """Delete stale ``.tmp`` scratch files (apply); count them (dry run).
+
+    Dry run reports the would-delete count without touching anything
+    (final correction 4), consistent with the orphan would-delete count.
+    """
     from app.domains.media.storage import LocalFilesystemStorage
 
-    if report.apply and isinstance(storage, LocalFilesystemStorage):
+    if not isinstance(storage, LocalFilesystemStorage):
+        return
+    if report.apply:
         report.stale_temps_deleted += storage.cleanup_stale_temps(older_than_hours=safety_age_hours)
+    else:
+        report.stale_temps_deleted += storage.count_stale_temps(older_than_hours=safety_age_hours)
 
 
 def run_sweep(
@@ -247,6 +307,134 @@ def run_sweep(
     report = SweepReport(apply=apply)
     sweep_expired_pending(session_factory, storage, report, batch_size=batch_size)
     sweep_orphans(session_factory, storage, report)
-    report_missing_objects(session_factory, storage, report)
+    report_missing_objects(session_factory, storage, report, batch_size=batch_size)
     cleanup_stale_temps(storage, report)
     return report
+
+
+# --- Backup verification (final correction 3) --------------------------------
+
+
+@dataclass
+class VerifyFinding:
+    """One backup-consistency failure (never a key, path, or checksum value)."""
+
+    business_id: uuid.UUID
+    asset_id: uuid.UUID
+    variant: str
+    kind: str  # 'missing' | 'size_mismatch' | 'checksum_mismatch' | 'orphan'
+
+
+@dataclass
+class VerifyReport:
+    findings: list[VerifyFinding] = field(default_factory=list)
+    malformed_keys: int = 0
+
+    @property
+    def ok(self) -> bool:
+        return not self.findings and self.malformed_keys == 0
+
+
+def verify_backup(
+    session_factory: sessionmaker[Session],
+    storage: MaintenanceStorage,
+    *,
+    batch_size: int = 200,
+) -> VerifyReport:
+    """Backup preflight/verification — never mutates (final correction 3).
+
+    Enumerates every expected canonical and variant object in bounded
+    batches, comparing stored byte size and a recomputed SHA-256 against
+    the database rows, then flags **every** storage-only object regardless
+    of age (a quiesced backup set must have none). Malformed or unknown key
+    shapes get an explicit non-success disposition (``malformed_keys``).
+    Findings carry business id, asset id, and logical variant only — never
+    a key, path, or checksum value.
+    """
+    report = VerifyReport()
+    _verify_expected_objects(session_factory, storage, report, batch_size=batch_size)
+    _verify_no_storage_only_objects(session_factory, storage, report)
+    return report
+
+
+def _verify_expected_objects(
+    session_factory: sessionmaker[Session],
+    storage: MaintenanceStorage,
+    report: VerifyReport,
+    *,
+    batch_size: int,
+) -> None:
+    after_id: uuid.UUID | None = None
+    for _ in range(_MAX_BATCHES):
+        with session_factory() as db:
+            assets = repository.list_assets_after(db, after_id=after_id, limit=batch_size)
+            # (business_id, asset_id, variant, byte_size, checksum) tuples.
+            expected: list[tuple[uuid.UUID, uuid.UUID, str, int, str]] = []
+            for asset in assets:
+                expected.append(
+                    (
+                        asset.business_id,
+                        asset.id,
+                        CANONICAL_VARIANT,
+                        asset.byte_size,
+                        asset.checksum_sha256,
+                    )
+                )
+                for v in repository.list_variants(
+                    db, business_id=asset.business_id, asset_id=asset.id
+                ):
+                    expected.append(
+                        (asset.business_id, asset.id, v.variant, v.byte_size, v.checksum_sha256)
+                    )
+            last_id = assets[-1].id if assets else None
+        if not expected and last_id is None:
+            break
+        for business_id, asset_id, variant, byte_size, checksum in expected:
+            _verify_one_object(storage, report, business_id, asset_id, variant, byte_size, checksum)
+        if last_id is None or len(assets) < batch_size:
+            break
+        after_id = last_id
+
+
+def _verify_one_object(
+    storage: MaintenanceStorage,
+    report: VerifyReport,
+    business_id: uuid.UUID,
+    asset_id: uuid.UUID,
+    variant: str,
+    byte_size: int,
+    checksum: str,
+) -> None:
+    key = object_key(business_id, asset_id, variant)
+    stat = storage.stat(key=key)
+    if stat is None:
+        report.findings.append(VerifyFinding(business_id, asset_id, variant, "missing"))
+        return
+    if stat.byte_size != byte_size:
+        report.findings.append(VerifyFinding(business_id, asset_id, variant, "size_mismatch"))
+        return
+    digest = hashlib.sha256()
+    with storage.open(key=key) as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+    if digest.hexdigest() != checksum:
+        report.findings.append(VerifyFinding(business_id, asset_id, variant, "checksum_mismatch"))
+
+
+def _verify_no_storage_only_objects(
+    session_factory: sessionmaker[Session],
+    storage: MaintenanceStorage,
+    report: VerifyReport,
+) -> None:
+    for stat in storage.iter_objects():
+        parsed = parse_key(stat.key)
+        if parsed is None:
+            report.malformed_keys += 1
+            continue
+        with session_factory() as db:
+            expected = _object_is_expected(db, parsed.business_id, parsed.asset_id, parsed.variant)
+        if not expected:
+            # Any age: a quiesced backup set must have no storage-only object.
+            report.findings.append(
+                VerifyFinding(parsed.business_id, parsed.asset_id, parsed.variant, "orphan")
+            )

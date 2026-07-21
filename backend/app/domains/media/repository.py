@@ -13,7 +13,6 @@ variant. There is no stored byte total to drift.
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -133,22 +132,36 @@ def delete_asset(db: Session, asset: MediaAsset) -> None:
     db.delete(asset)
 
 
-def get_expired_pending_ids(
-    db: Session, *, now: datetime, limit: int
+def list_expired_pending_after(
+    db: Session, *, after_id: uuid.UUID | None, limit: int
 ) -> list[tuple[uuid.UUID, uuid.UUID]]:
-    """(business_id, asset_id) pairs of expired-pending assets (sweep).
+    """One keyset batch of expired-pending (business_id, asset_id) pairs.
 
-    Selected without locks; the sweep re-reads each under the Business
-    lock before acting (final correction K). Expiry is decided by the
-    database clock passed in from ``now()``.
+    Expiry is decided by the **database clock** (``func.now()``, final
+    correction 4) — never an application timestamp, so clock skew on the
+    operator host cannot change the decision. Ordered by ``id`` with a
+    keyset cursor so the sweep processes bounded batches and terminates in
+    both dry-run and apply modes (dry-run advances the cursor past rows it
+    does not delete). Selected without locks; the sweep re-reads each
+    candidate under the Business lock before acting.
     """
-    rows = db.execute(
-        select(MediaAsset.business_id, MediaAsset.id)
-        .where(
-            MediaAsset.status == "pending",
-            MediaAsset.pending_expires_at <= now,
-        )
-        .order_by(MediaAsset.business_id, MediaAsset.id)
-        .limit(limit)
-    ).all()
+    query = select(MediaAsset.business_id, MediaAsset.id).where(
+        MediaAsset.status == "pending",
+        MediaAsset.pending_expires_at <= func.now(),
+    )
+    if after_id is not None:
+        query = query.where(MediaAsset.id > after_id)
+    rows = db.execute(query.order_by(MediaAsset.id).limit(limit)).all()
     return [(row[0], row[1]) for row in rows]
+
+
+def list_assets_after(db: Session, *, after_id: uuid.UUID | None, limit: int) -> list[MediaAsset]:
+    """One keyset batch of assets ordered by ``id`` (bounded inventory walk).
+
+    Used by the missing-object report and backup verification instead of an
+    unbounded ``.all()`` load (final correction 4).
+    """
+    query = select(MediaAsset)
+    if after_id is not None:
+        query = query.where(MediaAsset.id > after_id)
+    return list(db.execute(query.order_by(MediaAsset.id).limit(limit)).scalars())

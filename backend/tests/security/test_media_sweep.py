@@ -277,6 +277,143 @@ class TestMissingObjectReport:
             )
 
 
+class TestSweepSemantics:
+    """Final correction 4: DB-clock selection, multi-batch, race re-read,
+    per-object failure isolation, and dry-run stale-temp visibility."""
+
+    def test_selection_uses_database_clock_not_the_application_clock(
+        self, migrated_engine: Engine, tmp_path: Path, monkeypatch: object
+    ) -> None:
+        # An asset NOT expired on the database clock (+1h) must not be swept
+        # even when the application clock is pushed 2h into the future.
+        business_id = _make_business(migrated_engine)
+        asset_id = _make_asset(migrated_engine, business_id, expires_in_hours=1)
+
+        real_datetime = datetime
+
+        class _FutureClock(datetime):
+            @classmethod
+            def now(cls, tz: object = None) -> datetime:  # type: ignore[override]
+                return real_datetime.now(tz) + timedelta(hours=2)  # type: ignore[arg-type]
+
+        import app.domains.media.sweep as sweep_module
+
+        monkeypatch.setattr(sweep_module, "datetime", _FutureClock)  # type: ignore[attr-defined]
+        report = sweep.run_sweep(_factory(migrated_engine), _storage(tmp_path), apply=True)
+        assert report.expired_pending_deleted == 0
+        with migrated_engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT count(*) FROM media_assets WHERE id = :id"), {"id": asset_id}
+                ).scalar_one()
+                == 1
+            )
+
+    def test_more_than_one_batch_is_processed(
+        self, migrated_engine: Engine, tmp_path: Path
+    ) -> None:
+        business_id = _make_business(migrated_engine)
+        asset_ids = [
+            _make_asset(migrated_engine, business_id, expires_in_hours=-1, variants=())
+            for _ in range(5)
+        ]
+        # batch_size=2 forces at least three keyset passes.
+        report = sweep.run_sweep(
+            _factory(migrated_engine), _storage(tmp_path), apply=True, batch_size=2
+        )
+        assert report.expired_pending_deleted == 5
+        with migrated_engine.connect() as connection:
+            remaining = connection.execute(
+                text("SELECT count(*) FROM media_assets WHERE business_id = :bid"),
+                {"bid": business_id},
+            ).scalar_one()
+        assert remaining == 0
+        assert asset_ids  # (referenced for clarity)
+
+    def test_candidate_promoted_before_the_lock_is_not_deleted(
+        self, migrated_engine: Engine, tmp_path: Path
+    ) -> None:
+        # Lock/re-read race (final correction K): a candidate that becomes
+        # active between selection and the lock is skipped.
+        from app.domains.media import repository
+        from app.domains.media import sweep as sweep_module
+
+        business_id = _make_business(migrated_engine)
+        asset_id = _make_asset(migrated_engine, business_id, expires_in_hours=-1)
+        factory = _factory(migrated_engine)
+        with factory() as db:
+            candidates = repository.list_expired_pending_after(db, after_id=None, limit=10)
+        assert (business_id, asset_id) in candidates
+        # An attach wins the race: the row is now active before we process it.
+        with migrated_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE media_assets SET status = 'active', pending_expires_at = NULL"
+                    " WHERE id = :id"
+                ),
+                {"id": asset_id},
+            )
+        report = sweep.SweepReport(apply=True)
+        sweep_module._sweep_business_expired(
+            factory, _storage(tmp_path), report, business_id, [asset_id]
+        )
+        assert report.expired_pending_deleted == 0
+        with migrated_engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT status FROM media_assets WHERE id = :id"), {"id": asset_id}
+                ).scalar_one()
+                == "active"
+            )
+
+    def test_object_delete_failure_isolation_and_batch_continuation(
+        self, migrated_engine: Engine, tmp_path: Path
+    ) -> None:
+        business_id = _make_business(migrated_engine)
+        for _ in range(2):
+            _make_asset(migrated_engine, business_id, expires_in_hours=-1, variants=("w320",))
+        base = _storage(tmp_path)
+
+        class DeleteFailingStorage(LocalFilesystemStorage):
+            def delete(self, *, key: str) -> None:
+                raise OSError("object store down")
+
+        storage = DeleteFailingStorage(base.root)
+        report = sweep.run_sweep(_factory(migrated_engine), storage, apply=True)
+        # Both rows are still deleted (committed); every object delete failed
+        # but each was isolated and counted — the batch continued.
+        assert report.expired_pending_deleted == 2
+        assert report.expired_object_delete_failures == 4  # 2 assets x (canonical + w320)
+        with migrated_engine.connect() as connection:
+            remaining = connection.execute(
+                text("SELECT count(*) FROM media_assets WHERE business_id = :bid"),
+                {"bid": business_id},
+            ).scalar_one()
+        assert remaining == 0
+
+    def test_dry_run_reports_stale_temps_without_deleting(
+        self, migrated_engine: Engine, tmp_path: Path
+    ) -> None:
+        import os
+
+        storage = _storage(tmp_path)
+        storage.root.mkdir(parents=True, exist_ok=True)
+        tmp_dir = storage.root / ".tmp"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        stale = tmp_dir / "encode-old.webp"
+        stale.write_bytes(b"scratch")
+        old = (datetime.now(UTC) - timedelta(hours=48)).timestamp()
+        os.utime(stale, (old, old))
+
+        factory = _factory(migrated_engine)
+        dry = sweep.run_sweep(factory, storage, apply=False)
+        assert dry.stale_temps_deleted == 1  # would-delete count
+        assert stale.exists()  # nothing removed in dry run
+        applied = sweep.run_sweep(factory, storage, apply=True)
+        assert applied.stale_temps_deleted == 1
+        assert not stale.exists()
+
+
 class TestExpirationBoundary:
     """The attach decision on the database clock (final correction J)."""
 

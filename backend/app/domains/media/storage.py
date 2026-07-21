@@ -246,18 +246,28 @@ class LocalFilesystemStorage:
             raise RuntimeError(msg)
         self.probe()
 
-    def cleanup_stale_temps(self, *, older_than_hours: int) -> int:
-        """Delete ``.tmp`` entries older than the safety age; returns count."""
+    def _stale_temp_files(self, *, older_than_hours: int) -> list[Path]:
         tmp = self._root / TMP_DIR_NAME
         if not tmp.is_dir():
-            return 0
+            return []
         cutoff = datetime.now(UTC) - timedelta(hours=older_than_hours)
-        removed = 0
+        stale: list[Path] = []
         for path in tmp.iterdir():
             if not path.is_file():
                 continue
             modified = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
             if modified <= cutoff:
-                path.unlink(missing_ok=True)
-                removed += 1
+                stale.append(path)
+        return stale
+
+    def count_stale_temps(self, *, older_than_hours: int) -> int:
+        """Count (never delete) stale ``.tmp`` entries — dry-run visibility."""
+        return len(self._stale_temp_files(older_than_hours=older_than_hours))
+
+    def cleanup_stale_temps(self, *, older_than_hours: int) -> int:
+        """Delete ``.tmp`` entries older than the safety age; returns count."""
+        removed = 0
+        for path in self._stale_temp_files(older_than_hours=older_than_hours):
+            path.unlink(missing_ok=True)
+            removed += 1
         return removed
