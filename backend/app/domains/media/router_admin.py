@@ -71,6 +71,10 @@ _UPLOAD_REQUEST_BODY = {
                         "description": "A single static JPEG, PNG, or WebP image.",
                     }
                 },
+                # Exactly one file part and zero other form fields (the
+                # binding upload ruling): the contract advertises that no
+                # additional properties are accepted.
+                "additionalProperties": False,
             }
         }
     },
