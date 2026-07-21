@@ -66,13 +66,16 @@ first-VPS scale):
    recomputes every stored object's SHA-256 and byte size against the
    database rows and flags every storage-only object regardless of age.
    It never mutates and exits non-zero on any inconsistency.
-3. Require **zero** findings — no missing objects, no size or checksum
-   mismatches, and no storage-only orphans. A backup taken with an
-   unresolved row-without-object condition must not be labeled a
-   verified complete backup.
-4. Deliberately clean eligible storage-only orphans (`--apply`), or
-   record and resolve them, before declaring the set clean. Malformed or
-   unknown storage entries are never deleted silently during preflight.
+3. **If verification reports any finding, do not proceed.** Repair first:
+   delete eligible storage-only orphans (`sweep_media.py --apply`),
+   restore or explicitly delete via the API any asset rows whose objects
+   are missing, and investigate every size/checksum mismatch and every
+   `unreadable` or malformed/unknown storage entry (these are never
+   auto-deleted). Then **re-run `--verify`**.
+4. Proceed only after a verification run reports **zero** findings and
+   exits `0`. A backup taken with unresolved findings must never be
+   labeled a verified complete backup — do not continue past this gate on
+   an unresolved condition.
 5. Create the `pg_dump` (custom format).
 6. Archive the media root.
 7. Write the shared-set manifest: one backup-set id embedded in both
@@ -80,8 +83,8 @@ first-VPS scale):
    byte counts.
 8. Restore only as one matching logical set: database first, then the
    media root, from the same set id.
-9. Repeat the checksum/inventory verification after restore (a
-   consistent pair reports zero missing objects and zero orphans).
+9. Repeat the checksum/inventory verification after restore and require a
+   clean `0` result again (a consistent pair reports zero findings).
 
 ## Deployment workflow (target)
 

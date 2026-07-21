@@ -36,7 +36,12 @@ from app.domains.businesses.queries import lock_business_status
 from app.domains.media import policies, repository
 from app.domains.media.models import MediaAsset, MediaAssetVariant
 from app.domains.media.policies import CANONICAL_VARIANT
-from app.domains.media.storage import MaintenanceStorage, object_key, parse_key
+from app.domains.media.storage import (
+    MaintenanceStorage,
+    ObjectNotFoundError,
+    object_key,
+    parse_key,
+)
 
 # A defensive ceiling on the number of batch iterations, so a logic error
 # (a cursor that fails to advance) can never spin forever.
@@ -322,7 +327,8 @@ class VerifyFinding:
     business_id: uuid.UUID
     asset_id: uuid.UUID
     variant: str
-    kind: str  # 'missing' | 'size_mismatch' | 'checksum_mismatch' | 'orphan'
+    # 'missing' | 'size_mismatch' | 'checksum_mismatch' | 'orphan' | 'unreadable'
+    kind: str
 
 
 @dataclass
@@ -405,20 +411,47 @@ def _verify_one_object(
     byte_size: int,
     checksum: str,
 ) -> None:
+    """Verify one expected object, never letting a storage error escape.
+
+    A missing object at either ``stat`` or ``open`` becomes a safe
+    ``missing`` finding; any other stat/open/read failure becomes a safe
+    ``unreadable`` finding (round-2 finding 3). No exception, key, path, or
+    checksum value is ever surfaced — only the (business, asset, variant,
+    kind) tuple.
+    """
     key = object_key(business_id, asset_id, variant)
-    stat = storage.stat(key=key)
+
+    def _finding(kind: str) -> None:
+        report.findings.append(VerifyFinding(business_id, asset_id, variant, kind))
+
+    try:
+        stat = storage.stat(key=key)
+    except ObjectNotFoundError:
+        _finding("missing")
+        return
+    except Exception:
+        _finding("unreadable")
+        return
     if stat is None:
-        report.findings.append(VerifyFinding(business_id, asset_id, variant, "missing"))
+        _finding("missing")
         return
     if stat.byte_size != byte_size:
-        report.findings.append(VerifyFinding(business_id, asset_id, variant, "size_mismatch"))
+        _finding("size_mismatch")
         return
+
     digest = hashlib.sha256()
-    with storage.open(key=key) as handle:
-        for chunk in iter(lambda: handle.read(65536), b""):
-            digest.update(chunk)
+    try:
+        with storage.open(key=key) as handle:
+            for chunk in iter(lambda: handle.read(65536), b""):
+                digest.update(chunk)
+    except ObjectNotFoundError:
+        _finding("missing")
+        return
+    except Exception:
+        _finding("unreadable")
+        return
     if digest.hexdigest() != checksum:
-        report.findings.append(VerifyFinding(business_id, asset_id, variant, "checksum_mismatch"))
+        _finding("checksum_mismatch")
 
 
 def _verify_no_storage_only_objects(

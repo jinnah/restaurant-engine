@@ -17,9 +17,11 @@ Exit codes (operator contract):
 * ``1`` — a failure occurred: a ``--verify`` inconsistency, or an object
   deletion failed during ``--apply`` (orphans remain; investigate).
 * ``2`` — invalid arguments (e.g. a non-positive ``--batch-size``).
-* ``3`` — work remains (nothing changed): a dry run found expired-pending
-  assets, deletable orphans, or stale temps, or any run found asset rows
-  whose objects are missing.
+* ``3`` — work remains: unresolved operator work that this run did not (or
+  could not) clear. In either mode this includes asset rows whose objects
+  are missing and malformed/unknown storage entries (never auto-deleted);
+  in a dry run it additionally includes expired-pending assets, deletable
+  orphans, and stale temps that ``--apply`` would remove.
 
 The database comes from validated settings (``DATABASE_URL`` / ``.env``)
 and the media root from ``MEDIA_STORAGE_ROOT`` — exactly like the API
@@ -97,12 +99,19 @@ def _sweep_exit_code(report: SweepReport) -> int:
     failures = report.expired_object_delete_failures + report.orphan_delete_failures
     if failures:
         return 1
-    work_remains = len(report.missing_objects) > 0
+    # Malformed/unknown storage entries are never auto-deleted, so they are
+    # unresolved operator work in BOTH modes (round-2 finding 4).
+    work_remains = len(report.missing_objects) > 0 or report.malformed_keys > 0
     if not report.apply:
         work_remains = work_remains or bool(
             report.expired_pending_deleted or report.orphans_deleted or report.stale_temps_deleted
         )
     return 3 if work_remains else 0
+
+
+def _verify_exit_code(report: VerifyReport) -> int:
+    """0 when the backup set is consistent, else 1 (round-2 finding 3)."""
+    return 0 if report.ok else 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -126,14 +135,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.verify:
             verify = sweep.verify_backup(session_factory, storage, batch_size=args.batch_size)
             _print_verify(verify)
-            if verify.ok:
+            code = _verify_exit_code(verify)
+            if code == 0:
                 print("verify OK: database and media root are a consistent set")
-                return 0
-            print(
-                "verify FAILED: the database and media root are not a consistent set",
-                file=sys.stderr,
-            )
-            return 1
+            else:
+                print(
+                    "verify FAILED: the database and media root are not a consistent set",
+                    file=sys.stderr,
+                )
+            return code
 
         report = sweep.run_sweep(
             session_factory, storage, apply=args.apply, batch_size=args.batch_size

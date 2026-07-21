@@ -4,8 +4,14 @@ import uuid
 
 import pytest
 
-from app.domains.media.sweep import MissingObject, SweepReport
-from scripts.sweep_media import _batch_size, _sweep_exit_code, main
+from app.domains.media.sweep import MissingObject, SweepReport, VerifyFinding, VerifyReport
+from scripts.sweep_media import (
+    _batch_size,
+    _print_verify,
+    _sweep_exit_code,
+    _verify_exit_code,
+    main,
+)
 
 
 class TestBatchSizeValidation:
@@ -64,3 +70,46 @@ class TestExitCodeContract:
             ],
         )
         assert _sweep_exit_code(report) == 1
+
+    def test_malformed_keys_are_work_remaining_in_both_modes(self) -> None:
+        # Malformed/unknown entries are never auto-deleted → unresolved work
+        # in dry run AND apply (round-2 finding 4).
+        assert _sweep_exit_code(SweepReport(apply=False, malformed_keys=1)) == 3
+        assert _sweep_exit_code(SweepReport(apply=True, malformed_keys=1)) == 3
+
+    def test_malformed_keys_yield_to_a_higher_priority_failure(self) -> None:
+        report = SweepReport(apply=True, malformed_keys=2, orphan_delete_failures=1)
+        assert _sweep_exit_code(report) == 1
+
+
+class TestVerifyExitAndHygiene:
+    def test_consistent_report_is_zero(self) -> None:
+        assert _verify_exit_code(VerifyReport()) == 0
+
+    def test_any_finding_is_one(self) -> None:
+        report = VerifyReport(
+            findings=[
+                VerifyFinding(uuid.uuid4(), uuid.uuid4(), "canonical", "unreadable"),
+            ]
+        )
+        assert _verify_exit_code(report) == 1
+
+    def test_malformed_only_report_is_one(self) -> None:
+        assert _verify_exit_code(VerifyReport(malformed_keys=1)) == 1
+
+    def test_print_verify_emits_no_key_path_or_checksum(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        report = VerifyReport(
+            findings=[
+                VerifyFinding(uuid.uuid4(), uuid.uuid4(), "w320", "checksum_mismatch"),
+                VerifyFinding(uuid.uuid4(), uuid.uuid4(), "canonical", "unreadable"),
+            ],
+            malformed_keys=1,
+        )
+        _print_verify(report)
+        out = capsys.readouterr().out
+        assert ".webp" not in out
+        assert "/" not in out  # no filesystem paths or keys
+        assert "checksum_mismatch" in out  # the kind label is fine
+        assert "unreadable" in out

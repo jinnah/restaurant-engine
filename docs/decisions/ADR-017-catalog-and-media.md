@@ -467,15 +467,21 @@ corrections), recorded before implementation:
   paths; one failed object deletion never stops the batch report. Exit
   codes: `0` clean, `1` a failure (verify inconsistency or an `--apply`
   object-delete failure), `2` invalid arguments, `3` work remains.
-- **Backup verification (correction 3).** `--verify` (never mutates)
-  enumerates every expected canonical and variant object in bounded
-  batches, compares stored byte size and a recomputed SHA-256 against the
-  database rows, and flags **every** storage-only object regardless of
-  age (a quiesced backup set must contain none); malformed/unknown key
-  shapes get an explicit non-success disposition. Findings carry
-  business/asset/variant and a kind (`missing`/`size_mismatch`/
-  `checksum_mismatch`/`orphan`) only — never a key, path, or checksum
-  value.
+- **Backup verification (correction 3; round-2 hardening).** `--verify`
+  (never mutates) enumerates every expected canonical and variant object
+  in bounded batches, compares stored byte size and a recomputed SHA-256
+  against the database rows, and flags **every** storage-only object
+  regardless of age (a quiesced backup set must contain none);
+  malformed/unknown key shapes get an explicit non-success disposition.
+  Storage I/O is failure-safe: a missing object at either `stat` or
+  `open` becomes a `missing` finding, and any other stat/open/read
+  failure becomes an `unreadable` finding — no exception ever escapes.
+  Findings carry business/asset/variant and a kind
+  (`missing`/`size_mismatch`/`checksum_mismatch`/`orphan`/`unreadable`)
+  only — never a key, path, checksum value, or exception message. The
+  runbook preflight requires a clean re-verification after any repair
+  before dump/archive. Malformed/unknown storage entries also count as
+  unresolved work in the sweep exit code (`3`).
 - **Dependencies (D11).** `pillow==12.3.0`, `python-multipart==0.0.32`
   (exact-pinned; backend only).
 

@@ -10,13 +10,22 @@ or checksum value.
 import hashlib
 import io
 import uuid
+from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.domains.media import sweep
-from app.domains.media.storage import LocalFilesystemStorage, object_key
+from app.domains.media.storage import (
+    LocalFilesystemStorage,
+    ObjectNotFoundError,
+    StoredObjectStat,
+    object_key,
+    parse_key,
+)
 
 
 def _factory(engine: Engine) -> sessionmaker[Session]:
@@ -174,3 +183,155 @@ class TestVerifyBackup:
                 ).scalar_one()
                 == 1
             )
+
+
+_FAKE_BYTE_SIZE = 100
+
+
+class _FaultyStorage:
+    """A verify-only storage stub that injects a fault on one variant.
+
+    ``stat`` returns a matching-size stub for every key (so the size check
+    passes and ``open`` is reached) unless the fault targets ``stat``.
+    ``iter_objects`` is empty (no storage-only objects to distract the
+    assertions). Only implements what ``verify_backup`` calls.
+    """
+
+    def __init__(self, *, fail_variant: str, where: str, exc: BaseException) -> None:
+        self._fail_variant = fail_variant
+        self._where = where  # 'stat' | 'open' | 'read'
+        self._exc = exc
+
+    def _targets(self, key: str) -> bool:
+        parsed = parse_key(key)
+        return parsed is not None and parsed.variant == self._fail_variant
+
+    def stat(self, *, key: str) -> StoredObjectStat | None:
+        if self._targets(key) and self._where == "stat":
+            raise self._exc
+        return StoredObjectStat(key=key, byte_size=_FAKE_BYTE_SIZE, last_modified=datetime.now(UTC))
+
+    def open(self, *, key: str) -> Any:
+        if self._targets(key) and self._where == "open":
+            raise self._exc
+        if self._targets(key) and self._where == "read":
+            return _RaisingHandle(self._exc)
+        return io.BytesIO(b"")
+
+    def delete(self, *, key: str) -> None:  # pragma: no cover - unused by verify
+        raise AssertionError("verify must never delete")
+
+    def put(self, *, key: str, content: Any, content_type: str) -> None:  # pragma: no cover
+        raise AssertionError("verify must never put")
+
+    def iter_objects(self, *, prefix: str = "") -> Iterator[StoredObjectStat]:
+        return iter(())
+
+
+class _RaisingHandle:
+    def __init__(self, exc: BaseException) -> None:
+        self._exc = exc
+
+    def __enter__(self) -> "_RaisingHandle":
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def read(self, _size: int = -1) -> bytes:
+        raise self._exc
+
+
+def _seed_one_object_asset(engine: Engine, business_id: uuid.UUID, *, variant: str) -> uuid.UUID:
+    """Seed a row (asset, optionally a variant) with byte_size == the stub."""
+    asset_id = uuid.uuid4()
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO media_assets (id, business_id, kind, status,"
+                " pending_expires_at, original_filename, declared_content_type,"
+                " source_format, width, height, byte_size, checksum_sha256) VALUES"
+                " (:id, :bid, 'image', 'active', NULL, 'x.jpg', 'image/jpeg', 'jpeg',"
+                " 800, 600, :size, :sha)"
+            ),
+            {"id": asset_id, "bid": business_id, "size": _FAKE_BYTE_SIZE, "sha": "0" * 63 + "a"},
+        )
+        if variant != "canonical":
+            connection.execute(
+                text(
+                    "INSERT INTO media_asset_variants (id, business_id, asset_id, variant,"
+                    " width, height, byte_size, checksum_sha256) VALUES"
+                    " (:id, :bid, :aid, :variant, 320, 240, :size, :sha)"
+                ),
+                {
+                    "id": uuid.uuid4(),
+                    "bid": business_id,
+                    "aid": asset_id,
+                    "variant": variant,
+                    "size": _FAKE_BYTE_SIZE,
+                    "sha": "0" * 63 + "a",
+                },
+            )
+    return asset_id
+
+
+class TestVerifyIoFailures:
+    """Storage stat/open/read failures never escape (round-2 finding 3)."""
+
+    def _find(self, report: sweep.VerifyReport, asset_id: uuid.UUID, variant: str) -> str | None:
+        for finding in report.findings:
+            if finding.asset_id == asset_id and finding.variant == variant:
+                return finding.kind
+        return None
+
+    def test_canonical_stat_failure_is_unreadable(self, migrated_engine: Engine) -> None:
+        business_id = _business(migrated_engine)
+        asset_id = _seed_one_object_asset(migrated_engine, business_id, variant="canonical")
+        storage = _FaultyStorage(fail_variant="canonical", where="stat", exc=OSError("boom"))
+        report = sweep.verify_backup(_factory(migrated_engine), storage)
+        assert not report.ok
+        assert self._find(report, asset_id, "canonical") == "unreadable"
+
+    def test_canonical_open_failure_is_unreadable(self, migrated_engine: Engine) -> None:
+        business_id = _business(migrated_engine)
+        asset_id = _seed_one_object_asset(migrated_engine, business_id, variant="canonical")
+        storage = _FaultyStorage(fail_variant="canonical", where="open", exc=OSError("boom"))
+        report = sweep.verify_backup(_factory(migrated_engine), storage)
+        assert self._find(report, asset_id, "canonical") == "unreadable"
+
+    def test_canonical_read_failure_is_unreadable(self, migrated_engine: Engine) -> None:
+        business_id = _business(migrated_engine)
+        asset_id = _seed_one_object_asset(migrated_engine, business_id, variant="canonical")
+        storage = _FaultyStorage(fail_variant="canonical", where="read", exc=OSError("boom"))
+        report = sweep.verify_backup(_factory(migrated_engine), storage)
+        assert self._find(report, asset_id, "canonical") == "unreadable"
+
+    def test_object_not_found_at_open_is_missing(self, migrated_engine: Engine) -> None:
+        business_id = _business(migrated_engine)
+        asset_id = _seed_one_object_asset(migrated_engine, business_id, variant="canonical")
+        storage = _FaultyStorage(
+            fail_variant="canonical", where="open", exc=ObjectNotFoundError("gone")
+        )
+        report = sweep.verify_backup(_factory(migrated_engine), storage)
+        assert self._find(report, asset_id, "canonical") == "missing"
+
+    def test_variant_open_failure_is_unreadable(self, migrated_engine: Engine) -> None:
+        business_id = _business(migrated_engine)
+        asset_id = _seed_one_object_asset(migrated_engine, business_id, variant="w320")
+        storage = _FaultyStorage(fail_variant="w320", where="open", exc=OSError("boom"))
+        report = sweep.verify_backup(_factory(migrated_engine), storage)
+        assert self._find(report, asset_id, "w320") == "unreadable"
+
+    def test_no_finding_exposes_a_key_path_or_exception(self, migrated_engine: Engine) -> None:
+        business_id = _business(migrated_engine)
+        _seed_one_object_asset(migrated_engine, business_id, variant="canonical")
+        storage = _FaultyStorage(
+            fail_variant="canonical", where="read", exc=OSError("secret-path /var/secret")
+        )
+        report = sweep.verify_backup(_factory(migrated_engine), storage)
+        rendered = " ".join(
+            f"{f.business_id} {f.asset_id} {f.variant} {f.kind}" for f in report.findings
+        )
+        assert "secret" not in rendered
+        assert "/var" not in rendered
+        assert ".webp" not in rendered
