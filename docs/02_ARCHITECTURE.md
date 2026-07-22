@@ -130,6 +130,20 @@ exists** — there is no cross-origin surface. Session state lives solely
 in a TanStack Query cache (opaque cookie session + in-memory CSRF token,
 ADR-010/ADR-015).
 
+**Control-center business workspace (M3E, ADR-018):** authenticated routes
+are `/businesses/:businessId/...` — the blueprint's earlier
+`/restaurants/:restaurantId/...` sketch predates ADR-012's rename of the
+tenant aggregate and was amended. The current business is derived from the
+route, never held in state, so the switcher in the chrome and the workspace
+below it cannot disagree; the switcher lists only `session.memberships`, and
+guards there (as everywhere) are navigation aids while the API stays the
+authorization boundary. Forms use React Hook Form with a Zod resolver, and
+Zod validates UI shape only — required, trimmed, length, decimal precision —
+because API truth stays generated from OpenAPI (ADR-004). Shared primitives
+(dialog, fields, notifications, failure classification) live in
+`apps/control-center/src/components` and `src/api`; no `admin-ui` package
+exists, since the bar remains a second real _application_ consumer.
+
 **Frontend workspace conventions (M1B):** one root ESLint flat config and one
 root `tsconfig.base.json` own shared configuration as plain files — a shared
 package (`frontend-config`, `design-tokens`, `admin-ui`) is created only when

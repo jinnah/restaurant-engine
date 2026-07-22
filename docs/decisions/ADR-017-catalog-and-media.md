@@ -660,7 +660,7 @@ including error statuses, warning discipline for expected misses,
 bounded-query stability, concurrent-edit structural validity, response
 and log hygiene, and the absence of audit events for public reads.
 
-### M3E — Menu administration UI: in progress (2026-07-21)
+### M3E — Menu administration UI: delivered, 2026-07-21
 
 Architecture and binding rulings are recorded in
 **ADR-018 — Business Workspace and Menu Administration UI**; only the
@@ -678,6 +678,28 @@ unbacked frontend list would silently discard a tag added later. The four
 affected annotations now use the existing `DietaryTag` enum. Accepted
 values, normalization, canonical lowercase storage, duplicate rejection, the
 per-item cap, and the fail-closed read projection are unchanged.
+
+**Delivered (local) 2026-07-21.** The control center gained the business
+workspace (route-derived native-select switcher, membership guard, workspace
+layout) and menu administration: categories, item creation and editing, the
+separate staff-reachable availability command, the featured ceiling shown
+before it is reached, keyboard-first reordering with no drag-and-drop,
+per-item modifier groups and options with report-only satisfiability, and
+the media upload/library/attachment workflow with its four distinct
+operations. Forms use React Hook Form with a Zod resolver for UI shape only
+(three exact-pinned dependencies, the ADR-015 decision-10 deferral now
+closed).
+
+The dietary correction landed with **zero backend test-assertion changes** —
+the normalization validator moved to `mode="before"` so it still runs ahead
+of enum coercion, preserving every accepted value and every message.
+Contract drift was exactly the new `DietaryTag` component plus four
+`items` → `$ref` changes; the operation count stays **57** and the Alembic
+head stays `59b463781dcc`.
+
+Counts at close-out: backend 892, api-client 76, storefront 4,
+control-center 288, Playwright 4. Architecture, rulings, implementation
+findings, and the visual-acceptance evidence are recorded in **ADR-018**.
 
 ### M3F
 

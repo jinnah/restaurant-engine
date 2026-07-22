@@ -1,6 +1,6 @@
 # ADR-018: Business Workspace and Menu Administration UI
 
-- **Status:** Accepted (architecture); delivery record filled at close-out
+- **Status:** Accepted; delivered (local) 2026-07-21
 - **Date:** 2026-07-21
 - **Deciders:** Product owner, principal architect
 
@@ -291,4 +291,98 @@ registry that cannot be expressed as an enum in the contract.
 
 ## Delivery record
 
-To be completed at M3E close-out.
+**Delivered (local) 2026-07-21.** Twelve additive commits, documentation
+first and last. The fourteen rulings above landed as stated; what follows is
+only what implementation discovered or decided beyond them.
+
+### Contract fidelity, achieved without behavior change
+
+The dietary correction is the milestone's one contract change, and it moved
+no behavior at all: the whole existing backend suite passed with **zero
+assertion changes**, which is the evidence that accepted values and error
+messages did not shift. That was possible because the normalization
+validator moved to `mode="before"`, so it still runs ahead of enum coercion
+— `" Halal "` is canonicalized and accepted exactly as before rather than
+failing an enum comparison on raw input — and because the registry check
+stayed in the validator, preserving the friendly per-value messages with the
+declared enum standing behind them as the type invariant. `filter_known` now
+returns registry members, so a read projection can only carry a value the
+contract declares. Contract drift was exactly one new `DietaryTag` component
+and four `items` → `$ref` changes; the operation count stays 57.
+
+### Dependencies, verified before installation
+
+`react-hook-form@7.82.0` (peer `react ^16.8 || ^17 || ^18 || ^19`, node
+`>=18`), `zod@4.4.3` (no peers), `@hookform/resolvers@5.4.0` (peer
+`react-hook-form ^7.55.0`). Exact-pinned; one transitive addition
+(`@standard-schema/utils`); zod was already resolved in the lockfile at that
+exact version, so it added an importer rather than a package. None declares
+an install, preinstall, or postinstall script, so `pnpm-workspace.yaml`
+needed no build-script allowance and is unchanged. The single peer warning
+pnpm reports (`eslint-plugin-jsx-a11y` wanting eslint `^3..^9` against the
+repository's eslint 10) predates this milestone.
+
+### Decisions taken during implementation
+
+- **The notification region is `role="log"`, not `role="status"`.** A queue
+  where entries arrive in order and older ones disappear is what `log`
+  describes, and it keeps an app-wide region out of the `status` namespace
+  each page uses for its own announcements — with `role="status"` every
+  existing page-level `getByRole('status')` became ambiguous.
+- **Post-success navigation happens in an effect, not in the success
+  handler.** React has not committed the "saved" state while the handler is
+  still running, so the unsaved-changes blocker was still armed and the
+  application challenged its own success redirect. Found by test.
+- **Row-action scope lives in `aria-label`.** Visually-hidden text does not
+  work here: the accessible name algorithm concatenates child text without a
+  separator and produces names like "EditChutney".
+- **Overview affordances read the unfiltered category.** Deciding them from
+  the filtered copy meant a filter that hid every item made a non-empty
+  category look deletable (a guaranteed 409) and hid reorder from a category
+  that genuinely had several items.
+- **`vitest.config.ts` includes `.ts` as well as `.tsx`.** The money and
+  reorder utilities carry no JSX and were being silently skipped.
+
+### Verification
+
+Full local gate green: `format:check`, `lint`, `typecheck`, `test`, `build`,
+`contract:check` (no drift), backend `ruff`/`ruff format`/`mypy`/`pytest`,
+the orchestrator regression suite, and `pnpm e2e`.
+
+Counts: **backend 892**, **api-client 76**, **storefront 4**,
+**control-center 288**, **Playwright 4**, orchestrator 30 (1 skipped).
+
+Two existing E2E specs had their locators tightened because the switcher
+legitimately names the business a second time and Playwright's strict mode
+refuses an ambiguous locator. No end-to-end coverage was added; the menu
+journey remains M3F.
+
+### Visual acceptance
+
+A disposable smoke ran the real stack against `restaurant_engine_e2e` with a
+temporary media root, seeded through the HTTP API only, and drove Chromium
+at 320 px, 768 px and 1280 px: **86 of 86 checks passed**, covering
+horizontal overflow, computed touch-target geometry, computed WCAG AA
+contrast, focus outlines, colour-independent statuses, explicit image
+dimensions (no layout shift), Bengali wrapping, keyboard reordering with
+announcements, the image picker with a pending asset, error presentation,
+and the staff, owner, suspended, closed and empty-menu presentations. The
+rendered pages were inspected, not just asserted on.
+
+It found three real defects, all fixed: the switcher overflowed 320 px
+(a flex item's `min-width:auto` combined with a `<select>` reporting its
+widest option's width); row actions repeated long user-supplied names in
+their visible labels; and the 44 rem content column squeezed a dense menu
+into half a desktop viewport.
+
+This is engineering evidence, not a WCAG certification, and — as with the
+M2F smoke (ADR-016) — it is not a standing requirement for every change.
+
+### Deliberate limitations
+
+Admin media previews are `no-store` by the M3C ruling, so thumbnails
+re-fetch on each mount; the overview mitigates this by preferring the
+smallest available derived variant and by fetching one media page rather
+than one request per item. Concurrent editors are still undetected
+(ADR-017 D5) — the UI refetches after every mutation and surfaces the
+server's 409s honestly, and versioned editing remains M4's question.
