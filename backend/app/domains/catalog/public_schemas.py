@@ -24,6 +24,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from app.domains.businesses.schemas import PublicSiteSummary
+from app.domains.catalog.dietary import DietaryTag
 
 
 class PublicModifierOption(BaseModel):
@@ -98,7 +99,7 @@ class PublicMenuItem(BaseModel):
     price_minor: int
     is_available: bool
     is_orderable: bool
-    dietary_tags: list[str]
+    dietary_tags: list[DietaryTag]
     image: PublicMenuImage | None
     modifier_groups: list[PublicModifierGroup]
 

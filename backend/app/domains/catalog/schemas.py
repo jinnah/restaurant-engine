@@ -44,9 +44,26 @@ def _normalized_description(value: str | None, *, max_length: int) -> str | None
     return trimmed
 
 
-def _normalized_tags(values: list[str]) -> list[str]:
+def _normalized_tags(values: object) -> object:
+    """Canonicalize and check dietary tags **before** enum coercion (D6).
+
+    The declared field type is ``list[DietaryTag]``, which publishes the
+    closed registry in the contract; this validator runs in ``mode="before"``
+    so the M3A normalization still happens first and every input that was
+    accepted before is accepted still — ``" Halal "`` normalizes to ``halal``
+    rather than failing an enum comparison. The registry check stays here too,
+    so the friendly per-value message is preserved; the declared enum is the
+    type invariant behind it (the service-precheck/DB-index pattern of R6).
+
+    Anything that is not a list of strings is returned untouched, so Pydantic's
+    own list/string type errors surface exactly as they did before.
+    """
+    if not isinstance(values, list):
+        return values
     tags: list[str] = []
     for raw in values:
+        if not isinstance(raw, str):
+            return values
         tag = raw.strip().lower()
         if not dietary.is_known_tag(tag):
             msg = f"unknown dietary tag: {raw!r}"
@@ -162,7 +179,7 @@ class ItemCreate(BaseModel):
     name: str
     description: str | None = None
     price_minor: int = Field(ge=0, le=policies.MAX_PRICE_MINOR)
-    dietary_tags: list[str] = Field(default_factory=list)
+    dietary_tags: list[dietary.DietaryTag] = Field(default_factory=list)
 
     @field_validator("name")
     @classmethod
@@ -174,9 +191,9 @@ class ItemCreate(BaseModel):
     def _description(cls, value: str | None) -> str | None:
         return _normalized_description(value, max_length=policies.MAX_ITEM_DESCRIPTION_LENGTH)
 
-    @field_validator("dietary_tags")
+    @field_validator("dietary_tags", mode="before")
     @classmethod
-    def _tags(cls, value: list[str]) -> list[str]:
+    def _tags(cls, value: object) -> object:
         return _normalized_tags(value)
 
 
@@ -196,7 +213,7 @@ class ItemUpdate(BaseModel):
     category_id: uuid.UUID | None = None
     is_hidden: bool | None = None
     is_featured: bool | None = None
-    dietary_tags: list[str] | None = None
+    dietary_tags: list[dietary.DietaryTag] | None = None
 
     @field_validator("name")
     @classmethod
@@ -208,10 +225,12 @@ class ItemUpdate(BaseModel):
     def _description(cls, value: str | None) -> str | None:
         return _normalized_description(value, max_length=policies.MAX_ITEM_DESCRIPTION_LENGTH)
 
-    @field_validator("dietary_tags")
+    @field_validator("dietary_tags", mode="before")
     @classmethod
-    def _tags(cls, value: list[str] | None) -> list[str] | None:
-        return _normalized_tags(value) if value is not None else None
+    def _tags(cls, value: object) -> object:
+        # None passes straight through: `_normalized_tags` only touches lists,
+        # and the model validator below rejects an explicit null.
+        return _normalized_tags(value)
 
     @model_validator(mode="after")
     def _no_null_for_non_nullable(self) -> "ItemUpdate":
@@ -305,7 +324,7 @@ class ItemSummary(BaseModel):
     is_available: bool
     is_hidden: bool
     is_featured: bool
-    dietary_tags: list[str]
+    dietary_tags: list[dietary.DietaryTag]
     # M3C attachment: at most one image and its contextual alt text (null
     # when no image is attached).
     image_media_id: uuid.UUID | None

@@ -9,6 +9,7 @@ Writes reject unknown values (422); reads are fail-closed — a stored tag
 missing from this registry (manual SQL, drift) is never surfaced.
 """
 
+from collections.abc import Sequence
 from enum import StrEnum
 
 
@@ -33,6 +34,11 @@ def is_known_tag(value: str) -> bool:
     return value in _KNOWN_VALUES
 
 
-def filter_known(values: list[str]) -> list[str]:
-    """Fail-closed read projection: drop any unregistered stored value."""
-    return [value for value in values if value in _KNOWN_VALUES]
+def filter_known(values: Sequence[str]) -> list[DietaryTag]:
+    """Fail-closed read projection: drop any unregistered stored value.
+
+    Returns registry members, so a projection can only ever carry a value the
+    published contract declares. Accepts any string sequence because callers
+    read plain ``str`` columns out of the database.
+    """
+    return [DietaryTag(value) for value in values if value in _KNOWN_VALUES]

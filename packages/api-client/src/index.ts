@@ -50,6 +50,7 @@ export type {
   CategorySummary,
   CategoryUpdate,
   CategoryWithItems,
+  DietaryTag,
   ItemAvailabilitySet,
   ItemCreate,
   ItemImageSet,

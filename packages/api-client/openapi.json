@@ -553,6 +553,16 @@
         "title": "DeletedResponse",
         "type": "object"
       },
+      "DietaryTag": {
+        "description": "Structured dietary attributes of a menu item (append-only).\n\nSeeded per ruling D6: halal (blueprint §2.1 names it as structured\nmenu data), vegetarian, and vegan. Stored canonical lowercase (the\nDB CHECK is the storage invariant).",
+        "enum": [
+          "halal",
+          "vegetarian",
+          "vegan"
+        ],
+        "title": "DietaryTag",
+        "type": "string"
+      },
       "EmptyCommand": {
         "additionalProperties": false,
         "description": "Body for no-argument lifecycle commands.\n\nPresent so an unexpected JSON field is rejected (422) rather than\nsilently ignored (approved amendment 3): a lifecycle POST carries no\ndata, but it must still be strict about what it accepts.",
@@ -1021,7 +1031,7 @@
           },
           "dietary_tags": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/DietaryTag"
             },
             "title": "Dietary Tags",
             "type": "array"
@@ -1128,7 +1138,7 @@
           },
           "dietary_tags": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/DietaryTag"
             },
             "title": "Dietary Tags",
             "type": "array"
@@ -1241,7 +1251,7 @@
             "anyOf": [
               {
                 "items": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/DietaryTag"
                 },
                 "type": "array"
               },
@@ -2143,7 +2153,7 @@
           },
           "dietary_tags": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/DietaryTag"
             },
             "title": "Dietary Tags",
             "type": "array"

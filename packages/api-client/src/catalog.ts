@@ -13,6 +13,8 @@ import type { components, paths } from './generated/schema';
 import { toResult, type ApiResult } from './result';
 
 export type AdminMenu = components['schemas']['AdminMenu'];
+/** The closed dietary registry, published by the contract (ADR-017 D6). */
+export type DietaryTag = components['schemas']['DietaryTag'];
 export type CategoryWithItems = components['schemas']['CategoryWithItems'];
 export type CategorySummary = components['schemas']['CategorySummary'];
 export type CategoryCreate = components['schemas']['CategoryCreate'];

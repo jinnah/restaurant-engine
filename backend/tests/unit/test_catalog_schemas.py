@@ -1,12 +1,14 @@
 """Catalog command-schema validation (M3A): strict commands, normalized
 inputs, registry-validated dietary tags, and PATCH null semantics."""
 
+import json
 import uuid
 
 import pytest
 from pydantic import ValidationError
 
 from app.domains.catalog import policies
+from app.domains.catalog.dietary import DietaryTag
 from app.domains.catalog.schemas import (
     CategoryCreate,
     CategoryReorder,
@@ -68,17 +70,63 @@ class TestCategoryUpdate:
 
 
 class TestItemCreate:
+    # Dietary tags arrive as untyped wire JSON, so these go through
+    # model_validate rather than the typed constructor: the declared type is
+    # the DietaryTag registry (M3E contract-fidelity correction) while the
+    # mode="before" validator still accepts and canonicalizes raw strings.
     def test_dietary_tags_are_canonicalized(self) -> None:
-        payload = ItemCreate(name="Samosa", price_minor=350, dietary_tags=[" Halal "])
-        assert payload.dietary_tags == ["halal"]
+        payload = ItemCreate.model_validate(
+            {"name": "Samosa", "price_minor": 350, "dietary_tags": [" Halal "]}
+        )
+        assert payload.dietary_tags == [DietaryTag.HALAL]
+        assert payload.dietary_tags == ["halal"]  # StrEnum: still equals the stored value
+
+    def test_dietary_tags_serialize_as_canonical_strings(self) -> None:
+        payload = ItemCreate.model_validate(
+            {"name": "Samosa", "price_minor": 350, "dietary_tags": ["VEGAN", " vegetarian"]}
+        )
+        assert json.loads(payload.model_dump_json())["dietary_tags"] == ["vegan", "vegetarian"]
+
+    def test_recognized_tags_are_accepted(self) -> None:
+        payload = ItemCreate.model_validate(
+            {
+                "name": "Samosa",
+                "price_minor": 350,
+                "dietary_tags": ["halal", "vegetarian", "vegan"],
+            }
+        )
+        assert payload.dietary_tags == [
+            DietaryTag.HALAL,
+            DietaryTag.VEGETARIAN,
+            DietaryTag.VEGAN,
+        ]
 
     def test_unknown_dietary_tag_is_rejected(self) -> None:
         with pytest.raises(ValidationError, match="unknown dietary tag"):
-            ItemCreate(name="Samosa", price_minor=350, dietary_tags=["spicy"])
+            ItemCreate.model_validate(
+                {"name": "Samosa", "price_minor": 350, "dietary_tags": ["spicy"]}
+            )
 
     def test_duplicate_tags_after_canonicalization_are_rejected(self) -> None:
         with pytest.raises(ValidationError, match="duplicate dietary tag"):
-            ItemCreate(name="Samosa", price_minor=350, dietary_tags=["halal", "HALAL"])
+            ItemCreate.model_validate(
+                {"name": "Samosa", "price_minor": 350, "dietary_tags": ["halal", "HALAL"]}
+            )
+
+    def test_non_string_dietary_tag_surfaces_the_declared_type_error(self) -> None:
+        # The before-validator hands a non-string list straight to the declared
+        # type, so Pydantic reports the type problem rather than an
+        # attribute error from inside normalization.
+        with pytest.raises(ValidationError) as excinfo:
+            ItemCreate.model_validate({"name": "Samosa", "price_minor": 350, "dietary_tags": [7]})
+        assert "dietary_tags" in str(excinfo.value)
+
+    def test_non_list_dietary_tags_surface_the_declared_type_error(self) -> None:
+        with pytest.raises(ValidationError) as excinfo:
+            ItemCreate.model_validate(
+                {"name": "Samosa", "price_minor": 350, "dietary_tags": "halal"}
+            )
+        assert "dietary_tags" in str(excinfo.value)
 
     def test_negative_price_is_rejected(self) -> None:
         with pytest.raises(ValidationError):

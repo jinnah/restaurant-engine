@@ -7,6 +7,7 @@ and the business-row lock that serializes these operations per tenant.
 """
 
 import uuid
+from collections.abc import Sequence
 
 from sqlalchemy import delete, exists, func, select, update
 from sqlalchemy.orm import Session
@@ -245,7 +246,7 @@ def list_tags_for_business(db: Session, *, business_id: uuid.UUID) -> dict[uuid.
 
 
 def replace_item_tags(
-    db: Session, *, business_id: uuid.UUID, item_id: uuid.UUID, tags: list[str]
+    db: Session, *, business_id: uuid.UUID, item_id: uuid.UUID, tags: Sequence[str]
 ) -> None:
     """Replace an item's tag set (delete-and-insert inside the caller's txn)."""
     db.execute(
