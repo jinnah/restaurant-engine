@@ -35,11 +35,14 @@ M3E depends on the stable M3A–M3C administrative contracts (and any M3D
 behavior it directly consumes); M3F depends on all earlier slices.
 
 M3E covers the control-center business workspace and menu administration UI
-(ADR-018). Its architecture was approved on 2026-07-22, after the
-implementation already existed; the implementation itself is **in review and
-not accepted**, and ADR-018's process record states why. The Playwright menu
-journey remains **deferred to M3F** — M3E's automated coverage is
-component/integration level, and its visual acceptance is a
+(ADR-018) and is delivered. Its architecture was approved on 2026-07-22,
+**after** the implementation already existed — an inversion of the intended
+sequence that ADR-018's process record documents in full, and that the
+milestone's acceptance does not erase. Two rounds of review corrections and a
+business-boundary defect found in final review were resolved before merge.
+
+The Playwright menu journey remains **deferred to M3F** — M3E's automated
+coverage is component/integration level, and its visual acceptance is a
 disposable-environment check, not new end-to-end specs.
 
 | Sub                              | Scope                                                                                                                                                                                      | State                              |
@@ -48,7 +51,7 @@ disposable-environment check, not new end-to-end specs.
 | **M3B** — Modifiers backend      | modifier groups/options, selection rules, satisfiability model, admin APIs                                                                                                                 | **Complete** (2026-07-20, ADR-017) |
 | **M3C** — Media backend          | media domain, storage adapter, upload pipeline, responsive WebP variants, pending/active lifecycle, sweep, item image attachment                                                           | **Complete** (2026-07-21, ADR-017) |
 | **M3D** — Public menu API        | host-resolved public menu + public media delivery, neutral-404 contract                                                                                                                    | **Complete** (2026-07-21, ADR-017) |
-| **M3E** — Menu administration UI | business workspace + menu management in the control center                                                                                                                                 | **In review** (ADR-018)            |
+| **M3E** — Menu administration UI | business workspace + menu management in the control center                                                                                                                                 | **Complete** (2026-07-22, ADR-018) |
 | **M3F** — E2E and close-out      | Playwright menu journey, verification, final documentation                                                                                                                                 | Not started                        |
 
 ## Milestone 2 delivery decision (2026-07-16)

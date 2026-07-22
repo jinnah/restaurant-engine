@@ -2,10 +2,10 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (Milestone 3E — in review)
+## Current state (Milestone 3E)
 
-M3E's implementation has not been accepted (ADR-018). What follows describes
-the coverage that exists on the review branch, not a shipped milestone.
+M3E is delivered and merged (PR #15, 2026-07-22, ADR-018). What follows is
+the coverage on `main`.
 
 The control center's business workspace is covered by component and
 integration tests (Vitest, injected client, the real route table through a
