@@ -117,6 +117,56 @@ export function useDeleteCategory(businessId: string) {
   });
 }
 
+/**
+ * Reorder categories, or the items inside one category.
+ *
+ * Both send the complete permutation and both return the authoritative
+ * `AdminMenu`, so the response is written straight into the cache rather than
+ * triggering another round trip. An inexact set — someone added or removed an
+ * entry while the user was reordering — comes back as a 409 and the caller
+ * refetches instead of retrying blindly.
+ */
+export function useReorderCategories(businessId: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (orderedIds: string[]) =>
+      unwrapPrivileged(
+        queryClient,
+        await client.catalog.reorderCategories(
+          businessId,
+          { ordered_category_ids: orderedIds },
+          requireCsrf(queryClient),
+        ),
+      ),
+    onSuccess: (menu) => {
+      queryClient.setQueryData(menuKeys.tree(businessId), menu);
+    },
+  });
+}
+
+export function useReorderItems(businessId: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { categoryId: string; orderedIds: string[] }) =>
+      unwrapPrivileged(
+        queryClient,
+        await client.catalog.reorderItems(
+          businessId,
+          {
+            category_id: input.categoryId,
+            ordered_item_ids: input.orderedIds,
+          },
+          requireCsrf(queryClient),
+        ),
+      ),
+    onSuccess: (menu) => {
+      queryClient.setQueryData(menuKeys.tree(businessId), menu);
+    },
+  });
+}
+
 // --- Items -------------------------------------------------------------
 
 export function useCreateItem(businessId: string) {

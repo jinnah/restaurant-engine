@@ -4,6 +4,8 @@ import type {
   CategorySummary,
   CategoryWithItems,
 } from '@restaurant-engine/api-client';
+import { asApiFailure } from '../api/failure';
+import { classifyFailure } from '../api/failures';
 import { useSession } from '../auth/useSession';
 import {
   findMembership,
@@ -20,12 +22,15 @@ import {
   type CategoryFormValues,
 } from './components/CategoryFormDialog';
 import { ItemRow } from './components/ItemRow';
+import { ReorderList } from './components/ReorderList';
 import { useMediaIndex } from './mediaData';
 import {
   useAdminMenu,
   useBusiness,
   useCreateCategory,
   useDeleteCategory,
+  useReorderCategories,
+  useReorderItems,
   useUpdateCategory,
 } from './menuData';
 import { menuPermissions } from './permissions';
@@ -78,6 +83,12 @@ export function MenuOverviewPage() {
   const createCategory = useCreateCategory(businessId);
   const updateCategory = useUpdateCategory(businessId);
   const deleteCategory = useDeleteCategory(businessId);
+  const reorderCategories = useReorderCategories(businessId);
+  const reorderItems = useReorderItems(businessId);
+  // `null` = not reordering; '' = reordering categories; an id = that
+  // category's items. Only one reorder session can be open at a time.
+  const [reordering, setReordering] = useState<string | null>(null);
+  const [reorderError, setReorderError] = useState<string | null>(null);
 
   const membership =
     session.status === 'authenticated'
@@ -216,6 +227,23 @@ export function MenuOverviewPage() {
     }
   }
 
+  /**
+   * A reorder that the server rejects as an inexact set means the menu
+   * changed underneath the user. Saying so and refetching is the only honest
+   * response — retrying the same permutation would fail identically.
+   */
+  function onReorderError(error: unknown) {
+    const failure = asApiFailure(error);
+    setReorderError(
+      classifyFailure(failure) === 'conflict'
+        ? 'The menu changed while you were reordering. It has been refreshed — please try again.'
+        : (failure.envelope?.error.message ??
+            'The new order could not be saved.'),
+    );
+    setReordering(null);
+    void menu.refetch();
+  }
+
   function confirmDelete(category: CategoryWithItems) {
     deleteCategory.mutate(category.id, {
       onSuccess: () => {
@@ -239,20 +267,67 @@ export function MenuOverviewPage() {
       <div className={styles.pageHead}>
         <h2 id="menu-title">Menu</h2>
         {canWrite && (
-          <button
-            type="button"
-            className={styles.submit}
-            onClick={() => {
-              setFailure(null);
-              setDialog({ mode: 'create' });
-            }}
-          >
-            New category
-          </button>
+          <div className={styles.actionsInline}>
+            {categories.length > 1 && reordering === null && (
+              <button
+                type="button"
+                className={styles.secondary}
+                onClick={() => {
+                  setReorderError(null);
+                  setReordering('');
+                }}
+              >
+                Reorder categories
+              </button>
+            )}
+            <button
+              type="button"
+              className={styles.submit}
+              onClick={() => {
+                setFailure(null);
+                setDialog({ mode: 'create' });
+              }}
+            >
+              New category
+            </button>
+          </div>
         )}
       </div>
 
       {pageError !== null && <ErrorSummary failure={pageError} />}
+      {reorderError !== null && (
+        <p role="alert" className={styles.fieldErrorText}>
+          {reorderError}
+        </p>
+      )}
+
+      {reordering === '' && (
+        <section aria-labelledby="reorder-categories-title">
+          <h3 id="reorder-categories-title">Reorder categories</h3>
+          <ReorderList
+            noun="category"
+            entries={categories.map((entry) => ({
+              id: entry.id,
+              name: entry.name,
+            }))}
+            pending={reorderCategories.isPending}
+            error={null}
+            onCancel={() => {
+              setReordering(null);
+            }}
+            onSave={(orderedIds) => {
+              setReorderError(null);
+              reorderCategories.mutate(orderedIds, {
+                onSuccess: () => {
+                  setReordering(null);
+                  notify({ message: 'Category order saved.' });
+                },
+                onError: onReorderError,
+              });
+            }}
+          />
+        </section>
+      )}
 
       {categories.length === 0 ? (
         <p className={styles.empty}>
@@ -292,103 +367,169 @@ export function MenuOverviewPage() {
           )}
 
           <ol className={styles.categoryList}>
-            {filtered.map((category) => (
-              <li key={category.id} className={styles.categoryCard}>
-                <div className={styles.categoryHead}>
-                  <h3 className={styles.categoryName}>
-                    {category.name}
-                    {!category.is_visible && (
-                      <span className={styles.chipHidden}>Hidden</span>
-                    )}
-                  </h3>
-                  <p className={styles.count}>
-                    {category.items.length === 1
-                      ? '1 item'
-                      : `${String(category.items.length)} items`}
-                  </p>
-                </div>
-                {canWrite && (
-                  <div className={styles.categoryActions}>
-                    <Link
-                      to={`/businesses/${businessId}/menu/items/new?categoryId=${category.id}`}
-                      className={styles.quietLink}
-                    >
-                      Add item to {category.name}
-                    </Link>
-                    <button
-                      type="button"
-                      className={styles.quiet}
-                      onClick={() => {
-                        setFailure(null);
-                        setDialog({ mode: 'edit', category });
-                      }}
-                    >
-                      Edit {category.name}
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.quiet}
-                      disabled={category.items.length > 0}
-                      aria-describedby={
-                        category.items.length > 0
-                          ? `delete-blocked-${category.id}`
-                          : undefined
-                      }
-                      onClick={() => {
-                        setPageError(null);
-                        setDialog({ mode: 'delete', category });
-                      }}
-                    >
-                      Delete {category.name}
-                    </button>
-                    {category.items.length > 0 && (
-                      <span
-                        id={`delete-blocked-${category.id}`}
-                        className={styles.actionNote}
-                      >
-                        Move or delete its items before deleting the category.
-                      </span>
-                    )}
+            {filtered.map((category) => {
+              // Affordances are decided from the real category, never the
+              // filtered copy: a filter that hides every item must not make
+              // a non-empty category look deletable, nor hide the reorder
+              // action for a category that genuinely has several items.
+              const source =
+                categories.find((entry) => entry.id === category.id) ??
+                category;
+              return (
+                <li key={category.id} className={styles.categoryCard}>
+                  <div className={styles.categoryHead}>
+                    <h3 className={styles.categoryName}>
+                      {category.name}
+                      {!category.is_visible && (
+                        <span className={styles.chipHidden}>Hidden</span>
+                      )}
+                    </h3>
+                    <p className={styles.count}>
+                      {category.items.length === 1
+                        ? '1 item'
+                        : `${String(category.items.length)} items`}
+                    </p>
                   </div>
-                )}
-                {category.description !== null && (
-                  <p className={styles.categoryDescription}>
-                    {category.description}
-                  </p>
-                )}
-                {category.items.length === 0 ? (
-                  <p className={styles.empty}>
-                    {filtering
-                      ? 'No matching items in this category.'
-                      : 'No items yet.'}
-                  </p>
-                ) : (
-                  <ol className={styles.itemList}>
-                    {category.items.map((item) => (
-                      <ItemRow
-                        key={item.id}
-                        businessId={businessId}
-                        item={item}
-                        currency={currency}
-                        asset={
-                          item.image_media_id === null
-                            ? undefined
-                            : mediaIndex.get(item.image_media_id)
+                  {canWrite && (
+                    <div className={styles.categoryActions}>
+                      <Link
+                        to={`/businesses/${businessId}/menu/items/new?categoryId=${category.id}`}
+                        className={styles.quietLink}
+                      >
+                        Add item to {category.name}
+                      </Link>
+                      <button
+                        type="button"
+                        className={styles.quiet}
+                        onClick={() => {
+                          setFailure(null);
+                          setDialog({ mode: 'edit', category });
+                        }}
+                      >
+                        Edit {category.name}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.quiet}
+                        disabled={source.items.length > 0}
+                        aria-describedby={
+                          source.items.length > 0
+                            ? `delete-blocked-${category.id}`
+                            : undefined
                         }
-                        actions={
-                          permissions?.canSetAvailability === true ? (
-                            <AvailabilityToggle
-                              businessId={businessId}
-                              item={item}
-                            />
-                          ) : undefined
-                        }
-                      />
-                    ))}
-                  </ol>
-                )}
-              </li>
-            ))}
+                        onClick={() => {
+                          setPageError(null);
+                          setDialog({ mode: 'delete', category: source });
+                        }}
+                      >
+                        Delete {category.name}
+                      </button>
+                      {source.items.length > 1 && reordering === null && (
+                        <button
+                          type="button"
+                          className={styles.quiet}
+                          disabled={filtering}
+                          aria-describedby={
+                            filtering
+                              ? `reorder-blocked-${category.id}`
+                              : undefined
+                          }
+                          onClick={() => {
+                            setReorderError(null);
+                            setReordering(category.id);
+                          }}
+                        >
+                          Reorder {category.name}
+                        </button>
+                      )}
+                      {source.items.length > 1 && filtering && (
+                        // A permutation over a filtered subset would be an
+                        // inexact set, which the server rejects — so the
+                        // affordance is disabled and says why.
+                        <span
+                          id={`reorder-blocked-${category.id}`}
+                          className={styles.actionNote}
+                        >
+                          Clear the filter to reorder.
+                        </span>
+                      )}
+                      {source.items.length > 0 && (
+                        <span
+                          id={`delete-blocked-${category.id}`}
+                          className={styles.actionNote}
+                        >
+                          Move or delete its items before deleting the category.
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {category.description !== null && (
+                    <p className={styles.categoryDescription}>
+                      {category.description}
+                    </p>
+                  )}
+                  {reordering === category.id ? (
+                    <ReorderList
+                      noun="item"
+                      entries={source.items.map((entry) => ({
+                        id: entry.id,
+                        name: entry.name,
+                      }))}
+                      pending={reorderItems.isPending}
+                      error={null}
+                      onCancel={() => {
+                        setReordering(null);
+                      }}
+                      onSave={(orderedIds) => {
+                        setReorderError(null);
+                        reorderItems.mutate(
+                          { categoryId: category.id, orderedIds },
+                          {
+                            onSuccess: () => {
+                              setReordering(null);
+                              notify({
+                                message: `Item order saved for ${category.name}.`,
+                              });
+                            },
+                            onError: onReorderError,
+                          },
+                        );
+                      }}
+                    />
+                  ) : category.items.length === 0 ? (
+                    <p className={styles.empty}>
+                      {filtering
+                        ? 'No matching items in this category.'
+                        : 'No items yet.'}
+                    </p>
+                  ) : (
+                    <ol className={styles.itemList}>
+                      {category.items.map((item) => (
+                        <ItemRow
+                          key={item.id}
+                          businessId={businessId}
+                          item={item}
+                          currency={currency}
+                          asset={
+                            item.image_media_id === null
+                              ? undefined
+                              : mediaIndex.get(item.image_media_id)
+                          }
+                          actions={
+                            permissions?.canSetAvailability === true ? (
+                              <AvailabilityToggle
+                                businessId={businessId}
+                                item={item}
+                              />
+                            ) : undefined
+                          }
+                        />
+                      ))}
+                    </ol>
+                  )}
+                </li>
+              );
+            })}
           </ol>
         </>
       )}
