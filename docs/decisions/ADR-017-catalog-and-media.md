@@ -307,7 +307,7 @@ implementation:
   on timestamps): a direct SQL insert omitting a required value fails
   explicitly rather than acquiring a divergent default.
 
-**Delivered (local) 2026-07-20, in review.** One migration
+**Delivered and merged 2026-07-20 (PR #12).** One migration
 (`f8ad809962f8`) creates `modifier_groups` and `modifier_options`
 exactly as ruled: composite tenant-safe FKs (groups CASCADE with their
 item; options CASCADE with their group over the new
@@ -485,7 +485,7 @@ corrections), recorded before implementation:
 - **Dependencies (D11).** `pillow==12.3.0`, `python-multipart==0.0.32`
   (exact-pinned; backend only).
 
-### M3D — Public menu API and public media delivery: in progress (2026-07-21)
+### M3D — Public menu API and public media delivery: delivered, 2026-07-21
 
 Approved architecture (discovery proposal → architecture-gate rulings
 R1–R15 → addendum → authorization refinements), recorded before
@@ -610,7 +610,7 @@ implementation:
   projection and delivery need already exists; the Alembic head stays
   `59b463781dcc`.
 
-**Delivered (local) 2026-07-21, in review.** Two schema-visible
+**Delivered and merged 2026-07-21 (PR #14).** Two schema-visible
 operations landed exactly as ruled (`public_menu_get`,
 `public_media_file_get`; pinned total 57) with schema-hidden `HEAD`
 companions on the same handlers, and no migration, dependency, or
@@ -660,6 +660,25 @@ including error statuses, warning discipline for expected misses,
 bounded-query stability, concurrent-edit structural validity, response
 and log hygiene, and the absence of audit events for public reads.
 
-### M3E–M3F
+### M3E — Menu administration UI: in progress (2026-07-21)
 
-Not started.
+Architecture and binding rulings are recorded in
+**ADR-018 — Business Workspace and Menu Administration UI**; only the
+delivery record belongs here. M3E consumes the M3A–M3C administrative
+contracts and adds no route, migration, authorization rule, or catalog/media
+service behavior.
+
+One deliberate contract change is in scope, authorized separately as a
+fidelity correction rather than a feature: ruling **D6** declares the
+dietary-tag registry closed and append-only and the service rejects unknown
+values, but `dietary_tags` was annotated `list[str]`, so the published
+contract advertised an unrestricted string array and the generated client
+carried no union. Because `dietary_tags` is replaced wholesale on update, an
+unbacked frontend list would silently discard a tag added later. The four
+affected annotations now use the existing `DietaryTag` enum. Accepted
+values, normalization, canonical lowercase storage, duplicate rejection, the
+per-item cap, and the fail-closed read projection are unchanged.
+
+### M3F
+
+Not started. The Playwright menu journey and the M3 close-out remain M3F.
