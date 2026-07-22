@@ -3,10 +3,8 @@ import type { ItemSummary } from '@restaurant-engine/api-client';
 import { useApiClient } from '../../api/ClientProvider';
 import { asApiFailure } from '../../api/failure';
 import { classifyFailure } from '../../api/failures';
-import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useNotify } from '../../components/NotificationProvider';
 import { useSetItemImage } from '../menuData';
-import { useDeleteAsset } from '../mediaData';
 import { ImagePickerDialog } from './ImagePickerDialog';
 import { thumbnailVariant } from './ItemRow';
 import styles from '../menu.module.css';
@@ -16,12 +14,18 @@ const PREVIEW_PX = 160;
 /**
  * The item's photo.
  *
- * Four distinct operations with four distinct labels, because they have four
- * distinct consequences (ADR-018 ruling 10):
+ * Distinct operations with distinct labels, because they have distinct
+ * consequences (ADR-018 ruling 10):
  *   Upload            — brings bytes into the business's library
  *   Use for this item  — points the item at an asset (and promotes it)
  *   Remove from item   — stops pointing; the asset survives
- *   Delete from library — destroys the asset, and only if nothing uses it
+ *
+ * Destroying an asset is the library's operation and lives in the picker,
+ * not here. It was offered here, gated on the item still pointing at the
+ * asset — which is exactly the state in which the backend must refuse it,
+ * and following its own advice ("remove it from this item first") unmounted
+ * the control before it could be used. Found by the M3F vertical slice; see
+ * ADR-019.
  */
 export function ItemImageSection({
   businessId,
@@ -37,9 +41,7 @@ export function ItemImageSection({
   const client = useApiClient();
   const notify = useNotify();
   const setImage = useSetItemImage(businessId);
-  const deleteAsset = useDeleteAsset(businessId);
   const [picking, setPicking] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const assetId = item.image_media_id;
@@ -131,24 +133,13 @@ export function ItemImageSection({
               Remove from item
             </button>
           )}
-          {assetId !== null && canWriteMedia && (
-            <button
-              type="button"
-              className={styles.quiet}
-              onClick={() => {
-                setError(null);
-                setConfirmingDelete(true);
-              }}
-            >
-              Delete from library
-            </button>
-          )}
         </div>
       )}
 
       {picking && (
         <ImagePickerDialog
           businessId={businessId}
+          canManageLibrary={canWriteMedia}
           current={
             assetId === null ? null : { assetId, altText: item.image_alt_text }
           }
@@ -179,41 +170,6 @@ export function ItemImageSection({
             );
           }}
         />
-      )}
-
-      {confirmingDelete && assetId !== null && (
-        <ConfirmDialog
-          title="Delete this image from your library?"
-          confirmLabel="Delete image"
-          danger
-          pending={deleteAsset.isPending}
-          onCancel={() => {
-            setConfirmingDelete(false);
-          }}
-          onConfirm={() => {
-            deleteAsset.mutate(assetId, {
-              onSuccess: () => {
-                setConfirmingDelete(false);
-                notify({ message: 'Image deleted.' });
-              },
-              onError: (unknownError: unknown) => {
-                setConfirmingDelete(false);
-                const failure = asApiFailure(unknownError);
-                setError(
-                  classifyFailure(failure) === 'conflict'
-                    ? 'This image is still used by a menu item. Remove it from that item first.'
-                    : (failure.envelope?.error.message ??
-                        'The image could not be deleted.'),
-                );
-              },
-            });
-          }}
-        >
-          <p>
-            This destroys the image permanently and cannot be undone. Remove it
-            from this item first — an image still in use cannot be deleted.
-          </p>
-        </ConfirmDialog>
       )}
     </section>
   );

@@ -5,12 +5,14 @@ import { asApiFailure } from '../../api/failure';
 import { classifyFailure } from '../../api/failures';
 import { Dialog } from '../../components/Dialog';
 import { TextAreaField } from '../../components/FormField';
+import { scopedLabel } from '../../components/ScopedLabel';
 import styles from '../menu.module.css';
 import {
   ACCEPTED_IMAGE_TYPES,
   ADVISORY_MAX_BYTES,
   isUnsupportedType,
   MEDIA_PAGE_SIZE,
+  useDeleteAsset,
   useMediaPage,
   useUploadAsset,
 } from '../mediaData';
@@ -29,6 +31,8 @@ interface Props {
   onCancel: () => void;
   pending: boolean;
   error: string | null;
+  /** `business.media.write`: whether library entries may be deleted here. */
+  canManageLibrary: boolean;
 }
 
 function formatBytes(bytes: number): string {
@@ -64,6 +68,21 @@ function formatBytes(bytes: number): string {
  * The attach is different: it is a short mutation whose result the dialog
  * reports, so it keeps the strict pending behaviour, as do the confirm and
  * lifecycle dialogs.
+ *
+ * Deletion lives here because this is the library. It was previously offered
+ * only on the item, gated on the item still pointing at the asset — so it
+ * was reachable only in the one state where the backend must refuse it, and
+ * following its own advice ("remove it from this item first") unmounted the
+ * control. An asset detached from its item then had no deletion path at all,
+ * and R7 never sweeps an ever-attached asset, so it was permanent. Found by
+ * the M3F vertical slice; see ADR-019.
+ *
+ * The confirmation is inline rather than a nested ConfirmDialog: that
+ * component builds on Dialog, and two Dialogs would install two competing
+ * focus traps over the same tree — the inner one stops Escape from
+ * propagating but not Tab, so the outer trap would keep re-capturing focus.
+ * Two deliberate actions are still required, and the destructive one is the
+ * one that says "permanently".
  */
 export function ImagePickerDialog({
   businessId,
@@ -72,6 +91,7 @@ export function ImagePickerDialog({
   onCancel,
   pending,
   error,
+  canManageLibrary,
 }: Props) {
   const client = useApiClient();
   const [offset, setOffset] = useState(0);
@@ -80,6 +100,7 @@ export function ImagePickerDialog({
     offset,
   });
   const upload = useUploadAsset(businessId);
+  const deleteAsset = useDeleteAsset(businessId);
 
   const [selected, setSelected] = useState<string | null>(
     current?.assetId ?? null,
@@ -95,12 +116,50 @@ export function ImagePickerDialog({
   const [fileError, setFileError] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [advisory, setAdvisory] = useState<string | null>(null);
+  /** The asset whose deletion is awaiting confirmation; one at a time. */
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // Selection controls are inert while either operation runs, so a second
-  // upload cannot start and the choice cannot change under an in-flight
-  // attach. Dismissal deliberately is NOT part of this.
+  // Selection controls are inert while any of the three operations runs, so
+  // a second upload cannot start, the choice cannot change under an
+  // in-flight attach, and nothing can be attached while it is being
+  // deleted. Dismissal deliberately is NOT part of this.
   const uploading = upload.isPending;
-  const busy = pending || uploading;
+  const busy = pending || uploading || deleteAsset.isPending;
+
+  /**
+   * Delete one library entry.
+   *
+   * The backend stays the authority in both directions: a referenced asset
+   * is refused by the `menu_items` RESTRICT foreign key as a 409, and this
+   * reports that in the same words the item page used. Nothing is detached
+   * on the client's initiative and no reference is cascaded.
+   */
+  function removeFromLibrary(assetId: string) {
+    setDeleteError(null);
+    deleteAsset.mutate(assetId, {
+      onSuccess: () => {
+        setConfirmingDelete(null);
+        // The list refetches (the mutation invalidates the media keys), so
+        // a selection pointing at bytes that no longer exist must go with
+        // it rather than linger as an attachable choice.
+        if (selected === assetId) {
+          setSelected(null);
+          setAltChoice(null);
+        }
+      },
+      onError: (unknownError: unknown) => {
+        setConfirmingDelete(null);
+        const failure = asApiFailure(unknownError);
+        setDeleteError(
+          classifyFailure(failure) === 'conflict'
+            ? 'This image is still used by a menu item. Remove it from that item first.'
+            : (failure.envelope?.error.message ??
+                'The image could not be deleted.'),
+        );
+      },
+    });
+  }
 
   const dismissRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -262,9 +321,63 @@ export function ImagePickerDialog({
                       </span>
                     )}
                 </button>
+                {/* A sibling of the tile, never a child: a button inside a
+                    button is invalid, and the tile's whole surface is the
+                    selection target. */}
+                {canManageLibrary &&
+                  (confirmingDelete === asset.id ? (
+                    <div className={styles.libraryActions}>
+                      <button
+                        type="button"
+                        className={styles.danger}
+                        disabled={busy}
+                        onClick={() => {
+                          removeFromLibrary(asset.id);
+                        }}
+                      >
+                        {deleteAsset.isPending
+                          ? 'Deleting…'
+                          : 'Delete permanently'}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.quiet}
+                        disabled={busy}
+                        onClick={() => {
+                          setConfirmingDelete(null);
+                        }}
+                      >
+                        Keep
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className={styles.quiet}
+                      disabled={busy}
+                      // The filename scopes the action for anyone reading
+                      // the control out of context; the visible label stays
+                      // short because these tiles are 7rem wide.
+                      aria-label={scopedLabel(
+                        'Delete',
+                        asset.original_filename,
+                      )}
+                      onClick={() => {
+                        setDeleteError(null);
+                        setConfirmingDelete(asset.id);
+                      }}
+                    >
+                      Delete
+                    </button>
+                  ))}
               </li>
             ))}
           </ul>
+          {deleteError !== null && (
+            <p role="alert" className={styles.fieldErrorText}>
+              {deleteError}
+            </p>
+          )}
           <div className={styles.actions}>
             <button
               type="button"

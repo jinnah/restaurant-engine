@@ -202,6 +202,15 @@
   color: var(--color-warning);
 }
 
+/* Library-entry management, below its tile. Wraps rather than truncating:
+   at 320px the confirm pair does not fit beside a 7rem tile. */
+.libraryActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+}
+
 /* --- Modifier groups --------------------------------------------------- */
 
 .modifiers {
