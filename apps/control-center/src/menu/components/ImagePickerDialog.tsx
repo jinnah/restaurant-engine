@@ -47,15 +47,23 @@ function formatBytes(bytes: number): string {
  * expires on its own (48 hours, ADR-017 R7) — the library says so rather than
  * hiding it.
  *
- * Dismissal is governed by the *attach*, never by the upload. An upload cannot
- * be cancelled (the generated client exposes no abort signal), so blocking
- * dismissal during one would remove the only keyboard exit from a modal for
- * the duration of a network request — a WCAG 2.1.2 keyboard trap — while
- * protecting nothing: the request continues either way. So the dialog stays
- * dismissable by both the visible control and Escape while an upload runs, and
- * says plainly that the upload survives. The attach is different: it is a
- * short mutation whose result the dialog reports, so it keeps the strict
- * pending behaviour, as do the confirm and lifecycle dialogs.
+ * Dismissal is governed by the *attach*, never by the upload. The client
+ * exposes no abort signal, so closing the dialog does not cancel the request,
+ * and blocking dismissal during one would remove the only keyboard exit from
+ * a modal for the duration of a network call — a WCAG 2.1.2 keyboard trap —
+ * while protecting nothing. So the dialog stays dismissable by both the
+ * visible control and Escape while an upload runs.
+ *
+ * The notice is scoped precisely to what is actually true: closing this
+ * dialog is survivable because the mutation outlives the component, but a
+ * reload, a tab close, or navigating out of the app terminates the request
+ * like any other in-flight fetch — so the promise is "continues while this
+ * app remains open", not "cannot be cancelled". Nor is success promised:
+ * the upload may still fail, so the library appearance is conditional.
+ *
+ * The attach is different: it is a short mutation whose result the dialog
+ * reports, so it keeps the strict pending behaviour, as do the confirm and
+ * lifecycle dialogs.
  */
 export function ImagePickerDialog({
   businessId,
@@ -174,9 +182,9 @@ export function ImagePickerDialog({
 
       {uploading && (
         <p role="status" className={styles.noticeText}>
-          Uploading… Closing this dialog or leaving this page will not cancel
-          it. The upload finishes on its own and the image appears in your
-          library.
+          Uploading… You can close this dialog; the upload will continue in the
+          background while this app remains open. When it succeeds, the image
+          will appear in your library.
         </p>
       )}
       {advisory !== null && (
@@ -369,7 +377,10 @@ export function ImagePickerDialog({
 
       <UnsavedChangesPrompt
         when={uploading}
-        message="An image is still uploading. Leaving this page will not cancel it."
+        // In-app navigation only; the browser owns the reload/close prompt.
+        // Moving within the app keeps the upload alive, so that is all this
+        // claims — not that the request is uncancellable.
+        message="An image is still uploading. It will keep going while this app stays open."
       />
     </Dialog>
   );

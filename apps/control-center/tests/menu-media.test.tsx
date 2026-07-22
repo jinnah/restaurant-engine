@@ -437,18 +437,24 @@ async function startUpload(overrides: Parameters<typeof client>[1] = {}) {
   return { ...rendered, uploadAsset, settle };
 }
 
-test('the upload copy never claims that closing or leaving cancels the request', async () => {
+test('the upload copy is scoped to what is actually true', async () => {
   const { settle } = await startUpload();
 
-  // The generated client exposes no abort signal, so the copy must be honest
-  // about both exits, and about what happens to the request afterwards.
-  expect(
-    await screen.findByText(/leaving this page will not cancel it/i),
-  ).toBeInTheDocument();
-  expect(screen.getByText(/closing this dialog/i)).toBeInTheDocument();
-  expect(
-    screen.getByText(/the image appears in your library/i),
-  ).toBeInTheDocument();
+  const notice = await screen.findByText(/^Uploading…/);
+
+  // Closing this dialog is genuinely survivable: the mutation outlives the
+  // component, so that is offered plainly.
+  expect(notice).toHaveTextContent(/you can close this dialog/i);
+  // Continuation is conditioned on the app staying open, because a reload,
+  // a tab close, or navigating out of the app kills an in-flight request
+  // like any other fetch.
+  expect(notice).toHaveTextContent(/while this app remains open/i);
+  // And success is conditional, never promised.
+  expect(notice).toHaveTextContent(/when it succeeds/i);
+
+  // The two overclaims this copy must never make again.
+  expect(notice).not.toHaveTextContent(/will not cancel/i);
+  expect(notice).not.toHaveTextContent(/finishes on its own/i);
   settle(ok(asset()));
 });
 
