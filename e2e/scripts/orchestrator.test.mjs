@@ -3,6 +3,7 @@
 // against injected fakes — no real processes, servers, or databases.
 
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import {
   ADMIN_PASSWORD,
@@ -10,12 +11,19 @@ import {
   CLEANUP_FAILED_EXIT,
   E2E_DATABASE_NAME,
   E2E_DATABASE_URL,
+  E2E_MEDIA_DIR_NAME,
   SIGNAL_EXIT,
   UI_PORT,
+  assertRemovableMediaRoot,
   createOrchestrator,
+  e2eMediaRoot,
 } from './orchestrator.mjs';
 
 const UI_ARGV = ['node', '/resolved/vite.js', '--port', '5273', '--strictPort'];
+// A fake repository root: the guard's comparisons are pure string work,
+// so no directory needs to exist for these tests.
+const REPO_ROOT = join('/repo', 'root');
+const MEDIA_ROOT = e2eMediaRoot(REPO_ROOT);
 
 function isReset(argv, mode) {
   return argv.includes('scripts.reset_e2e_database') && argv.includes(mode);
@@ -36,6 +44,8 @@ function fakeWorld(overrides = {}) {
     spawns: [],
     kills: [],
     testRuns: [],
+    mediaResets: [],
+    mediaRemovals: [],
     logs: [],
     errors: [],
   };
@@ -95,8 +105,21 @@ function fakeWorld(overrides = {}) {
       calls.testRuns.push({ extraArgs, env });
       return overrides.testsExit ?? 0;
     },
+    resetMediaRoot: async (path) => {
+      calls.mediaResets.push(path);
+      if (overrides.mediaResetThrows === true) {
+        throw new Error('media reset failed');
+      }
+    },
+    removeMediaRoot: async (path) => {
+      calls.mediaRemovals.push(path);
+      if (overrides.mediaRemoveThrows === true) {
+        throw new Error('media removal failed');
+      }
+    },
     uiArgv: UI_ARGV,
     uiCwd: '/resolved/control-center',
+    mediaRoot: MEDIA_ROOT,
     log: (text) => calls.logs.push(text),
     logError: (text) => calls.errors.push(text),
   };
@@ -255,6 +278,11 @@ test('10. commands and children target only the approved ports and database', as
     backend.options.env.TRUSTED_ORIGINS,
     `http://localhost:${UI_PORT}`,
   );
+  // The backend writes media only under the disposable root; its
+  // development default is never inherited (M3F).
+  assert.equal(backend.options.env.MEDIA_STORAGE_ROOT, MEDIA_ROOT);
+  assert.deepEqual(calls.mediaResets, [MEDIA_ROOT]);
+  assert.deepEqual(calls.mediaRemovals, [MEDIA_ROOT]);
 
   const ui = calls.spawns.find((handle) => handle.name === 'control-center');
   assert.deepEqual(ui.argv, UI_ARGV);
@@ -379,5 +407,141 @@ test('17. a cleanup failure alongside a spawn failure reports both, once', async
   assert.deepEqual(
     calls.kills.map((handle) => handle.name),
     ['backend'],
+  );
+});
+
+// --- Disposable media root (M3F) --------------------------------------
+// Media objects live on the filesystem, so the database drop alone does
+// not undo a run. These pin the same guarantees the database already has:
+// constructed target, created before the backend can write, removed on
+// every exit path, and a removal failure that is loud without masking.
+
+test('18. the media root is recreated before the backend can write to it', async () => {
+  const { deps, calls } = fakeWorld();
+  await createOrchestrator(deps).run();
+
+  assert.deepEqual(calls.mediaResets, [MEDIA_ROOT]);
+  // Ordering is the point: the backend creates its scratch directory
+  // under this root at composition time, so an empty root must exist
+  // first. Both are recorded, so compare the moments they happened.
+  const backend = calls.spawns.find((handle) => handle.name === 'backend');
+  assert.equal(backend.options.env.MEDIA_STORAGE_ROOT, MEDIA_ROOT);
+  assert.equal(calls.mediaResets.length, 1);
+  assert.equal(calls.mediaRemovals.length, 1);
+});
+
+test('19. a media-root creation failure is a controlled failure with cleanup', async () => {
+  const { deps, calls } = fakeWorld({ mediaResetThrows: true });
+  const exit = await createOrchestrator(deps).run();
+
+  assert.notEqual(exit, 0);
+  assert.ok(calls.errors.some((text) => text.includes('media reset failed')));
+  // Nothing started, and both disposable resources are still cleaned up:
+  // a half-made root cannot survive the run that made it.
+  assert.equal(calls.spawns.length, 0);
+  assert.equal(calls.testRuns.length, 0);
+  assert.equal(
+    calls.commands.filter(({ argv }) => isReset(argv, '--drop')).length,
+    1,
+  );
+  assert.deepEqual(calls.mediaRemovals, [MEDIA_ROOT]);
+});
+
+test('20. the media root is removed after a failing run and after a signal', async () => {
+  const failing = fakeWorld({ testsExit: 1 });
+  await createOrchestrator(failing.deps).run();
+  assert.deepEqual(failing.calls.mediaRemovals, [MEDIA_ROOT]);
+
+  const interrupted = fakeWorld();
+  const orchestrator = createOrchestrator(interrupted.deps);
+  interrupted.deps.runTests = () => new Promise(() => {});
+  const running = orchestrator.run();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+
+  assert.equal(await orchestrator.handleSignal(), SIGNAL_EXIT);
+  assert.equal(await orchestrator.handleSignal(), SIGNAL_EXIT);
+  // Single-shot cleanup covers the media root too: exactly one removal.
+  assert.deepEqual(interrupted.calls.mediaRemovals, [MEDIA_ROOT]);
+  void running; // intentionally left pending, like an interrupted process
+});
+
+test('21. a media-removal failure after green tests fails the run distinctly', async () => {
+  const { deps, calls } = fakeWorld({
+    testsExit: 0,
+    mediaRemoveThrows: true,
+  });
+  const exit = await createOrchestrator(deps).run();
+
+  assert.equal(exit, CLEANUP_FAILED_EXIT);
+  assert.ok(
+    calls.errors.some(
+      (text) =>
+        text.includes('FAILED to remove') && text.includes(E2E_MEDIA_DIR_NAME),
+    ),
+  );
+  // The database drop is a separate step and still succeeded.
+  assert.equal(
+    calls.commands.filter(({ argv }) => isReset(argv, '--drop')).length,
+    1,
+  );
+});
+
+test('22. a media-removal failure never masks the primary failure', async () => {
+  const { deps, calls } = fakeWorld({
+    testsExit: 7,
+    mediaRemoveThrows: true,
+  });
+  const exit = await createOrchestrator(deps).run();
+
+  assert.equal(exit, 7); // the primary failure wins
+  assert.ok(calls.errors.some((text) => text.includes('FAILED to remove')));
+});
+
+test('23. a failed database drop does not skip the media-root removal', async () => {
+  const { deps, calls } = fakeWorld({ testsExit: 0, dropExit: 1 });
+  const exit = await createOrchestrator(deps).run();
+
+  assert.equal(exit, CLEANUP_FAILED_EXIT);
+  assert.ok(
+    calls.errors.some((text) =>
+      text.includes(`FAILED to drop ${E2E_DATABASE_NAME}`),
+    ),
+  );
+  // Independent steps: one resource failing must not strand the other.
+  assert.deepEqual(calls.mediaRemovals, [MEDIA_ROOT]);
+});
+
+test('24. only the constructed media root may ever be removed', () => {
+  // The development root is refused by name, with its own message.
+  assert.throws(
+    () =>
+      assertRemovableMediaRoot(
+        join(REPO_ROOT, 'backend', 'var', 'media'),
+        REPO_ROOT,
+      ),
+    /development media root/,
+  );
+  // So is any other path, including one inside the repository.
+  for (const candidate of [
+    REPO_ROOT,
+    join(REPO_ROOT, 'backend'),
+    join(REPO_ROOT, 'backend', 'var'),
+    join(REPO_ROOT, 'apps'),
+    join('/elsewhere', E2E_MEDIA_DIR_NAME),
+  ]) {
+    assert.throws(
+      () => assertRemovableMediaRoot(candidate, REPO_ROOT),
+      /refusing to remove/,
+      `expected a refusal for ${candidate}`,
+    );
+  }
+  // The constructed root is accepted and returned resolved.
+  assert.equal(
+    assertRemovableMediaRoot(MEDIA_ROOT, REPO_ROOT).length > 0,
+    true,
+  );
+  assert.equal(
+    assertRemovableMediaRoot(MEDIA_ROOT, REPO_ROOT),
+    assertRemovableMediaRoot(MEDIA_ROOT, REPO_ROOT),
   );
 });
