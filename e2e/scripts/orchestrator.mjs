@@ -328,6 +328,12 @@ export function createOrchestrator(deps) {
         E2E_BASE_URL: UI_ORIGIN,
         E2E_ADMIN_EMAIL: ADMIN_EMAIL,
         E2E_ADMIN_PASSWORD: ADMIN_PASSWORD,
+        // The public surface is reached at `{slug}.localhost:<backend>`,
+        // NOT through the UI origin: the Vite proxy forwards with
+        // `changeOrigin: false`, so a proxied request keeps
+        // `Host: localhost:5273`, which resolves to no tenant. Only the
+        // port travels; support/namespace.ts composes the origin (M3F).
+        E2E_PUBLIC_PORT: String(BACKEND_PORT),
       });
     } catch (error) {
       logError(messageOf(error));
