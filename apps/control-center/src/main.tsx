@@ -5,6 +5,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { ClientProvider } from './api/ClientProvider';
 import { createBrowserClient } from './api/client';
 import { createQueryClient } from './api/queryClient';
+import { NotificationProvider } from './components/NotificationProvider';
 import { router } from './router';
 import './globals.css';
 
@@ -17,7 +18,9 @@ createRoot(container).render(
   <StrictMode>
     <ClientProvider client={createBrowserClient()}>
       <QueryClientProvider client={createQueryClient()}>
-        <RouterProvider router={router} />
+        <NotificationProvider>
+          <RouterProvider router={router} />
+        </NotificationProvider>
       </QueryClientProvider>
     </ClientProvider>
   </StrictMode>,

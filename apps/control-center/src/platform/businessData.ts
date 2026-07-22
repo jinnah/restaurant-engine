@@ -3,7 +3,7 @@ import type { BusinessCreate } from '@restaurant-engine/api-client';
 import { useApiClient } from '../api/ClientProvider';
 import { ApiFailure } from '../api/failure';
 import { currentCsrfToken } from '../auth/csrf';
-import { unwrapPrivileged } from './api';
+import { unwrapPrivileged } from '../api/failures';
 import { platformKeys, type PageParams } from './keys';
 
 export function usePlatformBusinesses(page: PageParams) {

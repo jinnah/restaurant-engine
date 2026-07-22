@@ -5,9 +5,9 @@ import type {
   AuditEventSummary,
 } from '@restaurant-engine/api-client';
 import { useApiClient } from '../api/ClientProvider';
-import { unwrapPrivileged } from './api';
+import { unwrapPrivileged } from '../api/failures';
 import { platformKeys } from './keys';
-import { FormField } from './FormField';
+import { FormField } from '../components/FormField';
 import styles from './platform.module.css';
 
 const PAGE_SIZE = 50;

@@ -12,10 +12,16 @@
   --color-danger-bg: #fbeceb;
   --color-success: #1d6b43;
   --color-success-bg: #e9f4ec;
+  --color-warning: #7a4b06;
+  --color-warning-bg: #fdf3e3;
   --radius: 10px;
   --space-1: 0.5rem;
   --space-2: 1rem;
   --space-3: 2rem;
+  /* Blueprint §12.4: at least 44 CSS px for any touch target, with 48px
+     preferred for primary administrative controls. */
+  --target-min: 44px;
+  --target-primary: 48px;
 }
 
 *,

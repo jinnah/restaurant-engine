@@ -6,7 +6,7 @@ import type {
 import { asApiFailure } from '../api/failure';
 import { mapFailure, type FormFailure } from '../components/formErrors';
 import { ErrorSummary } from '../components/StatusPanels';
-import { ConfirmDialog } from './ConfirmDialog';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import {
   useCreateInvitation,
   usePlatformInvitations,
