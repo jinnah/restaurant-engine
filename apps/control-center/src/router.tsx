@@ -3,6 +3,8 @@ import { GuestOnly } from './auth/GuestOnly';
 import { RequireAuth } from './auth/RequireAuth';
 import { BusinessWorkspaceLayout } from './business/BusinessWorkspaceLayout';
 import { RequireBusinessMembership } from './business/RequireBusinessMembership';
+import { ItemCreatePage } from './menu/ItemCreatePage';
+import { ItemEditorPage } from './menu/ItemEditorPage';
 import { MenuOverviewPage } from './menu/MenuOverviewPage';
 import { AuditPage } from './platform/AuditPage';
 import { BusinessDetailPage } from './platform/BusinessDetailPage';
@@ -48,6 +50,13 @@ export const routes: RouteObject[] = [
                     children: [
                       { index: true, element: <Navigate to="menu" replace /> },
                       { path: 'menu', element: <MenuOverviewPage /> },
+                      // React Router ranks a static segment above a dynamic
+                      // one, so `new` can never be captured as an :itemId.
+                      { path: 'menu/items/new', element: <ItemCreatePage /> },
+                      {
+                        path: 'menu/items/:itemId',
+                        element: <ItemEditorPage />,
+                      },
                       // Unknown workspace children fall through to the root
                       // catch-all not-found route.
                     ],

@@ -1,0 +1,486 @@
+// Item creation and editing (M3E): distinct request models, dirty-only
+// updates, the separate availability command, the featured ceiling, and
+// unsaved-change protection.
+
+import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { expect, test, vi } from 'vitest';
+import {
+  adminMenu,
+  apiError,
+  business,
+  category,
+  envelope,
+  item,
+  makeClient,
+  membership,
+  ok,
+  sessionView,
+} from './support/mockClient';
+import { renderApp } from './support/render';
+
+const SHALIK = '5f0d2c9a-7f5e-4c1b-9a37-0b8a52a9c001';
+const MENU = `/businesses/${SHALIK}/menu`;
+const CAT = 'c1';
+
+function client(
+  categories: Parameters<typeof adminMenu>[0],
+  overrides: Parameters<typeof makeClient>[0] = {},
+  role: 'owner' | 'manager' | 'staff' = 'owner',
+) {
+  return makeClient({
+    auth: {
+      getSession: vi.fn(async () =>
+        ok(
+          sessionView({
+            memberships: [membership({ business_id: SHALIK, role })],
+          }),
+        ),
+      ),
+    },
+    businesses: { get: vi.fn(async () => ok(business({ id: SHALIK }))) },
+    ...overrides,
+    catalog: {
+      getMenu: vi.fn(async () => ok(adminMenu(categories))),
+      ...overrides.catalog,
+    },
+  });
+}
+
+const oneCategory = [category({ id: CAT, name: 'Starters', items: [] })];
+
+// --- Creation ----------------------------------------------------------
+
+test('add item from a category preselects it', async () => {
+  renderApp(`${MENU}/items/new?categoryId=${CAT}`, client(oneCategory));
+  const select = await screen.findByLabelText<HTMLSelectElement>('Category');
+  expect(select.value).toBe(CAT);
+});
+
+test('a missing categoryId stays recoverable through the selector', async () => {
+  renderApp(`${MENU}/items/new`, client(oneCategory));
+  const select = await screen.findByLabelText<HTMLSelectElement>('Category');
+  expect(select.value).toBe('');
+  expect(screen.getByRole('option', { name: 'Starters' })).toBeInTheDocument();
+});
+
+test('a stale categoryId explains itself and still lets the user continue', async () => {
+  renderApp(`${MENU}/items/new?categoryId=deleted-one`, client(oneCategory));
+  expect(
+    await screen.findByText(/that category is no longer available/i),
+  ).toBeInTheDocument();
+  expect(screen.getByLabelText<HTMLSelectElement>('Category').value).toBe('');
+});
+
+test('creation sends only ItemCreate fields, with the category as a path argument', async () => {
+  const createItem = vi.fn(async () =>
+    ok(item({ id: 'new-1', name: 'Samosa' })),
+  );
+  renderApp(
+    `${MENU}/items/new?categoryId=${CAT}`,
+    client(oneCategory, { catalog: { createItem } }),
+  );
+
+  fireEvent.change(await screen.findByLabelText('Name'), {
+    target: { value: 'Samosa' },
+  });
+  fireEvent.change(screen.getByLabelText(/^Price/), {
+    target: { value: '3.50' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Add item' }));
+
+  await waitFor(() => {
+    expect(createItem).toHaveBeenCalledTimes(1);
+  });
+  expect(createItem).toHaveBeenCalledWith(
+    SHALIK,
+    CAT,
+    {
+      name: 'Samosa',
+      description: null,
+      price_minor: 350,
+      dietary_tags: [],
+    },
+    'csrf-token-1',
+  );
+});
+
+test('the create form offers no update-only controls', async () => {
+  renderApp(`${MENU}/items/new?categoryId=${CAT}`, client(oneCategory));
+  await screen.findByLabelText('Name');
+  expect(screen.queryByLabelText(/hide from the storefront/i)).toBeNull();
+  expect(screen.queryByLabelText(/feature this item/i)).toBeNull();
+  expect(screen.queryByRole('button', { name: /sold out/i })).toBeNull();
+  // The defaults are explained rather than faked with inert controls.
+  expect(
+    screen.getByText(/new items start visible and available/i),
+  ).toBeInTheDocument();
+});
+
+test('creation navigates to the canonical item URL, replacing history', async () => {
+  const created = item({ id: 'new-1', name: 'Samosa', category_id: CAT });
+  const createItem = vi.fn(async () => ok(created));
+  const getMenu = vi
+    .fn()
+    .mockResolvedValueOnce(ok(adminMenu(oneCategory)))
+    .mockResolvedValue(
+      ok(
+        adminMenu([category({ id: CAT, name: 'Starters', items: [created] })]),
+      ),
+    );
+  const { router } = renderApp(
+    `${MENU}/items/new?categoryId=${CAT}`,
+    client(oneCategory, { catalog: { createItem, getMenu } }),
+  );
+
+  fireEvent.change(await screen.findByLabelText('Name'), {
+    target: { value: 'Samosa' },
+  });
+  fireEvent.change(screen.getByLabelText(/^Price/), {
+    target: { value: '3.50' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Add item' }));
+
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe(`${MENU}/items/new-1`);
+  });
+  // replace:true — Back returns to the menu, not to the create form.
+  expect(router.state.historyAction).toBe('REPLACE');
+  expect(await screen.findByText(/Item .Samosa. added/)).toBeInTheDocument();
+});
+
+test('a successful creation does not trigger the unsaved-changes prompt', async () => {
+  const created = item({ id: 'new-1', name: 'Samosa', category_id: CAT });
+  renderApp(
+    `${MENU}/items/new?categoryId=${CAT}`,
+    client(oneCategory, {
+      catalog: { createItem: vi.fn(async () => ok(created)) },
+    }),
+  );
+
+  fireEvent.change(await screen.findByLabelText('Name'), {
+    target: { value: 'Samosa' },
+  });
+  fireEvent.change(screen.getByLabelText(/^Price/), {
+    target: { value: '3.50' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Add item' }));
+
+  await screen.findByText(/Item .Samosa. added/);
+  expect(screen.queryByText(/leave without saving/i)).toBeNull();
+});
+
+test('cancel returns to the overview without creating anything', async () => {
+  const createItem = vi.fn(async () => ok(item()));
+  const { router } = renderApp(
+    `${MENU}/items/new?categoryId=${CAT}`,
+    client(oneCategory, { catalog: { createItem } }),
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe(MENU);
+  });
+  expect(createItem).not.toHaveBeenCalled();
+});
+
+test('leaving a dirty create form asks first', async () => {
+  const { router } = renderApp(
+    `${MENU}/items/new?categoryId=${CAT}`,
+    client(oneCategory),
+  );
+
+  fireEvent.change(await screen.findByLabelText('Name'), {
+    target: { value: 'Half typed' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+  expect(await screen.findByText(/leave without saving/i)).toBeInTheDocument();
+  expect(router.state.location.pathname).toBe(`${MENU}/items/new`);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Leave' }));
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe(MENU);
+  });
+});
+
+test('an invalid price is refused before any request', async () => {
+  const createItem = vi.fn(async () => ok(item()));
+  renderApp(
+    `${MENU}/items/new?categoryId=${CAT}`,
+    client(oneCategory, { catalog: { createItem } }),
+  );
+
+  fireEvent.change(await screen.findByLabelText('Name'), {
+    target: { value: 'Samosa' },
+  });
+  fireEvent.change(screen.getByLabelText(/^Price/), {
+    target: { value: '3.501' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Add item' }));
+
+  expect(
+    await screen.findByText(/use at most 2 decimal places/i),
+  ).toBeInTheDocument();
+  expect(createItem).not.toHaveBeenCalled();
+});
+
+// --- Editing -----------------------------------------------------------
+
+const existing = item({
+  id: 'i1',
+  category_id: CAT,
+  name: 'Samosa',
+  description: 'Crisp pastry',
+  price_minor: 350,
+});
+const withItem = [category({ id: CAT, name: 'Starters', items: [existing] })];
+
+test('editing sends only the changed fields', async () => {
+  const updateItem = vi.fn(async () => ok({ ...existing, name: 'Samosas' }));
+  renderApp(`${MENU}/items/i1`, client(withItem, { catalog: { updateItem } }));
+
+  fireEvent.change(await screen.findByLabelText('Name'), {
+    target: { value: 'Samosas' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+  await waitFor(() => {
+    expect(updateItem).toHaveBeenCalledTimes(1);
+  });
+  expect(updateItem).toHaveBeenCalledWith(
+    SHALIK,
+    'i1',
+    { name: 'Samosas' },
+    'csrf-token-1',
+  );
+});
+
+test('an item update never carries is_available', async () => {
+  const updateItem = vi.fn(async () => ok({ ...existing, is_hidden: true }));
+  renderApp(`${MENU}/items/i1`, client(withItem, { catalog: { updateItem } }));
+
+  fireEvent.click(await screen.findByLabelText(/hide from the storefront/i));
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+  await waitFor(() => {
+    expect(updateItem).toHaveBeenCalledTimes(1);
+  });
+  expect(updateItem).toHaveBeenCalledWith(
+    SHALIK,
+    'i1',
+    { is_hidden: true },
+    'csrf-token-1',
+  );
+});
+
+test('save is disabled until something changes', async () => {
+  renderApp(`${MENU}/items/i1`, client(withItem));
+  expect(
+    await screen.findByRole('button', { name: 'Save changes' }),
+  ).toBeDisabled();
+  fireEvent.change(screen.getByLabelText('Name'), {
+    target: { value: 'Samosas' },
+  });
+  expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled();
+});
+
+test('a price round-trips through the editable form', async () => {
+  renderApp(`${MENU}/items/i1`, client(withItem));
+  const price = await screen.findByLabelText<HTMLInputElement>(/^Price/);
+  expect(price.value).toBe('3.50');
+});
+
+test('the availability command is separate from the form', async () => {
+  const setItemAvailability = vi.fn(async () =>
+    ok({ ...existing, is_available: false }),
+  );
+  const updateItem = vi.fn(async () => ok(existing));
+  renderApp(
+    `${MENU}/items/i1`,
+    client(withItem, { catalog: { setItemAvailability, updateItem } }),
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Mark sold out' }));
+
+  await waitFor(() => {
+    expect(setItemAvailability).toHaveBeenCalledWith(
+      SHALIK,
+      'i1',
+      { is_available: false },
+      'csrf-token-1',
+    );
+  });
+  expect(updateItem).not.toHaveBeenCalled();
+  expect(await screen.findByText(/marked sold out/i)).toBeInTheDocument();
+});
+
+test('staff can toggle availability but cannot edit the item', async () => {
+  renderApp(`${MENU}/items/i1`, client(withItem, {}, 'staff'));
+
+  expect(
+    await screen.findByRole('button', { name: 'Mark sold out' }),
+  ).toBeInTheDocument();
+  expect(screen.queryByLabelText('Name')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull();
+  expect(
+    screen.queryByRole('button', { name: /delete this item/i }),
+  ).toBeNull();
+  expect(screen.getByText(/needs a manager or owner/i)).toBeInTheDocument();
+});
+
+test('the featured ceiling is shown before it is reached', async () => {
+  renderApp(`${MENU}/items/i1`, client(withItem));
+  expect(
+    await screen.findByText(/Featured: 0 of 6\. Hidden items count/),
+  ).toBeInTheDocument();
+});
+
+test('a featured-limit conflict reverts, quotes the server limit, and refetches', async () => {
+  const updateItem = vi.fn(async () =>
+    apiError(409, {
+      error: {
+        code: 'conflict',
+        message: 'Featured item limit reached.',
+        correlation_id: null,
+        field_errors: [],
+        details: { limit: 6 },
+      },
+    } as never),
+  );
+  const getMenu = vi.fn(async () => ok(adminMenu(withItem)));
+  renderApp(
+    `${MENU}/items/i1`,
+    client(withItem, { catalog: { updateItem, getMenu } }),
+  );
+
+  fireEvent.click(await screen.findByLabelText(/feature this item/i));
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+  expect(
+    await screen.findByText(/You can feature at most 6 items/),
+  ).toBeInTheDocument();
+  // The attempted state is reverted rather than left looking applied.
+  await waitFor(() => {
+    expect(
+      screen.getByLabelText<HTMLInputElement>(/feature this item/i).checked,
+    ).toBe(false);
+  });
+  await waitFor(() => {
+    expect(getMenu).toHaveBeenCalledTimes(2);
+  });
+});
+
+test('a server limit that disagrees is displayed and reported, never absorbed', async () => {
+  const reported = vi
+    .spyOn(console, 'error')
+    .mockImplementation(() => undefined);
+  const updateItem = vi.fn(async () =>
+    apiError(409, {
+      error: {
+        code: 'conflict',
+        message: 'Featured item limit reached.',
+        correlation_id: null,
+        field_errors: [],
+        details: { limit: 8 },
+      },
+    } as never),
+  );
+  renderApp(`${MENU}/items/i1`, client(withItem, { catalog: { updateItem } }));
+
+  fireEvent.click(await screen.findByLabelText(/feature this item/i));
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+  expect(
+    await screen.findByText(
+      /at most 8 items, which differs from what this page expected \(6\)/,
+    ),
+  ).toBeInTheDocument();
+  expect(reported).toHaveBeenCalledWith(
+    expect.stringContaining('[m3e:limit-drift]'),
+  );
+  reported.mockRestore();
+});
+
+test('an item that vanished mid-edit explains and refreshes', async () => {
+  const updateItem = vi.fn(async () =>
+    apiError(404, envelope('not_found', 'Not found.')),
+  );
+  const getMenu = vi.fn(async () => ok(adminMenu(withItem)));
+  renderApp(
+    `${MENU}/items/i1`,
+    client(withItem, { catalog: { updateItem, getMenu } }),
+  );
+
+  fireEvent.change(await screen.findByLabelText('Name'), {
+    target: { value: 'Samosas' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+  expect(
+    await screen.findByText(
+      /was changed or removed. The menu has been refreshed/i,
+    ),
+  ).toBeInTheDocument();
+  await waitFor(() => {
+    expect(getMenu).toHaveBeenCalledTimes(2);
+  });
+});
+
+test('an unknown item id renders the neutral not-found page', async () => {
+  renderApp(`${MENU}/items/does-not-exist`, client(withItem));
+  expect(
+    await screen.findByRole('heading', { level: 1, name: /page not found/i }),
+  ).toBeInTheDocument();
+});
+
+test('deleting an item confirms, states the cascade, and returns to the menu', async () => {
+  const deleteItem = vi.fn(async () => ok({ status: 'deleted' as const }));
+  const { router } = renderApp(
+    `${MENU}/items/i1`,
+    client(withItem, { catalog: { deleteItem } }),
+  );
+
+  fireEvent.click(
+    await screen.findByRole('button', { name: /delete this item/i }),
+  );
+  expect(
+    screen.getByText(/its options are deleted with it/i),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/photo stays in your image library/i),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Delete item' }));
+
+  await waitFor(() => {
+    expect(deleteItem).toHaveBeenCalledWith(SHALIK, 'i1', 'csrf-token-1');
+  });
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe(MENU);
+  });
+});
+
+test('leaving a dirty editor asks first', async () => {
+  const { router } = renderApp(`${MENU}/items/i1`, client(withItem));
+
+  fireEvent.change(await screen.findByLabelText('Name'), {
+    target: { value: 'Changed' },
+  });
+  fireEvent.click(screen.getByRole('link', { name: /back to the menu/i }));
+
+  expect(await screen.findByText(/unsaved changes/i)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(router.state.location.pathname).toBe(`${MENU}/items/i1`);
+});
+
+test('the overview offers the availability toggle to staff and links to the editor', async () => {
+  renderApp(MENU, client(withItem, {}, 'staff'));
+  expect(
+    await screen.findByRole('button', { name: 'Mark sold out' }),
+  ).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Samosa' })).toHaveAttribute(
+    'href',
+    `${MENU}/items/i1`,
+  );
+  // Staff still get no create affordance.
+  expect(screen.queryByRole('link', { name: /add item to/i })).toBeNull();
+});

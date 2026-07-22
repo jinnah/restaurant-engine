@@ -1,9 +1,4 @@
-import type {
-  ComponentPropsWithoutRef,
-  ReactNode,
-  Ref,
-  TextareaHTMLAttributes,
-} from 'react';
+import type { ComponentPropsWithRef, ReactNode } from 'react';
 import styles from './controls.module.css';
 
 interface FieldShellProps {
@@ -45,13 +40,17 @@ function FieldShell({ id, label, hint, error, children }: FieldShellProps) {
   );
 }
 
-interface FormFieldProps extends ComponentPropsWithoutRef<'input'> {
+/**
+ * `ref` is accepted as an ordinary prop (React 19) rather than through
+ * forwardRef, because React Hook Form's `register()` returns one in its prop
+ * bundle and the whole bundle is spread onto these components.
+ */
+interface FormFieldProps extends ComponentPropsWithRef<'input'> {
   id: string;
   label: ReactNode;
   hint?: string;
-  /** Inline field error from the mapped ADR-008 envelope or the Zod schema. */
+  /** Inline field error from the Zod schema or the mapped ADR-008 envelope. */
   error?: string;
-  inputRef?: Ref<HTMLInputElement>;
 }
 
 /** Labelled input with accessible error association (the M2E form pattern). */
@@ -60,7 +59,6 @@ export function FormField({
   label,
   hint,
   error,
-  inputRef,
   ...inputProps
 }: FormFieldProps) {
   return (
@@ -68,7 +66,6 @@ export function FormField({
       {(describedBy) => (
         <input
           id={id}
-          ref={inputRef}
           aria-invalid={error !== undefined}
           aria-describedby={describedBy}
           {...inputProps}
@@ -78,12 +75,11 @@ export function FormField({
   );
 }
 
-interface TextAreaFieldProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
+interface TextAreaFieldProps extends ComponentPropsWithRef<'textarea'> {
   id: string;
   label: ReactNode;
   hint?: string;
   error?: string;
-  textareaRef?: Ref<HTMLTextAreaElement>;
 }
 
 /** Labelled textarea sharing the input field's error semantics. */
@@ -92,7 +88,6 @@ export function TextAreaField({
   label,
   hint,
   error,
-  textareaRef,
   ...props
 }: TextAreaFieldProps) {
   return (
@@ -100,7 +95,6 @@ export function TextAreaField({
       {(describedBy) => (
         <textarea
           id={id}
-          ref={textareaRef}
           aria-invalid={error !== undefined}
           aria-describedby={describedBy}
           {...props}
@@ -110,13 +104,12 @@ export function TextAreaField({
   );
 }
 
-interface SelectFieldProps extends ComponentPropsWithoutRef<'select'> {
+interface SelectFieldProps extends ComponentPropsWithRef<'select'> {
   id: string;
   label: ReactNode;
   hint?: string;
   error?: string;
   children: ReactNode;
-  selectRef?: Ref<HTMLSelectElement>;
 }
 
 /** Labelled select sharing the input field's error semantics. */
@@ -126,7 +119,6 @@ export function SelectField({
   hint,
   error,
   children,
-  selectRef,
   ...props
 }: SelectFieldProps) {
   return (
@@ -134,7 +126,6 @@ export function SelectField({
       {(describedBy) => (
         <select
           id={id}
-          ref={selectRef}
           aria-invalid={error !== undefined}
           aria-describedby={describedBy}
           {...props}
@@ -146,7 +137,7 @@ export function SelectField({
   );
 }
 
-interface CheckboxFieldProps extends ComponentPropsWithoutRef<'input'> {
+interface CheckboxFieldProps extends ComponentPropsWithRef<'input'> {
   id: string;
   label: ReactNode;
   hint?: string;

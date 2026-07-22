@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router';
 import type {
   CategorySummary,
   CategoryWithItems,
@@ -12,6 +13,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import type { FormFailure } from '../components/formErrors';
 import { useNotify } from '../components/NotificationProvider';
 import { ErrorSummary } from '../components/StatusPanels';
+import { AvailabilityToggle } from './components/AvailabilityToggle';
 import {
   CategoryFormDialog,
   categoryFailure,
@@ -307,6 +309,12 @@ export function MenuOverviewPage() {
                 </div>
                 {canWrite && (
                   <div className={styles.categoryActions}>
+                    <Link
+                      to={`/businesses/${businessId}/menu/items/new?categoryId=${category.id}`}
+                      className={styles.quietLink}
+                    >
+                      Add item to {category.name}
+                    </Link>
                     <button
                       type="button"
                       className={styles.quiet}
@@ -366,6 +374,14 @@ export function MenuOverviewPage() {
                           item.image_media_id === null
                             ? undefined
                             : mediaIndex.get(item.image_media_id)
+                        }
+                        actions={
+                          permissions?.canSetAvailability === true ? (
+                            <AvailabilityToggle
+                              businessId={businessId}
+                              item={item}
+                            />
+                          ) : undefined
                         }
                       />
                     ))}
