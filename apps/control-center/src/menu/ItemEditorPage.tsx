@@ -17,6 +17,7 @@ import { ErrorSummary } from '../components/StatusPanels';
 import { NotFoundPage } from '../routes/NotFoundPage';
 import { AvailabilityToggle } from './components/AvailabilityToggle';
 import { ItemFields } from './components/ItemFields';
+import { ModifierGroupsSection } from './components/ModifierGroupsSection';
 import { UnsavedChangesPrompt } from './components/UnsavedChangesPrompt';
 import {
   emptyItemValues,
@@ -242,6 +243,13 @@ export function ItemEditorPage() {
             : 'You can mark this item sold out, but editing it needs a manager or owner.'}
         </p>
       )}
+
+      <ModifierGroupsSection
+        businessId={businessId}
+        itemId={item.id}
+        currency={currency}
+        canWrite={canWrite}
+      />
 
       {canWrite && (
         <div className={styles.dangerZone}>
