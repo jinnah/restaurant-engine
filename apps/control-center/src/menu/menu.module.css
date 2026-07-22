@@ -537,8 +537,39 @@
   background: var(--color-surface);
 }
 
+/* --- Responsive -------------------------------------------------------
+   Mobile first: everything above stacks and wraps at 320px, and these
+   refinements only add breathing room once there is room to give. */
+
 @media (min-width: 48rem) {
   .itemRow {
     flex-wrap: nowrap;
+  }
+
+  .categoryCard {
+    padding: var(--space-2) var(--space-3);
+  }
+}
+
+/* Below the tablet breakpoint a menu row is a stack, so the price and the
+   availability control need to sit under the name rather than beside it. */
+@media (max-width: 47.99rem) {
+  .itemMain {
+    flex: 1 1 100%;
+  }
+
+  .availability {
+    margin-bottom: 0;
+  }
+
+  .reorderRow .positionField {
+    flex: 1 1 100%;
+  }
+}
+
+/* The library grid gets narrower tiles on a phone so two still fit. */
+@media (max-width: 30rem) {
+  .libraryGrid {
+    grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
   }
 }

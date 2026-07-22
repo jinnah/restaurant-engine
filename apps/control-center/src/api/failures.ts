@@ -1,7 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { ApiResult } from '@restaurant-engine/api-client';
 import { currentCsrfToken } from '../auth/csrf';
-import { clearAuthenticatedState } from '../auth/session';
+import { clearAuthenticatedState, SESSION_KEY } from '../auth/session';
 import { ApiFailure, unwrap } from './failure';
 
 /**
@@ -33,6 +33,15 @@ export async function unwrapPrivileged<T>(
 ): Promise<T> {
   if (!result.ok && result.status === 401) {
     await clearAuthenticatedState(queryClient);
+  }
+  if (!result.ok && result.status === 403) {
+    // The session is still valid, but this actor may no longer hold the
+    // capability — a role change mid-session is the usual cause. Revalidate
+    // the session so `memberships[].role` becomes authoritative again and the
+    // affordances recompute from it rather than from a stale snapshot.
+    // ADR-015 names invalidateQueries as an explicit revalidation trigger, so
+    // this does not fight the staleTime: Infinity policy.
+    await queryClient.invalidateQueries({ queryKey: SESSION_KEY });
   }
   return unwrap(result);
 }
