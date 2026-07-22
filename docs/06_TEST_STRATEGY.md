@@ -2,11 +2,14 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (Milestone 3E)
+## Current state (Milestone 3E — in review)
+
+M3E's implementation has not been accepted (ADR-018). What follows describes
+the coverage that exists on the review branch, not a shipped milestone.
 
 The control center's business workspace is covered by component and
 integration tests (Vitest, injected client, the real route table through a
-memory router). Three kinds are worth naming:
+memory router). Four kinds are worth naming:
 
 - **Payload-shape assertions.** Every mutation test asserts the exact
   request the facade received, not just that it was called. That is what
@@ -24,13 +27,22 @@ memory router). Three kinds are worth naming:
 - **Advisory-not-blocking assertions.** Where the domain says a rule is
   report-only — modifier satisfiability above all — the test asserts both
   that the warning appears _and_ that the write still succeeds.
+- **Error identity, not error presence.** Where a change moves a validation
+  error, the test pins the error's type, location, and message rather than
+  asserting that the field is mentioned somewhere. The dietary-tag element
+  case is the worked example: a loose assertion covered it, passed under both
+  the old and the new error, and so concealed the one behaviour the change
+  actually moved.
 
 Layout, computed contrast, touch geometry, and focus visibility are
 deliberately **not** asserted in jsdom, which computes none of them. They are
-verified by a disposable visual smoke against the real stack at 320 px,
-768 px and 1280 px (ADR-018), which is engineering evidence rather than a
-WCAG certification and is not a standing per-change requirement. The
-Playwright menu journey remains M3F.
+verified by driving the real stack in a browser at 320 px, 768 px and 1280 px
+against the disposable E2E database (ADR-018). That is engineering evidence
+rather than a WCAG certification — no axe-core scan is run — and it is not a
+standing per-change requirement. It is also **not committed tooling**: the
+driver is assembled per run, so this evidence is reproducible only by
+repeating the documented procedure, not by a project command. Whether it
+should become one is open. The Playwright menu journey remains M3F.
 
 ## Earlier state (Milestone 3D)
 

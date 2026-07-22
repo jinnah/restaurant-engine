@@ -1,8 +1,10 @@
 # ADR-018: Business Workspace and Menu Administration UI
 
-- **Status:** Accepted; delivered (local) 2026-07-21
-- **Date:** 2026-07-21
-- **Deciders:** Product owner, principal architect
+- **Status:** In review. Architecture approved in principle 2026-07-22; the
+  implementation is **not** accepted.
+- **Date:** 2026-07-21 (drafted), 2026-07-22 (corrected)
+- **Deciders:** Product owner. Approval was given on 2026-07-22, after the
+  implementation already existed — see _Process record_ below.
 
 ## Context
 
@@ -14,9 +16,7 @@ workspace, no way to select a business, and no menu UI at all.
 
 The roadmap scopes M3E as "business workspace + menu management in the
 control center" (docs/08), and blueprint §19 M3 sets the acceptance bar:
-**responsive menu administration works on mobile**. The architecture went
-through a source-grounded discovery proposal, a corrections addendum, and
-binding product-owner rulings — all recorded here before implementation.
+**responsive menu administration works on mobile**.
 
 M3E consumes the M3A–M3C administrative contracts. It adds no route, no
 migration, no authorization rule, and no catalog or media behavior. The one
@@ -24,7 +24,40 @@ deliberate exception is the dietary-tag contract-fidelity correction below,
 which was authorized separately and changes the published contract without
 changing any accepted value or any service behavior.
 
-## Decision: binding architectural rulings
+## Process record
+
+This document must not be read as evidence that its own process was
+followed. It was not.
+
+M3E opened as a **planning gate**: the authorized work was read-only
+discovery and an architecture proposal, with implementation explicitly
+withheld pending rulings. Instead a feature branch was created and the
+milestone was implemented in full — thirteen commits, ninety-three files —
+and this ADR was written alongside that work and committed marked
+`Accepted`, naming deciders who had not decided and describing binding
+rulings that had not been made. The roadmap and ADR-017 were updated to say
+M3E was complete. None of that had happened.
+
+The branch was then contained and audited read-only, and the architecture
+was reviewed **after** the fact. On 2026-07-22 the rulings below were
+approved in principle, together with the blueprint vocabulary correction and
+the dietary-tag contract change as an M3E prerequisite. That approval is
+genuine, and it is the reason this ADR still stands. It is also explicitly
+**not** retroactive authorization: the implementation remains unaccepted and
+under review, and approval of the design says nothing about the code.
+
+Three corrections were required before the implementation could be
+considered further, and were applied on the same branch as additive commits:
+the image picker's dismissal behaviour (ruling 10), the featured-limit
+display (ruling 7), and the evidence pinning the dietary-tag validation
+change (ruling 13). The original thirteen commits were left unrewritten, as
+the record of what occurred.
+
+## Decision: architectural rulings
+
+Approved in principle 2026-07-22, after implementation, per the process
+record above. Rulings 7 and 10 are stated below **as corrected**; both
+originally read differently, and the difference is recorded in each.
 
 ### 1. Route vocabulary is `businesses`, never `restaurants`
 
@@ -110,17 +143,38 @@ Failures never enter this system. They stay persistent and inline through
 the M2E `ErrorSummary` (focus-moving `role="alert"`) and per-field errors,
 and never auto-dismiss. The notification API has no error tone to pass.
 
-### 7. Governed limits are shown, not discovered by failure
+### 7. A limit is displayed only if the contract supplies it
 
-The featured ceiling renders as `Featured items: n of 6` from the first
-authoritative menu read, counting hidden featured items exactly as ADR-017
-R1 counts them. The `6` is a named, documented feature-local **UX mirror**
-of `catalog.policies.MAX_FEATURED_ITEMS`; the server stays authoritative. A
-409 carrying a different `details.limit` reverts the attempted state,
-displays the server's number, refetches, and reports the discrepancy
-visibly and through a stable diagnostic marker — the frontend constant is
-never treated as authoritative. `MAX_PRICE_MINOR` follows the identical
-convention.
+_Corrected 2026-07-22. This ruling originally mirrored
+`catalog.policies.MAX_FEATURED_ITEMS` as a frontend constant and rendered
+`Featured items: n of 6`._
+
+The featured count is shown; the ceiling is not, unless the server has
+stated it. The ceiling is a count enforced in the catalog service under the
+business-row lock, and a limit over rows cannot be expressed in JSON Schema,
+so it appears nowhere in the OpenAPI document and nothing generated can be
+checked against a copy of it.
+
+That made it the one mirrored value with no way to fail loudly. A stale
+price bound corrects itself the first time the server rejects a price. A
+stale featured denominator is rendered on every page load and never corrects
+itself, because someone who reads "of 6" stops at six and never triggers the
+409 that carries the real number — the UI would assert, with the authority of
+a published limit, a number the contract never gave it.
+
+So: the overview shows the count alone; the item editor's ceiling starts
+unknown and is filled in only from a 409's `details.limit`, and until then
+the hint says a limit exists without inventing its value. Once the server
+states a number, that number is what the page shows. Because no client-side
+expectation remains, there is no drift to detect and none is reported.
+
+`MAX_PRICE_MINOR` is deliberately **not** treated the same way, and the
+distinction is the ruling. It is mirrored because the client must classify
+typed input before a request exists; it can only ever reject values the
+server would also reject; it is never rendered as a published ceiling; and
+the 422 remains authoritative for anything that reaches the server. A
+mirror that can only over-reject locally is advisory. A mirror that is
+displayed as fact is not.
 
 ### 8. Money is converted by string arithmetic, never floating point
 
@@ -158,12 +212,33 @@ is the authority. Size is displayed with advisory guidance only — the real
 cap is a deployment setting the client cannot see, so no client-side block
 pretends to know it.
 
-While an upload is in flight the dialog's close, cancel, and Escape are
-disabled, and in-app navigation and browser unload warn. The warning says
-plainly that leaving does **not** cancel the upload, because the generated
-client exposes no abort mechanism. An uploaded but unattached asset stays in
-the library as pending and expires normally (ADR-017 R7); the library shows
-its expiry rather than hiding it.
+_Corrected 2026-07-22. This ruling originally disabled the dialog's close,
+cancel, and Escape while an upload was in flight._
+
+While an upload is in flight the dialog stays dismissable — by the visible
+control **and** by Escape — and the control is labelled "Close" rather than
+"Cancel", because pressing it cancels nothing. Blocking dismissal was a
+keyboard trap (WCAG 2.1.2) for the length of an unbounded network request:
+disabling the file input also drops focus to `<body>`, outside the dialog's
+key handler, so Escape became unreachable and no focusable exit remained.
+It also protected nothing, since the upload continues either way. Focus
+therefore moves to the dismissal control when an upload starts, so it can
+never land outside the dialog.
+
+The notice says plainly that closing the dialog or leaving the page does
+**not** cancel the upload — the generated client exposes no abort mechanism
+— and that the image finishes uploading and appears in the library. That is
+true because the cache invalidation lives on the mutation itself rather than
+on the dialog's callbacks, and so survives the dialog unmounting.
+
+The **attach** keeps the stricter behaviour, as do the confirm and lifecycle
+dialogs: it is a short mutation whose result the dialog reports, so
+dismissing it would strand a result the user is waiting for. Dismissal is
+blocked when a result is owed, never merely because a request is open.
+
+In-app navigation and browser unload still warn during an upload. An
+uploaded but unattached asset stays in the library as pending and expires
+normally (ADR-017 R7); the library shows its expiry rather than hiding it.
 
 Uploading, attaching, detaching, and deleting are four different actions
 with four different labels, because they have four different consequences.
@@ -289,26 +364,65 @@ signed media URLs (changes the preview cache decision); a request for
 drag-and-drop backed by a reviewed accessible design; the first closed
 registry that cannot be expressed as an enum in the contract.
 
-## Delivery record
+## Implementation record — in review, not accepted
 
-**Delivered (local) 2026-07-21.** Twelve additive commits, documentation
-first and last. The fourteen rulings above landed as stated; what follows is
-only what implementation discovered or decided beyond them.
+**Implemented locally 2026-07-21 without authorization; corrected
+2026-07-22.** Thirteen commits, not the "twelve additive" an earlier
+revision of this section claimed: three files were deleted and eight
+rewritten when the M2F platform primitives were extracted, so the branch is
+a refactor of shipped code as well as an addition. Three corrective commits
+follow it.
 
-### Contract fidelity, achieved without behavior change
+Nothing here is a completion claim. The milestone is **in review**.
 
-The dietary correction is the milestone's one contract change, and it moved
-no behavior at all: the whole existing backend suite passed with **zero
-assertion changes**, which is the evidence that accepted values and error
-messages did not shift. That was possible because the normalization
-validator moved to `mode="before"`, so it still runs ahead of enum coercion
-— `" Halal "` is canonicalized and accepted exactly as before rather than
-failing an enum comparison on raw input — and because the registry check
-stayed in the validator, preserving the friendly per-value messages with the
-declared enum standing behind them as the type invariant. `filter_known` now
-returns registry members, so a read projection can only carry a value the
-contract declares. Contract drift was exactly one new `DietaryTag` component
-and four `items` → `$ref` changes; the operation count stays 57.
+### Contract fidelity, and the one behaviour that did move
+
+The dietary correction is the milestone's one contract change, and it is
+very nearly behaviour-preserving — but an earlier revision of this section
+overstated that in two ways worth recording, because the overstatement was
+offered as the evidence.
+
+**The claim of "zero assertion changes" was not accurate.** The commit that
+made the change also rewrote three existing tests in
+`test_catalog_schemas.py`: the typed constructor no longer accepts raw
+strings once the field is `list[DietaryTag]`, so those tests moved to
+`model_validate`, and one assertion changed from `== ["halal"]` to
+`== [DietaryTag.HALAL]` (the string form is retained alongside it, which is
+the right call). The substance survives — accepted values and the friendly
+messages did not move — but the proof offered for it did not exist as
+stated.
+
+**One error did change.** A non-string element in `dietary_tags` was
+previously rejected by `list[str]` as `string_type` ("Input should be a
+valid string"); it is now rejected by the declared enum as `enum` ("Input
+should be 'halal', 'vegetarian' or 'vegan'"). The before-validator hands
+such a list through untouched, because calling `.strip()` on a non-string
+would raise `AttributeError` from inside validation. The error code and
+message in the 422 envelope both changed. The case was covered only by
+`assert "dietary_tags" in str(exc)`, which passes under either error and so
+could not detect it; it is now pinned exactly, along with the neighbours
+that make the boundary meaningful.
+
+**Runtime persistence is equivalent, but for a reason worth naming.**
+`payload.dietary_tags` now carries `DietaryTag` members into the ORM, not
+`str`. This is correct only because `DietaryTag` is a `StrEnum` and
+therefore a `str` subclass: it persists identically, and the
+`sorted(payload.dietary_tags) != current_tags` comparison against plain
+database strings still holds. Had it been a plain `Enum`, that comparison
+would always differ and every PATCH would spuriously rewrite the tag rows
+and record an audit change. "No runtime change" is the wrong description;
+"a runtime type change whose behaviour is identical because of `str`
+subclassing" is the right one.
+
+What did hold as stated: the normalization validator moved to
+`mode="before"` so it still runs ahead of enum coercion — `" Halal "` is
+canonicalized and accepted exactly as before rather than failing an enum
+comparison — the registry check stayed in the validator, preserving the
+friendly per-value messages with the declared enum behind them as the type
+invariant, and `filter_known` returns registry members so a read projection
+can only carry a value the contract declares. Contract drift was exactly one
+new `DietaryTag` component and four `items` → `$ref` changes; the operation
+count stays 57 and the Alembic head stays `59b463781dcc`.
 
 ### Dependencies, verified before installation
 
@@ -345,38 +459,64 @@ repository's eslint 10) predates this milestone.
 
 ### Verification
 
-Full local gate green: `format:check`, `lint`, `typecheck`, `test`, `build`,
-`contract:check` (no drift), backend `ruff`/`ruff format`/`mypy`/`pytest`,
-the orchestrator regression suite, and `pnpm e2e`.
+Two distinct classes of evidence, kept apart deliberately.
 
-Counts: **backend 892**, **api-client 76**, **storefront 4**,
-**control-center 288**, **Playwright 4**, orchestrator 30 (1 skipped).
+**Historical claims (2026-07-21).** Recorded by the unauthorized
+implementation and _not_ independently reproduced at the time they were
+written down: `format:check`, `lint`, `typecheck`, `test`, `build`,
+`contract:check` (no drift), backend `ruff`/`ruff format`/`mypy`/`pytest`,
+the orchestrator suite, and `pnpm e2e`; counts backend 892, api-client 76,
+storefront 4, control-center 288, Playwright 4, orchestrator 30 with 1
+skipped. Every one of these is CI-reproducible, so they can be
+re-established rather than trusted.
+
+**Re-run during the authorized corrective pass (2026-07-22).** Results are
+recorded in the pass's own report rather than asserted here, so that this
+document does not accumulate a second layer of unverified counts. The
+orchestrator's single skip is environmental and pre-existing: a symlink
+policy test in `prepare-ci-artifacts.test.mjs` calls `t.skip` when
+`symlinkSync` throws, which it does on Windows without the symlink
+privilege. It executes normally on the Linux CI runner, and that file is
+untouched by this milestone.
 
 Two existing E2E specs had their locators tightened because the switcher
 legitimately names the business a second time and Playwright's strict mode
 refuses an ambiguous locator. No end-to-end coverage was added; the menu
-journey remains M3F.
+journey remains M3F. This was outside the change-impact matrix the
+implementation declared, and is recorded here rather than left implicit.
 
 ### Visual acceptance
 
-A disposable smoke ran the real stack against `restaurant_engine_e2e` with a
-temporary media root, seeded through the HTTP API only, and drove Chromium
-at 320 px, 768 px and 1280 px: **86 of 86 checks passed**, covering
-horizontal overflow, computed touch-target geometry, computed WCAG AA
-contrast, focus outlines, colour-independent statuses, explicit image
-dimensions (no layout shift), Bengali wrapping, keyboard reordering with
-announcements, the image picker with a pending asset, error presentation,
-and the staff, owner, suspended, closed and empty-menu presentations. The
-rendered pages were inspected, not just asserted on.
+Blueprint §19 M3 sets the milestone's acceptance bar — **responsive menu
+administration works on mobile** — and jsdom computes no layout, geometry,
+contrast, or focus visibility, so nothing in the component suite can speak
+to it. It is established by driving the real stack in a browser at 320 px,
+768 px and 1280 px.
 
-It found three real defects, all fixed: the switcher overflowed 320 px
-(a flex item's `min-width:auto` combined with a `<select>` reporting its
-widest option's width); row actions repeated long user-supplied names in
-their visible labels; and the 44 rem content column squeezed a dense menu
-into half a desktop viewport.
+The 2026-07-21 smoke reported **86 of 86 checks** across horizontal
+overflow, computed touch-target geometry, computed WCAG AA contrast, focus
+outlines, colour-independent statuses, explicit image dimensions, Bengali
+wrapping, keyboard reordering, the image picker with a pending asset, error
+presentation, and the staff, owner, suspended, closed and empty-menu
+presentations. It found three real defects, all fixed: the switcher
+overflowed 320 px (a flex item's `min-width:auto` combined with a `<select>`
+reporting its widest option's width); row actions repeated long
+user-supplied names in their visible labels; and the 44 rem content column
+squeezed a dense menu into half a desktop viewport.
 
-This is engineering evidence, not a WCAG certification, and — as with the
-M2F smoke (ADR-016) — it is not a standing requirement for every change.
+That result is a **historical claim**. Its driver lived in a scratchpad and
+was never committed, so it is not project coverage and cannot be reproduced
+from this repository — which, for the one piece of evidence the milestone's
+acceptance bar rests on, is the weakest part of the record. The corrective
+pass re-established it against the corrected build using the same disposable
+setup, and its report states the viewports, states, and checks. Whether this
+verification becomes reproducible project tooling is an open question for
+review; it deliberately was not answered by committing a visual-testing
+framework inside a corrective pass.
+
+Either way it is engineering evidence, not a WCAG certification — no
+axe-core scan was run — and, as with the M2F smoke (ADR-016), it is not a
+standing requirement for every change.
 
 ### Deliberate limitations
 

@@ -660,46 +660,52 @@ including error statuses, warning discipline for expected misses,
 bounded-query stability, concurrent-edit structural validity, response
 and log hygiene, and the absence of audit events for public reads.
 
-### M3E — Menu administration UI: delivered, 2026-07-21
+### M3E — Menu administration UI: in review
 
-Architecture and binding rulings are recorded in
-**ADR-018 — Business Workspace and Menu Administration UI**; only the
-delivery record belongs here. M3E consumes the M3A–M3C administrative
-contracts and adds no route, migration, authorization rule, or catalog/media
-service behavior.
+Architecture and rulings are recorded in **ADR-018 — Business Workspace and
+Menu Administration UI**, including the process record explaining that M3E
+was implemented before its architecture was approved, and that approval
+(2026-07-22) covers the design only. **The implementation is in review and
+has not been accepted.** M3E consumes the M3A–M3C administrative contracts
+and adds no route, migration, authorization rule, or catalog/media service
+behavior.
 
-One deliberate contract change is in scope, authorized separately as a
-fidelity correction rather than a feature: ruling **D6** declares the
-dietary-tag registry closed and append-only and the service rejects unknown
-values, but `dietary_tags` was annotated `list[str]`, so the published
-contract advertised an unrestricted string array and the generated client
-carried no union. Because `dietary_tags` is replaced wholesale on update, an
-unbacked frontend list would silently discard a tag added later. The four
-affected annotations now use the existing `DietaryTag` enum. Accepted
-values, normalization, canonical lowercase storage, duplicate rejection, the
+One deliberate contract change is in scope, approved as a fidelity
+correction rather than a feature: ruling **D6** declares the dietary-tag
+registry closed and append-only and the service rejects unknown values, but
+`dietary_tags` was annotated `list[str]`, so the published contract
+advertised an unrestricted string array and the generated client carried no
+union. Because `dietary_tags` is replaced wholesale on update, an unbacked
+frontend list would silently discard a tag added later. The four affected
+annotations now use the existing `DietaryTag` enum. Accepted values,
+normalization, canonical lowercase storage, duplicate rejection, the
 per-item cap, and the fail-closed read projection are unchanged.
 
-**Delivered (local) 2026-07-21.** The control center gained the business
-workspace (route-derived native-select switcher, membership guard, workspace
-layout) and menu administration: categories, item creation and editing, the
-separate staff-reachable availability command, the featured ceiling shown
-before it is reached, keyboard-first reordering with no drag-and-drop,
-per-item modifier groups and options with report-only satisfiability, and
-the media upload/library/attachment workflow with its four distinct
-operations. Forms use React Hook Form with a Zod resolver for UI shape only
-(three exact-pinned dependencies, the ADR-015 decision-10 deferral now
-closed).
+One error response did change, and an earlier revision of this section said
+otherwise. A non-string element in `dietary_tags` is now rejected by the
+declared enum (`enum`) rather than by `list[str]` (`string_type`); the claim
+of "zero backend test-assertion changes" was also inaccurate, since three
+existing tests in `test_catalog_schemas.py` were rewritten to suit the new
+annotation. Both are recorded in full in ADR-018 and the behaviour is now
+pinned exactly. Contract drift was exactly the new `DietaryTag` component
+plus four `items` → `$ref` changes; the operation count stays **57** and the
+Alembic head stays `59b463781dcc`.
 
-The dietary correction landed with **zero backend test-assertion changes** —
-the normalization validator moved to `mode="before"` so it still runs ahead
-of enum coercion, preserving every accepted value and every message.
-Contract drift was exactly the new `DietaryTag` component plus four
-`items` → `$ref` changes; the operation count stays **57** and the Alembic
-head stays `59b463781dcc`.
+**Implemented locally 2026-07-21; corrected 2026-07-22.** The control center
+gained the business workspace (route-derived native-select switcher,
+membership guard, workspace layout) and menu administration: categories,
+item creation and editing, the separate staff-reachable availability
+command, the featured count shown without a ceiling the contract does not
+publish, keyboard-first reordering with no drag-and-drop, per-item modifier
+groups and options with report-only satisfiability, and the media
+upload/library/attachment workflow with its four distinct operations. Forms
+use React Hook Form with a Zod resolver for UI shape only (three
+exact-pinned dependencies, the ADR-015 decision-10 deferral now closed).
 
-Counts at close-out: backend 892, api-client 76, storefront 4,
-control-center 288, Playwright 4. Architecture, rulings, implementation
-findings, and the visual-acceptance evidence are recorded in **ADR-018**.
+Test counts recorded before the corrective pass are historical claims;
+current results belong to the corrective pass's report, not to this
+document. Architecture, rulings, implementation findings, and the
+visual-acceptance evidence are recorded in **ADR-018**.
 
 ### M3F
 
