@@ -2,7 +2,14 @@
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  /* Both of these matter: a flex item defaults to min-width:auto, which is
+     the intrinsic width of its content — and a native <select> reports the
+     width of its widest <option>. Option labels carry the business name plus
+     role and lifecycle, so without this the switcher pushed the whole bar
+     past 320px. Caught by the M3E visual smoke at mobile width. */
   min-width: 0;
+  flex: 1 1 12rem;
+  max-width: 100%;
 }
 
 .switcher label {
@@ -11,12 +18,16 @@
 }
 
 .switcher select {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
   min-height: var(--target-min);
-  max-width: 100%;
   padding: 0 0.5rem;
   font: inherit;
   color: inherit;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
+  /* Keep a long option label from forcing the control wider than its box. */
+  text-overflow: ellipsis;
 }

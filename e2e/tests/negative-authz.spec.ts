@@ -18,7 +18,8 @@ test('a non-administrator cannot see or reach the platform area', async ({
   await provisionBusinessWithOwner(ns);
 
   await signIn(page, ns.ownerEmail, ns.ownerPassword);
-  await expect(page.getByText(ns.businessName)).toBeVisible();
+  // The membership link specifically: the switcher also names the business.
+  await expect(page.getByRole('link', { name: ns.businessName })).toBeVisible();
   // No Platform entry is offered at all.
   await expect(
     page.getByRole('link', { name: 'Platform', exact: true }),

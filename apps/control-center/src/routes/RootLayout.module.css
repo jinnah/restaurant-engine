@@ -10,10 +10,20 @@
   color: var(--color-accent);
 }
 
+/* 44rem suits the auth and platform forms this layout was built for, but a
+   menu is a dense list of rows with images, prices, chips and per-row
+   actions, and it was being squeezed into half the desktop viewport. The
+   ceiling rises for wide screens only; narrow layouts are unchanged. */
 .main {
   max-width: 44rem;
   margin: 0 auto;
   padding: var(--space-3) var(--space-2);
+}
+
+@media (min-width: 64rem) {
+  .main {
+    max-width: 72rem;
+  }
 }
 
 .footer {

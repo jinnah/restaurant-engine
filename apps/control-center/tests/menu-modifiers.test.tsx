@@ -145,7 +145,9 @@ describe('unsatisfiable explanations follow the server numbers', () => {
 
 test('groups render with their rule, count, and options', async () => {
   renderApp(EDITOR, client([group({ min_select: 1, max_select: 1 })]));
-  expect(await screen.findByText('Choose a side')).toBeInTheDocument();
+  expect(
+    await screen.findByRole('heading', { name: 'Choose a side' }),
+  ).toBeInTheDocument();
   expect(screen.getByText('Required — choose exactly 1')).toBeInTheDocument();
   expect(screen.getByText('1 available choice')).toBeInTheDocument();
   expect(screen.getByText('Chutney')).toBeInTheDocument();
@@ -159,7 +161,7 @@ test('an item with no groups explains what groups are for', async () => {
 
 test('there is no way to attach an existing group — none exists to attach', async () => {
   renderApp(EDITOR, client([group()]));
-  await screen.findByText('Choose a side');
+  await screen.findByRole('heading', { name: 'Choose a side' });
   expect(screen.queryByRole('button', { name: /attach/i })).toBeNull();
   expect(screen.queryByRole('button', { name: /existing group/i })).toBeNull();
 });
@@ -260,7 +262,9 @@ test('an unsatisfiable group shows the advisory and still allows editing', async
   ).toBeInTheDocument();
 
   // Advisory only: the group is still fully editable and savable.
-  fireEvent.click(screen.getByRole('button', { name: /Edit Choose a side/ }));
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Edit group Choose a side' }),
+  );
   fireEvent.change(screen.getByLabelText('Group name'), {
     target: { value: 'Choose a sauce' },
   });
@@ -275,7 +279,7 @@ test('option availability rides the option update, with no separate command', as
   const updateModifierOption = vi.fn(async () => ok(group()));
   renderApp(EDITOR, client([group()], { catalog: { updateModifierOption } }));
 
-  fireEvent.click(await screen.findByRole('button', { name: /Edit Chutney/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit Chutney' }));
   fireEvent.click(screen.getByLabelText('Available'));
   fireEvent.click(screen.getByRole('button', { name: 'Save choice' }));
 
@@ -295,7 +299,7 @@ test('an option price delta is parsed as integer minor units', async () => {
 
   fireEvent.click(
     await screen.findByRole('button', {
-      name: /Add a choice to Choose a side/,
+      name: 'Add a choice to Choose a side',
     }),
   );
   fireEvent.change(screen.getByLabelText('Choice name'), {
@@ -348,7 +352,7 @@ test('deleting a group states the cascade with a real count', async () => {
   renderApp(EDITOR, client([group()], { catalog: { deleteModifierGroup } }));
 
   fireEvent.click(
-    await screen.findByRole('button', { name: /Delete Choose a side/ }),
+    await screen.findByRole('button', { name: 'Delete group Choose a side' }),
   );
   expect(
     screen.getByText(/its 1 choice is deleted with it/i),
@@ -369,7 +373,7 @@ test('deleting the last available choice warns without preventing it', async () 
   renderApp(EDITOR, client([group()], { catalog: { deleteModifierOption } }));
 
   fireEvent.click(
-    await screen.findByRole('button', { name: /Delete Chutney/ }),
+    await screen.findByRole('button', { name: 'Delete Chutney' }),
   );
   expect(
     screen.getByText(/last available choice in its group/i),
@@ -389,13 +393,15 @@ test('staff hold no modifier authority of any kind', async () => {
   renderApp(EDITOR, client([group()], {}, 'staff'));
 
   // They can read the tree...
-  expect(await screen.findByText('Choose a side')).toBeInTheDocument();
+  expect(
+    await screen.findByRole('heading', { name: 'Choose a side' }),
+  ).toBeInTheDocument();
   expect(screen.getByText('Chutney')).toBeInTheDocument();
   // ...but every write affordance is absent.
   expect(screen.queryByRole('button', { name: 'New group' })).toBeNull();
   expect(
-    screen.queryByRole('button', { name: /Edit Choose a side/ }),
+    screen.queryByRole('button', { name: 'Edit group Choose a side' }),
   ).toBeNull();
-  expect(screen.queryByRole('button', { name: /Delete Chutney/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Delete Chutney' })).toBeNull();
   expect(screen.queryByRole('button', { name: /Add a choice/ })).toBeNull();
 });

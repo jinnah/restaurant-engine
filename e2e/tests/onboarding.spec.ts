@@ -82,8 +82,11 @@ test('a platform administrator onboards a business and owner end to end', async 
   await expect(
     page.getByRole('heading', { name: 'Control center' }),
   ).toBeVisible();
-  await expect(page.getByText(ns.businessName)).toBeVisible();
-  await expect(page.getByText('provisioning')).toBeVisible();
+  // Role-scoped rather than a bare text match: the business name now also
+  // appears in the workspace switcher's <option>, so a loose getByText would
+  // resolve to two elements.
+  await expect(page.getByRole('link', { name: ns.businessName })).toBeVisible();
+  await expect(page.getByText('provisioning', { exact: true })).toBeVisible();
 
   // Back to the administrator: activation now succeeds.
   await signOut(page);

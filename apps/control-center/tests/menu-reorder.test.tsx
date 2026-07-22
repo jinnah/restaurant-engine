@@ -196,7 +196,7 @@ test('items reorder within one category and carry that category id', async () =>
   renderApp(MENU, client(twoItems, { catalog: { reorderItems } }));
 
   fireEvent.click(
-    await screen.findByRole('button', { name: /Reorder Starters/ }),
+    await screen.findByRole('button', { name: 'Reorder items in Starters' }),
   );
   fireEvent.click(screen.getByRole('button', { name: 'Move Beguni up' }));
   fireEvent.click(screen.getByRole('button', { name: 'Save item order' }));
@@ -248,7 +248,7 @@ test('reordering is disabled while a filter is active, and says why', async () =
 
   // A permutation over a filtered subset would be an inexact set.
   expect(
-    screen.getByRole('button', { name: /Reorder Starters/ }),
+    screen.getByRole('button', { name: 'Reorder items in Starters' }),
   ).toBeDisabled();
   expect(screen.getByText('Clear the filter to reorder.')).toBeInTheDocument();
 });

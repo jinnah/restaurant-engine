@@ -5,6 +5,7 @@ import type {
 } from '@restaurant-engine/api-client';
 import { asApiFailure } from '../../api/failure';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { scopedLabel } from '../../components/ScopedLabel';
 import { mapFailure, type FormFailure } from '../../components/formErrors';
 import { useNotify } from '../../components/NotificationProvider';
 import { ErrorSummary } from '../../components/StatusPanels';
@@ -229,8 +230,9 @@ export function ModifierGroupsSection({
                                 setFailure(null);
                                 setDialog({ kind: 'option-edit', option });
                               }}
+                              aria-label={scopedLabel('Edit', option.name)}
                             >
-                              Edit {option.name}
+                              Edit
                             </button>
                             <button
                               type="button"
@@ -239,8 +241,9 @@ export function ModifierGroupsSection({
                                 setFailure(null);
                                 setDialog({ kind: 'option-delete', option });
                               }}
+                              aria-label={scopedLabel('Delete', option.name)}
                             >
-                              Delete {option.name}
+                              Delete
                             </button>
                           </>
                         )}
@@ -258,8 +261,9 @@ export function ModifierGroupsSection({
                         setFailure(null);
                         setDialog({ kind: 'option-create', group });
                       }}
+                      aria-label={scopedLabel('Add a choice to', group.name)}
                     >
-                      Add a choice to {group.name}
+                      Add a choice
                     </button>
                     <button
                       type="button"
@@ -268,8 +272,9 @@ export function ModifierGroupsSection({
                         setFailure(null);
                         setDialog({ kind: 'group-edit', group });
                       }}
+                      aria-label={scopedLabel('Edit group', group.name)}
                     >
-                      Edit {group.name}
+                      Edit group
                     </button>
                     <button
                       type="button"
@@ -278,8 +283,9 @@ export function ModifierGroupsSection({
                         setFailure(null);
                         setDialog({ kind: 'group-delete', group });
                       }}
+                      aria-label={scopedLabel('Delete group', group.name)}
                     >
-                      Delete {group.name}
+                      Delete group
                     </button>
                   </div>
                 )}

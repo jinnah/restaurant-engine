@@ -12,6 +12,7 @@ import {
   useCurrentBusinessId,
 } from '../business/useCurrentBusinessId';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { scopedLabel } from '../components/ScopedLabel';
 import type { FormFailure } from '../components/formErrors';
 import { useNotify } from '../components/NotificationProvider';
 import { ErrorSummary } from '../components/StatusPanels';
@@ -395,8 +396,9 @@ export function MenuOverviewPage() {
                       <Link
                         to={`/businesses/${businessId}/menu/items/new?categoryId=${category.id}`}
                         className={styles.quietLink}
+                        aria-label={scopedLabel('Add item to', category.name)}
                       >
-                        Add item to {category.name}
+                        Add item
                       </Link>
                       <button
                         type="button"
@@ -405,8 +407,9 @@ export function MenuOverviewPage() {
                           setFailure(null);
                           setDialog({ mode: 'edit', category });
                         }}
+                        aria-label={scopedLabel('Edit', category.name)}
                       >
-                        Edit {category.name}
+                        Edit
                       </button>
                       <button
                         type="button"
@@ -421,8 +424,9 @@ export function MenuOverviewPage() {
                           setPageError(null);
                           setDialog({ mode: 'delete', category: source });
                         }}
+                        aria-label={scopedLabel('Delete', category.name)}
                       >
-                        Delete {category.name}
+                        Delete
                       </button>
                       {source.items.length > 1 && reordering === null && (
                         <button
@@ -438,8 +442,12 @@ export function MenuOverviewPage() {
                             setReorderError(null);
                             setReordering(category.id);
                           }}
+                          aria-label={scopedLabel(
+                            'Reorder items in',
+                            category.name,
+                          )}
                         >
-                          Reorder {category.name}
+                          Reorder items
                         </button>
                       )}
                       {source.items.length > 1 && filtering && (
