@@ -64,7 +64,27 @@ export function BusinessWorkspaceLayout() {
           <strong>{membership.business_status}</strong> — {note}
         </p>
       )}
-      <Outlet />
+      {/*
+        The business boundary. `/businesses/:businessId/menu` matches the same
+        route elements before and after a switch, so React would otherwise keep
+        every child page instance — and its state — alive across it: overview
+        filters and reorder mode, an open dialog and what was typed into it, a
+        dirty create form, learned server limits, local failures.
+
+        Nothing there can cross a tenant boundary on read: every query key is
+        scoped by business id and the backend re-checks membership on every
+        request. The real hazard is the user's intent, not their permissions —
+        values entered for one business would still be sitting in the form
+        after switching, and saving them would legitimately write them to the
+        other business. Keying the outlet discards that state at exactly the
+        moment it stops being meaningful, centrally, rather than leaving each
+        page to remember to reset itself.
+
+        Keyed on the business, not the path, so moving between pages of the
+        same business is ordinary navigation and preserves nothing it should
+        not.
+      */}
+      <Outlet key={businessId ?? 'no-business'} />
     </section>
   );
 }
