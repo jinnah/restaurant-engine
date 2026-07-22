@@ -404,8 +404,10 @@ test('a media list failure keeps the picker usable for uploading', async () => {
   expect(screen.getByLabelText('Upload a new image')).toBeEnabled();
 });
 
-test('the upload copy never claims that leaving cancels the request', async () => {
-  type UploadResult = Awaited<ReturnType<typeof ok<ReturnType<typeof asset>>>>;
+type UploadResult = Awaited<ReturnType<typeof ok<ReturnType<typeof asset>>>>;
+
+/** An upload held open, so the in-flight window can be inspected. */
+function deferredUpload() {
   let resolve: ((value: UploadResult) => void) | undefined;
   const uploadAsset = vi.fn(
     () =>
@@ -413,20 +415,120 @@ test('the upload copy never claims that leaving cancels the request', async () =
         resolve = r;
       }),
   );
-  renderApp(EDITOR, client(undefined, { media: { uploadAsset } }));
+  return {
+    uploadAsset,
+    settle(value: UploadResult) {
+      resolve?.(value);
+    },
+  };
+}
 
+/** Open the picker and start an upload that will not finish on its own. */
+async function startUpload(overrides: Parameters<typeof client>[1] = {}) {
+  const { uploadAsset, settle } = deferredUpload();
+  const rendered = renderApp(
+    EDITOR,
+    client(undefined, { ...overrides, media: { uploadAsset } }),
+  );
   fireEvent.click(await screen.findByRole('button', { name: 'Add a photo' }));
   fireEvent.change(screen.getByLabelText('Upload a new image'), {
     target: { files: [pngFile()] },
   });
+  return { ...rendered, uploadAsset, settle };
+}
 
-  // The generated client exposes no abort signal, so the copy must be honest.
+test('the upload copy never claims that closing or leaving cancels the request', async () => {
+  const { settle } = await startUpload();
+
+  // The generated client exposes no abort signal, so the copy must be honest
+  // about both exits, and about what happens to the request afterwards.
   expect(
     await screen.findByText(/leaving this page will not cancel it/i),
   ).toBeInTheDocument();
-  // Cancel is inert while the request is in flight.
-  expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
-  resolve?.(ok(asset()));
+  expect(screen.getByText(/closing this dialog/i)).toBeInTheDocument();
+  expect(
+    screen.getByText(/the image appears in your library/i),
+  ).toBeInTheDocument();
+  settle(ok(asset()));
+});
+
+test('the visible control dismisses the picker while an upload is in flight', async () => {
+  const { settle } = await startUpload();
+
+  // "Close", not "Cancel": pressing it cancels nothing, so it must not say so.
+  const close = await screen.findByRole('button', { name: 'Close' });
+  expect(close).toBeEnabled();
+  // Focus follows the exit. Disabling the file input drops focus to <body>,
+  // which is outside the dialog's key handler and would put Escape out of
+  // reach — a keyboard trap for the length of the request (WCAG 2.1.2).
+  expect(close).toHaveFocus();
+
+  fireEvent.click(close);
+  await waitFor(() => {
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+  settle(ok(asset()));
+});
+
+test('Escape dismisses the picker while an upload is in flight', async () => {
+  const { settle } = await startUpload();
+
+  await screen.findByRole('button', { name: 'Close' });
+  fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+
+  await waitFor(() => {
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+  settle(ok(asset()));
+});
+
+test('an upload finishing after dismissal still refreshes the library', async () => {
+  const { queryClient, settle } = await startUpload();
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Close' }));
+  await waitFor(() => {
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  settle(ok(asset({ id: 'a2', original_filename: 'later.jpg' })));
+
+  // The invalidation lives on the mutation itself (mediaData), not on the
+  // dialog's per-call callbacks, so it survives the dialog unmounting. That
+  // is what makes a dismissed-but-finished upload discoverable.
+  await waitFor(() => {
+    const cached = queryClient
+      .getQueryCache()
+      .findAll({ queryKey: ['business', SHALIK, 'media'] });
+    expect(cached.length).toBeGreaterThan(0);
+    expect(cached.some((query) => query.state.isInvalidated)).toBe(true);
+  });
+});
+
+test('the attach still blocks dismissal, unlike the upload', async () => {
+  type ImageResult = Awaited<ReturnType<typeof ok<ReturnType<typeof item>>>>;
+  let resolve: ((value: ImageResult) => void) | undefined;
+  const setItemImage = vi.fn(
+    () =>
+      new Promise<ImageResult>((r) => {
+        resolve = r;
+      }),
+  );
+  renderApp(EDITOR, client(undefined, { catalog: { setItemImage } }));
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Add a photo' }));
+  fireEvent.click(await screen.findByRole('button', { name: /samosa\.jpg/i }));
+  fireEvent.click(screen.getByLabelText(/this image is decorative/i));
+  fireEvent.click(screen.getByRole('button', { name: 'Use for this item' }));
+
+  // The attach is a short mutation whose result this dialog reports, so the
+  // stricter pending behaviour is deliberately kept for it.
+  await waitFor(() => {
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+  });
+  fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+  expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+  resolve?.(ok(item({ id: 'i1' })));
 });
 
 test('staff are offered no photo actions', async () => {

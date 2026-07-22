@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { MediaAssetView } from '@restaurant-engine/api-client';
 import { useApiClient } from '../../api/ClientProvider';
 import { asApiFailure } from '../../api/failure';
@@ -46,6 +46,16 @@ function formatBytes(bytes: number): string {
  * are one. An upload that is never attached simply stays in the library and
  * expires on its own (48 hours, ADR-017 R7) — the library says so rather than
  * hiding it.
+ *
+ * Dismissal is governed by the *attach*, never by the upload. An upload cannot
+ * be cancelled (the generated client exposes no abort signal), so blocking
+ * dismissal during one would remove the only keyboard exit from a modal for
+ * the duration of a network request — a WCAG 2.1.2 keyboard trap — while
+ * protecting nothing: the request continues either way. So the dialog stays
+ * dismissable by both the visible control and Escape while an upload runs, and
+ * says plainly that the upload survives. The attach is different: it is a
+ * short mutation whose result the dialog reports, so it keeps the strict
+ * pending behaviour, as do the confirm and lifecycle dialogs.
  */
 export function ImagePickerDialog({
   businessId,
@@ -78,7 +88,22 @@ export function ImagePickerDialog({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [advisory, setAdvisory] = useState<string | null>(null);
 
-  const busy = pending || upload.isPending;
+  // Selection controls are inert while either operation runs, so a second
+  // upload cannot start and the choice cannot change under an in-flight
+  // attach. Dismissal deliberately is NOT part of this.
+  const uploading = upload.isPending;
+  const busy = pending || uploading;
+
+  const dismissRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (uploading) {
+      // The file input is disabled the moment the upload starts, which drops
+      // focus to <body> — outside this dialog's key handler, putting Escape
+      // out of reach. Moving focus to the dismissal control keeps the exit
+      // both reachable and obvious.
+      dismissRef.current?.focus();
+    }
+  }, [uploading]);
 
   function chooseFile(file: File | undefined) {
     setFileError(null);
@@ -130,7 +155,7 @@ export function ImagePickerDialog({
     !busy;
 
   return (
-    <Dialog title="Choose an image" pending={busy} onCancel={onCancel}>
+    <Dialog title="Choose an image" pending={pending} onCancel={onCancel}>
       <div className={styles.field}>
         <label htmlFor="image-file">Upload a new image</label>
         <input
@@ -147,9 +172,11 @@ export function ImagePickerDialog({
         </p>
       </div>
 
-      {upload.isPending && (
+      {uploading && (
         <p role="status" className={styles.noticeText}>
-          Uploading… Leaving this page will not cancel it.
+          Uploading… Closing this dialog or leaving this page will not cancel
+          it. The upload finishes on its own and the image appears in your
+          library.
         </p>
       )}
       {advisory !== null && (
@@ -311,12 +338,15 @@ export function ImagePickerDialog({
 
       <div className={styles.actions}>
         <button
+          ref={dismissRef}
           type="button"
           className={styles.secondary}
           onClick={onCancel}
-          disabled={busy}
+          // Only the attach blocks dismissal. "Close" rather than "Cancel"
+          // while uploading, because nothing is cancelled by pressing it.
+          disabled={pending}
         >
-          Cancel
+          {uploading ? 'Close' : 'Cancel'}
         </button>
         <button
           type="button"
@@ -338,7 +368,7 @@ export function ImagePickerDialog({
       </div>
 
       <UnsavedChangesPrompt
-        when={upload.isPending}
+        when={uploading}
         message="An image is still uploading. Leaving this page will not cancel it."
       />
     </Dialog>
