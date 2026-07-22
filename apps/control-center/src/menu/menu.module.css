@@ -128,6 +128,80 @@
   flex-wrap: wrap;
 }
 
+/* --- Item photo and library -------------------------------------------- */
+
+.imageSection {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.preview {
+  display: block;
+  width: 160px;
+  height: 160px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.libraryTitle {
+  margin: var(--space-2) 0 var(--space-1);
+  font-size: 1rem;
+}
+
+.libraryGrid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  gap: var(--space-1);
+}
+
+.libraryTile {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.35rem;
+  font: inherit;
+  text-align: left;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+/* Selection is a border weight and a colour AND aria-pressed, so it never
+   depends on colour alone. */
+.libraryTileSelected {
+  composes: libraryTile;
+  border-color: var(--color-accent);
+  background: var(--color-success-bg);
+}
+
+.libraryTile img,
+.libraryTileSelected img {
+  width: 100%;
+  height: 5rem;
+  object-fit: cover;
+  border-radius: var(--radius);
+  background: var(--color-bg);
+}
+
+.libraryName {
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.libraryMeta {
+  font-size: 0.75rem;
+  color: var(--color-warning);
+}
+
 /* --- Modifier groups --------------------------------------------------- */
 
 .modifiers {

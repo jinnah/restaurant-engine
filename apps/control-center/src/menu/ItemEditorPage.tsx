@@ -17,6 +17,7 @@ import { ErrorSummary } from '../components/StatusPanels';
 import { NotFoundPage } from '../routes/NotFoundPage';
 import { AvailabilityToggle } from './components/AvailabilityToggle';
 import { ItemFields } from './components/ItemFields';
+import { ItemImageSection } from './components/ItemImageSection';
 import { ModifierGroupsSection } from './components/ModifierGroupsSection';
 import { UnsavedChangesPrompt } from './components/UnsavedChangesPrompt';
 import {
@@ -243,6 +244,13 @@ export function ItemEditorPage() {
             : 'You can mark this item sold out, but editing it needs a manager or owner.'}
         </p>
       )}
+
+      <ItemImageSection
+        businessId={businessId}
+        item={item}
+        canWriteCatalog={canWrite}
+        canWriteMedia={permissions?.canWriteMedia ?? false}
+      />
 
       <ModifierGroupsSection
         businessId={businessId}
