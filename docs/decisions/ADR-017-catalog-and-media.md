@@ -660,15 +660,16 @@ including error statuses, warning discipline for expected misses,
 bounded-query stability, concurrent-edit structural validity, response
 and log hygiene, and the absence of audit events for public reads.
 
-### M3E — Menu administration UI: in review
+### M3E — Menu administration UI: delivered, 2026-07-22
 
 Architecture and rulings are recorded in **ADR-018 — Business Workspace and
 Menu Administration UI**, including the process record explaining that M3E
-was implemented before its architecture was approved, and that approval
-(2026-07-22) covers the design only. **The implementation is in review and
-has not been accepted.** M3E consumes the M3A–M3C administrative contracts
-and adds no route, migration, authorization rule, or catalog/media service
-behavior.
+was implemented _before_ its architecture was approved. That sequencing
+failure is part of the permanent record and is not cancelled by the
+milestone's acceptance; ADR-018 keeps it, together with the two rounds of
+review corrections that followed. M3E consumes the M3A–M3C administrative
+contracts and adds no route, migration, authorization rule, or catalog/media
+service behavior.
 
 One deliberate contract change is in scope, approved as a fidelity
 correction rather than a feature: ruling **D6** declares the dietary-tag
@@ -691,7 +692,9 @@ pinned exactly. Contract drift was exactly the new `DietaryTag` component
 plus four `items` → `$ref` changes; the operation count stays **57** and the
 Alembic head stays `59b463781dcc`.
 
-**Implemented locally 2026-07-21; corrected 2026-07-22.** The control center
+**Delivered and merged 2026-07-22 (PR #15), merge commit
+`fef753f7734afeedfd828b2a143bd25b17fac5ee`.** Implemented locally 2026-07-21
+and corrected across review on 2026-07-22. The control center
 gained the business workspace (route-derived native-select switcher,
 membership guard, workspace layout) and menu administration: categories,
 item creation and editing, the separate staff-reachable availability
@@ -702,10 +705,17 @@ upload/library/attachment workflow with its four distinct operations. Forms
 use React Hook Form with a Zod resolver for UI shape only (three
 exact-pinned dependencies, the ADR-015 decision-10 deferral now closed).
 
-Test counts recorded before the corrective pass are historical claims;
-current results belong to the corrective pass's report, not to this
-document. Architecture, rulings, implementation findings, and the
+Verification at the merged head: backend 895, api-client 76, storefront 4,
+control-center 302, Playwright 4, orchestrator 31 with none skipped on Linux
+— all five CI jobs green on the merge commit (run 29945105532). Counts
+recorded in earlier revisions of this section predate the corrective passes
+and are historical. Architecture, rulings, implementation findings, and the
 visual-acceptance evidence are recorded in **ADR-018**.
+
+**M3F remains the boundary and is not started.** The Playwright menu journey,
+the M3 close-out, and the deferred scope M3E names — concurrent-edit
+detection (D5), which stays an M4 question — are all outside this
+sub-milestone.
 
 ### M3F
 

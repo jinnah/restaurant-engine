@@ -1,10 +1,12 @@
 # ADR-018: Business Workspace and Menu Administration UI
 
-- **Status:** In review. Architecture approved in principle 2026-07-22; the
-  implementation is **not** accepted.
-- **Date:** 2026-07-21 (drafted), 2026-07-22 (corrected)
-- **Deciders:** Product owner. Approval was given on 2026-07-22, after the
-  implementation already existed — see _Process record_ below.
+- **Status:** Accepted; delivered 2026-07-22 (PR #15, merge commit
+  `fef753f7734afeedfd828b2a143bd25b17fac5ee`).
+- **Date:** 2026-07-21 (drafted), 2026-07-22 (corrected, approved, delivered)
+- **Deciders:** Product owner. Approval was given on 2026-07-22, **after the
+  implementation already existed** — see _Process record_ below. This status
+  line records the outcome; it is not a claim that the process reaching it was
+  the intended one.
 
 ## Context
 
@@ -42,24 +44,31 @@ The branch was then contained and audited read-only, and the architecture
 was reviewed **after** the fact. On 2026-07-22 the rulings below were
 approved in principle, together with the blueprint vocabulary correction and
 the dietary-tag contract change as an M3E prerequisite. That approval is
-genuine, and it is the reason this ADR still stands. It is also explicitly
-**not** retroactive authorization: the implementation remains unaccepted and
-under review, and approval of the design says nothing about the code.
+genuine, and it is the reason this ADR still stands. It was explicitly **not**
+retroactive authorization: it approved the design, and said nothing about the
+code, which stayed unaccepted and under review until it had earned acceptance
+on its own terms. It did so on 2026-07-22 (PR #15) — after the corrections
+below.
 
-Corrections have been required in two review rounds, all applied on the same
-branch as additive commits. The first round: the image picker's dismissal
-behaviour (ruling 10), the featured-limit display (ruling 7), and the
-evidence pinning the dietary-tag validation change (ruling 13). The second
-round, after that round's own report was reviewed: the **price** ceiling,
-which ruling 7 had exempted on reasoning that did not survive scrutiny, and
-the upload notice, whose first correction overclaimed in two ways. Both are
-recorded in the rulings they change.
+Corrections were required in three rounds, all applied on the same branch as
+additive commits. **Round one:** the image picker's dismissal behaviour
+(ruling 10), the featured-limit display (ruling 7), and the evidence pinning
+the dietary-tag validation change (ruling 13). **Round two**, after round
+one's own report was reviewed: the **price** ceiling, which ruling 7 had
+exempted on reasoning that did not survive scrutiny, and the upload notice,
+whose first correction overclaimed in two ways. **Round three**, in final
+pre-merge review: the **business-boundary defect** — workspace state
+surviving a business switch, so values entered for one business could be
+saved into another. Each is recorded in the ruling it changes.
 
-That two rounds were needed is itself part of the record. Each round's
+That three rounds were needed is itself part of the record. Each round's
 report argued its own position and each was found wanting on a point the
-report had raised but resolved in its own favour — the price mirror was
-described as "advisory" in the same paragraph that admitted it could reject
-what the server would accept. The original thirteen commits were left
+report had raised but resolved in its own favour: the price mirror was called
+"advisory" in the same paragraph that admitted it could reject what the
+server would accept, and the business-boundary defect was first filed as a
+non-blocking follow-up on the grounds that no _unauthorized_ write was
+possible — which was true, and beside the point, since the hazard was an
+authorized write of the wrong data. The original thirteen commits were left
 unrewritten, as the record of what occurred.
 
 ## Decision: architectural rulings
@@ -400,16 +409,26 @@ signed media URLs (changes the preview cache decision); a request for
 drag-and-drop backed by a reviewed accessible design; the first closed
 registry that cannot be expressed as an enum in the contract.
 
-## Implementation record — in review, not accepted
+## Implementation record — delivered 2026-07-22
 
-**Implemented locally 2026-07-21 without authorization; corrected
-2026-07-22.** Thirteen commits, not the "twelve additive" an earlier
-revision of this section claimed: three files were deleted and eight
-rewritten when the M2F platform primitives were extracted, so the branch is
-a refactor of shipped code as well as an addition. Three corrective commits
-follow it.
+**Implemented locally 2026-07-21 without authorization; corrected across two
+review rounds and a final review finding on 2026-07-22; merged the same day.**
+Thirteen commits initially, not the "twelve additive" an earlier revision of
+this section claimed: three files were deleted and eight rewritten when the
+M2F platform primitives were extracted, so the branch is a refactor of
+shipped code as well as an addition. Nine corrective commits follow it, for
+twenty-two in total.
 
-Nothing here is a completion claim. The milestone is **in review**.
+**Delivery:** PR #15, base `0b88d5fea59d718e28b5f001bf6d0ec4a44000e1`,
+reviewed head `ee414aec9f4b9a111f49d0a18b239db25e287ccf`, merge commit
+`fef753f7734afeedfd828b2a143bd25b17fac5ee` (a two-parent merge whose tree is
+byte-identical to the reviewed head). 92 files, +10,870 / −384. Post-merge CI
+run **29945105532** on `main` completed successfully across all five jobs,
+with no artifacts uploaded.
+
+The milestone is delivered. **That outcome does not revise the process record
+above or the corrections below** — both describe how it was actually reached,
+and both stay.
 
 ### Contract fidelity, and the one behaviour that did move
 
@@ -492,6 +511,19 @@ repository's eslint 10) predates this milestone.
   that genuinely had several items.
 - **`vitest.config.ts` includes `.ts` as well as `.tsx`.** The money and
   reorder utilities carry no JSX and were being silently skipped.
+- **The business switch is a remount boundary.** `BusinessWorkspaceLayout`
+  keys its `Outlet` by the route-derived business id. Found in final review:
+  `/businesses/:businessId/...` matches the same route elements on both sides
+  of a switch, so React kept every child page instance alive across it —
+  overview filter and reorder mode, an open dialog and what was typed into
+  it, a dirty create or edit form, learned server limits, local failures.
+  Nothing crossed a tenant boundary on read and no unauthorized write was
+  possible, but the hazard was never permission: values entered for one
+  business remained in the form afterwards, and saving them would have been
+  an authorized write of the wrong data into the wrong business. One central
+  boundary enforces the invariant rather than per-page reset effects; five
+  behavioural regression tests cover it, three of which fail if the key is
+  removed.
 
 ### Verification
 
@@ -506,14 +538,20 @@ storefront 4, control-center 288, Playwright 4, orchestrator 30 with 1
 skipped. Every one of these is CI-reproducible, so they can be
 re-established rather than trusted.
 
-**Re-run during the authorized corrective pass (2026-07-22).** Results are
-recorded in the pass's own report rather than asserted here, so that this
-document does not accumulate a second layer of unverified counts. The
-orchestrator's single skip is environmental and pre-existing: a symlink
-policy test in `prepare-ci-artifacts.test.mjs` calls `t.skip` when
-`symlinkSync` throws, which it does on Windows without the symlink
-privilege. It executes normally on the Linux CI runner, and that file is
-untouched by this milestone.
+**Verified on the merge commit (2026-07-22).** CI run **29945105532**,
+event `push` on `main` at `fef753f7734afeedfd828b2a143bd25b17fac5ee`, all
+five jobs green: backend **895**, api-client **76**, storefront **4**,
+control-center **302** across 28 files, Playwright **4**, orchestrator **31
+with zero skipped**, contract current, production builds clean, and no
+workflow artifact uploaded. These supersede the historical counts above as
+the authoritative record, and unlike them they were produced by CI rather
+than asserted by the implementation.
+
+The orchestrator skip seen on the developer machine is environmental and
+pre-existing: a symlink policy test in `prepare-ci-artifacts.test.mjs` calls
+`t.skip` when `symlinkSync` throws, which it does on Windows without the
+symlink privilege. Linux CI executes it — hence 31 with none skipped — and
+that file is untouched by this milestone.
 
 Two existing E2E specs had their locators tightened because the switcher
 legitimately names the business a second time and Playwright's strict mode
@@ -541,14 +579,19 @@ user-supplied names in their visible labels; and the 44 rem content column
 squeezed a dense menu into half a desktop viewport.
 
 That result is a **historical claim**. Its driver lived in a scratchpad and
-was never committed, so it is not project coverage and cannot be reproduced
-from this repository — which, for the one piece of evidence the milestone's
-acceptance bar rests on, is the weakest part of the record. The corrective
-pass re-established it against the corrected build using the same disposable
-setup, and its report states the viewports, states, and checks. Whether this
-verification becomes reproducible project tooling is an open question for
-review; it deliberately was not answered by committing a visual-testing
-framework inside a corrective pass.
+was never committed. A later pass re-established the evidence against the
+corrected build using the same disposable setup, covering the workspace
+shell, category management, item listing and editing, featured controls, the
+media picker, active-upload dismissal, an authoritative server
+price-validation error, and keyboard reordering at all three widths — but
+that driver was likewise not committed.
+
+So this remains the weakest part of the record: **the milestone's stated
+acceptance bar — responsive menu administration on mobile — rests on evidence
+that is reproducible only by repeating a documented procedure, not by a
+project command.** Whether it should become committed tooling is an open
+question, deliberately left to a governed decision rather than answered by
+adding a visual-testing framework inside a correction.
 
 Either way it is engineering evidence, not a WCAG certification — no
 axe-core scan was run — and, as with the M2F smoke (ADR-016), it is not a
