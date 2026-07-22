@@ -1,7 +1,22 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { ApiResult } from '@restaurant-engine/api-client';
+import { currentCsrfToken } from '../auth/csrf';
 import { clearAuthenticatedState } from '../auth/session';
-import { unwrap, type ApiFailure } from './failure';
+import { ApiFailure, unwrap } from './failure';
+
+/**
+ * The CSRF token for an unsafe request, read from the session cache at call
+ * time (ADR-015 decision 4) so a rotated session always supplies the fresh
+ * value. A missing token means the session is gone; treating it as a 401
+ * routes through the same clearing path a server 401 would.
+ */
+export function requireCsrf(queryClient: QueryClient): string {
+  const token = currentCsrfToken(queryClient);
+  if (token === null) {
+    throw new ApiFailure(401, null);
+  }
+  return token;
+}
 
 /**
  * Unwrap a privileged result. A 401 means the session died server-side

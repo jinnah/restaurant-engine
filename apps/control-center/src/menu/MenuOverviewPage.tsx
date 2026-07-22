@@ -1,16 +1,39 @@
 import { useState } from 'react';
-import type { CategoryWithItems } from '@restaurant-engine/api-client';
+import type {
+  CategorySummary,
+  CategoryWithItems,
+} from '@restaurant-engine/api-client';
 import { useSession } from '../auth/useSession';
 import {
   findMembership,
   useCurrentBusinessId,
 } from '../business/useCurrentBusinessId';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import type { FormFailure } from '../components/formErrors';
+import { useNotify } from '../components/NotificationProvider';
+import { ErrorSummary } from '../components/StatusPanels';
+import {
+  CategoryFormDialog,
+  categoryFailure,
+  type CategoryFormValues,
+} from './components/CategoryFormDialog';
 import { ItemRow } from './components/ItemRow';
 import { useMediaIndex } from './mediaData';
-import { useAdminMenu, useBusiness } from './menuData';
+import {
+  useAdminMenu,
+  useBusiness,
+  useCreateCategory,
+  useDeleteCategory,
+  useUpdateCategory,
+} from './menuData';
 import { menuPermissions } from './permissions';
 import { FEATURED_LIMIT_DISPLAY } from './policy';
 import styles from './menu.module.css';
+
+type CategoryDialog =
+  | { mode: 'create' }
+  | { mode: 'edit'; category: CategorySummary }
+  | { mode: 'delete'; category: CategoryWithItems };
 
 function matches(name: string, filter: string): boolean {
   return name.toLocaleLowerCase().includes(filter.toLocaleLowerCase());
@@ -44,7 +67,15 @@ export function MenuOverviewPage() {
   const session = useSession();
   const menu = useAdminMenu(businessId);
   const business = useBusiness(businessId);
+  const notify = useNotify();
   const [filter, setFilter] = useState('');
+  const [dialog, setDialog] = useState<CategoryDialog | null>(null);
+  const [failure, setFailure] = useState<FormFailure | null>(null);
+  const [pageError, setPageError] = useState<FormFailure | null>(null);
+
+  const createCategory = useCreateCategory(businessId);
+  const updateCategory = useUpdateCategory(businessId);
+  const deleteCategory = useDeleteCategory(businessId);
 
   const membership =
     session.status === 'authenticated'
@@ -107,10 +138,119 @@ export function MenuOverviewPage() {
     (total, category) => total + category.items.length,
     0,
   );
+  const canWrite = permissions?.canWriteCatalog ?? false;
+
+  /**
+   * Every category mutation ends the same way: close the dialog, restore
+   * focus, then publish. The order matters — a notification published while
+   * the dialog is still open would sit behind a focus trap, visible but
+   * unreachable (ADR-018 ruling 6).
+   */
+  function closeThenNotify(message: string) {
+    setDialog(null);
+    setFailure(null);
+    notify({ message });
+  }
+
+  function submitCategory(values: CategoryFormValues) {
+    if (dialog === null) {
+      return;
+    }
+    setFailure(null);
+    if (dialog.mode === 'create') {
+      createCategory.mutate(
+        {
+          name: values.name,
+          description:
+            values.description.trim() === '' ? null : values.description,
+        },
+        {
+          onSuccess: (created) => {
+            closeThenNotify(`Category “${created.name}” added.`);
+          },
+          onError: (error: unknown) => {
+            setFailure(
+              categoryFailure(error, 'The category could not be added.'),
+            );
+          },
+        },
+      );
+      return;
+    }
+    if (dialog.mode === 'edit') {
+      const original = dialog.category;
+      // Only changed fields are sent: PATCH semantics mean an absent field is
+      // untouched, so sending everything would overwrite a concurrent edit
+      // with values this page happened to be holding.
+      const body: Parameters<typeof updateCategory.mutate>[0]['body'] = {};
+      if (values.name !== original.name) {
+        body.name = values.name;
+      }
+      const description =
+        values.description.trim() === '' ? null : values.description;
+      if (description !== original.description) {
+        body.description = description;
+      }
+      if (values.isVisible !== original.is_visible) {
+        body.is_visible = values.isVisible;
+      }
+      if (Object.keys(body).length === 0) {
+        setDialog(null);
+        return;
+      }
+      updateCategory.mutate(
+        { categoryId: original.id, body },
+        {
+          onSuccess: (updated) => {
+            closeThenNotify(`Category “${updated.name}” saved.`);
+          },
+          onError: (error: unknown) => {
+            setFailure(
+              categoryFailure(error, 'The category could not be saved.'),
+            );
+          },
+        },
+      );
+    }
+  }
+
+  function confirmDelete(category: CategoryWithItems) {
+    deleteCategory.mutate(category.id, {
+      onSuccess: () => {
+        closeThenNotify(`Category “${category.name}” deleted.`);
+      },
+      onError: (error: unknown) => {
+        setDialog(null);
+        setPageError(
+          categoryFailure(
+            error,
+            'The category could not be deleted. It may have changed — the menu has been refreshed.',
+          ),
+        );
+        void menu.refetch();
+      },
+    });
+  }
 
   return (
     <section aria-labelledby="menu-title">
-      <h2 id="menu-title">Menu</h2>
+      <div className={styles.pageHead}>
+        <h2 id="menu-title">Menu</h2>
+        {canWrite && (
+          <button
+            type="button"
+            className={styles.submit}
+            onClick={() => {
+              setFailure(null);
+              setDialog({ mode: 'create' });
+            }}
+          >
+            New category
+          </button>
+        )}
+      </div>
+
+      {pageError !== null && <ErrorSummary failure={pageError} />}
 
       {categories.length === 0 ? (
         <p className={styles.empty}>
@@ -165,6 +305,44 @@ export function MenuOverviewPage() {
                       : `${String(category.items.length)} items`}
                   </p>
                 </div>
+                {canWrite && (
+                  <div className={styles.categoryActions}>
+                    <button
+                      type="button"
+                      className={styles.quiet}
+                      onClick={() => {
+                        setFailure(null);
+                        setDialog({ mode: 'edit', category });
+                      }}
+                    >
+                      Edit {category.name}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.quiet}
+                      disabled={category.items.length > 0}
+                      aria-describedby={
+                        category.items.length > 0
+                          ? `delete-blocked-${category.id}`
+                          : undefined
+                      }
+                      onClick={() => {
+                        setPageError(null);
+                        setDialog({ mode: 'delete', category });
+                      }}
+                    >
+                      Delete {category.name}
+                    </button>
+                    {category.items.length > 0 && (
+                      <span
+                        id={`delete-blocked-${category.id}`}
+                        className={styles.actionNote}
+                      >
+                        Move or delete its items before deleting the category.
+                      </span>
+                    )}
+                  </div>
+                )}
                 {category.description !== null && (
                   <p className={styles.categoryDescription}>
                     {category.description}
@@ -203,6 +381,39 @@ export function MenuOverviewPage() {
         <p className={styles.empty}>
           This menu is read-only because the business is closed.
         </p>
+      )}
+
+      {(dialog?.mode === 'create' || dialog?.mode === 'edit') && (
+        <CategoryFormDialog
+          category={dialog.mode === 'edit' ? dialog.category : undefined}
+          pending={createCategory.isPending || updateCategory.isPending}
+          failure={failure}
+          onSubmit={submitCategory}
+          onCancel={() => {
+            setDialog(null);
+            setFailure(null);
+          }}
+        />
+      )}
+
+      {dialog?.mode === 'delete' && (
+        <ConfirmDialog
+          title={`Delete ${dialog.category.name}?`}
+          confirmLabel="Delete category"
+          danger
+          pending={deleteCategory.isPending}
+          onConfirm={() => {
+            confirmDelete(dialog.category);
+          }}
+          onCancel={() => {
+            setDialog(null);
+          }}
+        >
+          <p>
+            This cannot be undone. Items are never deleted with a category — an
+            empty category is all that is removed.
+          </p>
+        </ConfirmDialog>
       )}
     </section>
   );

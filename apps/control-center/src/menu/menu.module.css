@@ -30,6 +30,31 @@
   composes: actions from '../components/controls.module.css';
 }
 
+.pageHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.pageHead h2 {
+  margin: 0;
+}
+
+.categoryActions {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: var(--space-1);
+}
+
+.actionNote {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
 /* --- Featured summary and filtering ---------------------------------- */
 
 .featuredStrip {
