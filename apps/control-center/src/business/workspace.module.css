@@ -1,0 +1,44 @@
+.area h1 {
+  margin: 0 0 var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  padding: 0 var(--space-1);
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--color-muted);
+  border-bottom: 3px solid transparent;
+}
+
+.linkActive {
+  composes: link;
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+/* A lifecycle note is information, not a failure: it uses the warning
+   palette and carries the status word so it never depends on colour. */
+.note {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius);
+}
+
+.note strong {
+  text-transform: capitalize;
+}

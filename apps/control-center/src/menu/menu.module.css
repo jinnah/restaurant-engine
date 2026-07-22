@@ -1,0 +1,42 @@
+.loading {
+  composes: loading from '../components/controls.module.css';
+}
+
+.empty {
+  composes: empty from '../components/controls.module.css';
+}
+
+.errorPanel {
+  composes: errorPanel from '../components/controls.module.css';
+}
+
+.secondary {
+  composes: secondary from '../components/controls.module.css';
+}
+
+.categoryList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.categoryCard {
+  padding: var(--space-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.categoryName {
+  margin: 0;
+  font-size: 1.1rem;
+  overflow-wrap: anywhere;
+}
+
+.count {
+  margin: 0.25rem 0 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
