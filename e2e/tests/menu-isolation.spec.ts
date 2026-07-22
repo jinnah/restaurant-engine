@@ -45,7 +45,9 @@ test('one business cannot see or reach another through the menu or its media', a
   test.setTimeout(120_000);
 
   const a = await provisionActiveBusinessWithOwner(nsA);
-  const b = await provisionActiveBusinessWithOwner(nsB);
+  // B's id is never needed: this test signs in as B's owner and deep-links
+  // to A, so the only identifier that has to travel is A's.
+  await provisionActiveBusinessWithOwner(nsB);
   await seedPhotographedItem(nsA, a.businessId, {
     category: A_CATEGORY,
     item: A_ITEM,
