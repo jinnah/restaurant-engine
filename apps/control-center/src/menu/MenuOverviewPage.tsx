@@ -35,7 +35,6 @@ import {
   useUpdateCategory,
 } from './menuData';
 import { menuPermissions } from './permissions';
-import { FEATURED_LIMIT_DISPLAY } from './policy';
 import styles from './menu.module.css';
 
 type CategoryDialog =
@@ -337,8 +336,12 @@ export function MenuOverviewPage() {
         </p>
       ) : (
         <>
+          {/* The count only. There is a server-side ceiling, but the contract
+              does not publish it — a count limit is not expressible in JSON
+              Schema — so printing a denominator here would present a
+              hand-copied number as though it came from the API. */}
           <p className={styles.featuredStrip}>
-            Featured items: {featured.length} of {FEATURED_LIMIT_DISPLAY}
+            Featured items: {featured.length}
             {featured.length > 0 && (
               <span className={styles.featuredNames}>
                 {' '}

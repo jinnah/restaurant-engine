@@ -16,7 +16,6 @@ import {
   type ItemFormValues,
 } from './itemForm';
 import { useAdminMenu, useBusiness, useCreateItem } from './menuData';
-import { FEATURED_LIMIT_DISPLAY } from './policy';
 import styles from './menu.module.css';
 
 /**
@@ -137,7 +136,9 @@ export function ItemCreatePage() {
           currency={currency}
           mode="create"
           featuredCount={featuredCount}
-          featuredLimit={FEATURED_LIMIT_DISPLAY}
+          // Creation cannot feature an item — ItemCreate carries no
+          // `is_featured` — so no ceiling is ever relevant here.
+          featuredLimit={null}
         />
         <div className={styles.actions}>
           <button

@@ -19,9 +19,17 @@ interface ItemFieldsProps {
   currency: string;
   /** Editing exposes visibility and featuring; creation does not. */
   mode: 'create' | 'edit';
-  /** Shown next to the featured control so the ceiling is never a surprise. */
+  /** Shown next to the featured control so the count is never a surprise. */
   featuredCount: number;
-  featuredLimit: number;
+  /**
+   * The ceiling, or null when it is not known.
+   *
+   * Null is the normal state. The contract does not publish this limit — it
+   * is a count enforced in the service, which JSON Schema cannot express — so
+   * the only truthful source is a 409's `details.limit`. Until the server has
+   * said a number, none is shown.
+   */
+  featuredLimit: number | null;
 }
 
 /**
@@ -46,7 +54,8 @@ export function ItemFields({
   featuredCount,
   featuredLimit,
 }: ItemFieldsProps) {
-  const atFeaturedLimit = featuredCount >= featuredLimit;
+  const atFeaturedLimit =
+    featuredLimit !== null && featuredCount >= featuredLimit;
 
   return (
     <>
@@ -139,7 +148,9 @@ export function ItemFields({
             hint={
               atFeaturedLimit
                 ? `You are already featuring ${String(featuredCount)} of ${String(featuredLimit)} items. Unfeature one first — hidden items count too.`
-                : `Featured: ${String(featuredCount)} of ${String(featuredLimit)}. Hidden items count toward the limit.`
+                : featuredLimit === null
+                  ? `Featured so far: ${String(featuredCount)}. There is a limit, and hidden items count toward it.`
+                  : `Featured: ${String(featuredCount)} of ${String(featuredLimit)}. Hidden items count toward the limit.`
             }
             {...register('isFeatured')}
           />

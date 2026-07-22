@@ -328,11 +328,15 @@ test('staff can toggle availability but cannot edit the item', async () => {
   expect(screen.getByText(/needs a manager or owner/i)).toBeInTheDocument();
 });
 
-test('the featured ceiling is shown before it is reached', async () => {
+test('the featured count is shown, but no ceiling the contract never gave', async () => {
   renderApp(`${MENU}/items/i1`, client(withItem));
-  expect(
-    await screen.findByText(/Featured: 0 of 6\. Hidden items count/),
-  ).toBeInTheDocument();
+
+  // The count is real and comes from the tree. The ceiling is a service-side
+  // count limit that JSON Schema cannot express, so it is absent from the
+  // generated contract and must not be asserted until the server states it.
+  const hint = await screen.findByText(/Featured so far: 0/);
+  expect(hint).toHaveTextContent(/There is a limit/);
+  expect(hint).not.toHaveTextContent(/of \d/);
 });
 
 test('a featured-limit conflict reverts, quotes the server limit, and refetches', async () => {
@@ -370,10 +374,7 @@ test('a featured-limit conflict reverts, quotes the server limit, and refetches'
   });
 });
 
-test('a server limit that disagrees is displayed and reported, never absorbed', async () => {
-  const reported = vi
-    .spyOn(console, 'error')
-    .mockImplementation(() => undefined);
+test('whatever limit the server states is simply adopted', async () => {
   const updateItem = vi.fn(async () =>
     apiError(409, {
       error: {
@@ -390,15 +391,16 @@ test('a server limit that disagrees is displayed and reported, never absorbed', 
   fireEvent.click(await screen.findByLabelText(/feature this item/i));
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
+  // There is no client-side expectation for this number to disagree with, so
+  // 8 is not "drift" to be reported — it is simply the limit, stated by the
+  // only party that knows it.
   expect(
-    await screen.findByText(
-      /at most 8 items, which differs from what this page expected \(6\)/,
-    ),
+    await screen.findByText(/You can feature at most 8 items/),
   ).toBeInTheDocument();
-  expect(reported).toHaveBeenCalledWith(
-    expect.stringContaining('[m3e:limit-drift]'),
-  );
-  reported.mockRestore();
+  // And it is what the page shows from then on.
+  expect(
+    await screen.findByText(/Featured: 0 of 8\. Hidden items count/),
+  ).toBeInTheDocument();
 });
 
 test('an item that vanished mid-edit explains and refreshes', async () => {

@@ -34,7 +34,6 @@ import {
   useUpdateItem,
 } from './menuData';
 import { menuPermissions } from './permissions';
-import { FEATURED_LIMIT_DISPLAY, reportLimitDrift } from './policy';
 import styles from './menu.module.css';
 
 function findItem(
@@ -68,7 +67,9 @@ export function ItemEditorPage() {
   const updateItem = useUpdateItem(businessId);
   const deleteItem = useDeleteItem(businessId);
   const [failure, setFailure] = useState<FormFailure | null>(null);
-  const [featuredLimit, setFeaturedLimit] = useState(FEATURED_LIMIT_DISPLAY);
+  // Unknown until a 409 says otherwise: the contract does not publish this
+  // ceiling, so there is nothing honest to seed it with.
+  const [featuredLimit, setFeaturedLimit] = useState<number | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [leaving, setLeaving] = useState(false);
 
@@ -147,24 +148,15 @@ export function ItemEditorPage() {
           const kind = classifyFailure(apiFailure);
 
           if (kind === 'conflict' && body.is_featured === true) {
-            // The featured ceiling. The server's number wins, always; if it
-            // disagrees with the mirrored constant that is a contract drift
-            // worth reporting, not something to absorb silently.
+            // The featured ceiling, learned from the only place that states
+            // it: the conflict envelope. There is no mirrored constant to
+            // compare against, so there is no drift to report — the server's
+            // number simply becomes what this page knows and shows.
             const serverLimit = conflictLimit(apiFailure);
             if (serverLimit !== null) {
-              if (serverLimit !== FEATURED_LIMIT_DISPLAY) {
-                reportLimitDrift(
-                  'featured items',
-                  FEATURED_LIMIT_DISPLAY,
-                  serverLimit,
-                );
-              }
               setFeaturedLimit(serverLimit);
               setFailure({
-                summary:
-                  serverLimit === FEATURED_LIMIT_DISPLAY
-                    ? `You can feature at most ${String(serverLimit)} items. Unfeature one first — hidden items count too.`
-                    : `You can feature at most ${String(serverLimit)} items, which differs from what this page expected (${String(FEATURED_LIMIT_DISPLAY)}). Please report this. The server's limit applies.`,
+                summary: `You can feature at most ${String(serverLimit)} items. Unfeature one first — hidden items count too.`,
                 fields: {},
               });
               reset(itemValues(item, currency));

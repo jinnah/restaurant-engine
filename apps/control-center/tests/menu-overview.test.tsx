@@ -128,7 +128,7 @@ test('prices use the business currency, not a hardcoded dollar sign', async () =
   expect(screen.queryByText(/12\.50/)).toBeNull();
 });
 
-test('the featured strip shows the governed limit from the first render', async () => {
+test('the featured strip counts hidden featured items too', async () => {
   renderApp(
     MENU,
     clientWith([
@@ -143,12 +143,28 @@ test('the featured strip shows the governed limit from the first render', async 
     ]),
   );
 
-  expect(await screen.findByText(/Featured items: 2 of 6/)).toBeInTheDocument();
+  expect(await screen.findByText(/Featured items: 2/)).toBeInTheDocument();
 });
 
-test('the featured strip reads zero of six on an unfeatured menu', async () => {
+test('the featured strip reads zero on an unfeatured menu', async () => {
   renderApp(MENU, clientWith([category({ items: [item()] })]));
-  expect(await screen.findByText(/Featured items: 0 of 6/)).toBeInTheDocument();
+  expect(await screen.findByText(/Featured items: 0/)).toBeInTheDocument();
+});
+
+test('the featured strip prints no ceiling the contract does not publish', async () => {
+  renderApp(
+    MENU,
+    clientWith([
+      category({ items: [item({ id: 'a', name: 'One', is_featured: true })] }),
+    ]),
+  );
+
+  const strip = await screen.findByText(/Featured items:/);
+  // A count limit cannot be expressed in JSON Schema, so no denominator here
+  // could have come from the generated contract. The server states its
+  // ceiling in a 409 and nowhere else.
+  expect(strip).toHaveTextContent(/Featured items: 1\b/);
+  expect(strip).not.toHaveTextContent(/of \d/);
 });
 
 test('filtering narrows items and announces the count', async () => {
