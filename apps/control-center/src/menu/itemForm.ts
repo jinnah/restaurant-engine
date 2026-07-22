@@ -24,6 +24,12 @@ const MAX_TAGS = 3;
  * here mirrors one the server enforces; none of them replaces it, and a 422
  * still maps onto the same fields.
  *
+ * Price carries **no maximum**. Its ceiling is a domain rule the contract
+ * does not publish in any form this app could check, so the field validates
+ * only that the text converts to an exact integer number of minor units and
+ * lets the server rule on the amount. `serverFieldErrors` below is how that
+ * ruling gets back onto this field.
+ *
  * The schema is built per currency because price precision depends on it:
  * "12.5" is valid in USD and invalid in JPY.
  */
@@ -59,6 +65,40 @@ export function itemFieldsSchema(currency: string) {
 }
 
 export type ItemFormValues = z.infer<ReturnType<typeof itemFieldsSchema>>;
+
+/**
+ * Request field name → form field name.
+ *
+ * The envelope names the field the *API* rejected; the form knows its own
+ * inputs. `price_minor` and `price` are the case that matters: the server
+ * owns the price ceiling, so its 422 has to land on the price input rather
+ * than in a generic summary the user cannot act on.
+ */
+const FORM_FIELD_BY_REQUEST_FIELD: Record<string, keyof ItemFormValues> = {
+  name: 'name',
+  description: 'description',
+  price_minor: 'price',
+  category_id: 'categoryId',
+  dietary_tags: 'dietaryTags',
+};
+
+/**
+ * The subset of a `FormFailure`'s field errors that this form can display,
+ * translated to its own field names. Anything unrecognized is left out and
+ * stays visible through the failure summary — never silently dropped.
+ */
+export function serverFieldErrors(
+  fields: Record<string, string>,
+): { field: keyof ItemFormValues; message: string }[] {
+  const mapped: { field: keyof ItemFormValues; message: string }[] = [];
+  for (const [requestField, message] of Object.entries(fields)) {
+    const field = FORM_FIELD_BY_REQUEST_FIELD[requestField];
+    if (field !== undefined) {
+      mapped.push({ field, message });
+    }
+  }
+  return mapped;
+}
 
 /** Form defaults for a brand-new item, optionally in a preselected category. */
 export function emptyItemValues(categoryId: string): ItemFormValues {

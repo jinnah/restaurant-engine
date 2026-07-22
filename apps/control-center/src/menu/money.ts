@@ -1,11 +1,18 @@
-import { MAX_PRICE_MINOR_DISPLAY } from './policy';
-
 /**
  * Money entry and display (ADR-018 ruling 8).
  *
  * Prices are integer minor units on the wire and in the database; the
- * currency belongs to the Business, never to an item (ADR-017 D8). Two rules
- * govern everything here:
+ * currency belongs to the Business, never to an item (ADR-017 D8).
+ *
+ * **This module owns no business limit.** It answers exactly one question —
+ * can this text become an exact integer number of minor units? — and nothing
+ * about whether the resulting amount is an acceptable price. Syntax, the
+ * currency's decimal precision, sign, and exact representability in a
+ * JavaScript number are properties of the *conversion*. A ceiling is a
+ * property of the *domain*, and the domain belongs to the server: a price the
+ * server would accept must reach it, however large. The 422 decides.
+ *
+ * Two further rules govern everything here:
  *
  * 1. **No floating-point arithmetic on the input path.** `12.50` becomes
  *    1250 by padding the fractional part and concatenating digit strings,
@@ -31,7 +38,9 @@ export type MoneyParseError =
   | 'negative'
   | 'tooPrecise'
   | 'wholeOnly'
-  | 'tooLarge';
+  // Not a business ceiling: the digits do not survive conversion to an exact
+  // JavaScript integer, so no faithful `price_minor` could be sent at all.
+  | 'unsafe';
 
 export type MoneyParseResult =
   { ok: true; minor: number } | { ok: false; error: MoneyParseError };
@@ -106,8 +115,12 @@ export function parseMajorToMinor(
   const minorDigits =
     (intPart === '' ? '0' : intPart) + fracPart.padEnd(digits, '0');
   const minor = Number(minorDigits);
-  if (!Number.isSafeInteger(minor) || minor > MAX_PRICE_MINOR_DISPLAY) {
-    return { ok: false, error: 'tooLarge' };
+  // The only remaining bound, and it is not a policy: past
+  // Number.MAX_SAFE_INTEGER the value cannot be carried exactly, so sending
+  // it would silently misstate the price. Everything representable goes to
+  // the server, which owns the actual ceiling.
+  if (!Number.isSafeInteger(minor)) {
+    return { ok: false, error: 'unsafe' };
   }
   return { ok: true, minor };
 }
@@ -127,8 +140,10 @@ export function moneyErrorMessage(
       return `${currency} prices are whole numbers — leave out the decimal point.`;
     case 'tooPrecise':
       return `Use at most ${String(digits)} decimal places.`;
-    case 'tooLarge':
-      return 'That price is higher than this system allows.';
+    case 'unsafe':
+      // Deliberately about this number being unusable, not about a maximum
+      // price: no ceiling is stated here, because none is known here.
+      return 'That number is too long to convert exactly. Check the price.';
     case 'malformed':
       return 'Enter a price using digits and a dot, for example 12.50.';
   }

@@ -12,6 +12,7 @@ import { UnsavedChangesPrompt } from './components/UnsavedChangesPrompt';
 import {
   emptyItemValues,
   itemFieldsSchema,
+  serverFieldErrors,
   toItemCreate,
   type ItemFormValues,
 } from './itemForm';
@@ -53,7 +54,7 @@ export function ItemCreatePage() {
     defaultValues: emptyItemValues(preselected),
     mode: 'onBlur',
   });
-  const { formState, handleSubmit, register, control, reset } = form;
+  const { formState, handleSubmit, register, control, reset, setError } = form;
 
   useEffect(() => {
     document.title = 'New item — Restaurant Engine';
@@ -105,9 +106,17 @@ export function ItemCreatePage() {
           notify({ message: `Item “${created.name}” added.` });
         },
         onError: (error: unknown) => {
-          setFailure(
-            mapFailure(asApiFailure(error), 'The item could not be added.'),
+          const mapped = mapFailure(
+            asApiFailure(error),
+            'The item could not be added.',
           );
+          setFailure(mapped);
+          // The server's own words, on the input it rejected. The price
+          // ceiling reaches the user this way and no other, because this app
+          // deliberately does not know what it is.
+          for (const { field, message } of serverFieldErrors(mapped.fields)) {
+            setError(field, { type: 'server', message });
+          }
         },
       },
     );

@@ -104,6 +104,112 @@ test('creation sends only ItemCreate fields, with the category as a path argumen
   );
 });
 
+// --- The price ceiling belongs to the server ---------------------------
+
+// The backend bound today. Named here only to prove the client does not
+// enforce it; it is deliberately not imported from application code.
+const FORMER_FRONTEND_CEILING_INPUT = '100000.01'; // 10,000,001 minor units
+
+test('a price above the former frontend ceiling is sent, not blocked here', async () => {
+  const createItem = vi.fn(async () => ok(item({ id: 'new-1', name: 'Gold' })));
+  renderApp(
+    `${MENU}/items/new?categoryId=${CAT}`,
+    client(oneCategory, { catalog: { createItem } }),
+  );
+
+  fireEvent.change(await screen.findByLabelText('Name'), {
+    target: { value: 'Gold' },
+  });
+  fireEvent.change(screen.getByLabelText(/^Price/), {
+    target: { value: FORMER_FRONTEND_CEILING_INPUT },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Add item' }));
+
+  // Reaches the API with the exact integer, for the server to rule on.
+  await waitFor(() => {
+    expect(createItem).toHaveBeenCalledTimes(1);
+  });
+  expect(createItem).toHaveBeenCalledWith(
+    SHALIK,
+    CAT,
+    expect.objectContaining({ price_minor: 10_000_001 }),
+    'csrf-token-1',
+  );
+  // And nothing here claimed a maximum on the way past.
+  expect(screen.queryByText(/maximum|at most|higher than|allows/i)).toBeNull();
+});
+
+test("the server's price rejection is shown on the price field", async () => {
+  const createItem = vi.fn(async () =>
+    apiError(422, {
+      error: {
+        code: 'validation_error',
+        message: 'The request was invalid.',
+        correlation_id: null,
+        field_errors: [
+          {
+            field: 'body.price_minor',
+            message: 'Input should be less than or equal to 10000000',
+          },
+        ],
+        details: null,
+      },
+    } as never),
+  );
+  renderApp(
+    `${MENU}/items/new?categoryId=${CAT}`,
+    client(oneCategory, { catalog: { createItem } }),
+  );
+
+  fireEvent.change(await screen.findByLabelText('Name'), {
+    target: { value: 'Gold' },
+  });
+  fireEvent.change(screen.getByLabelText(/^Price/), {
+    target: { value: FORMER_FRONTEND_CEILING_INPUT },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Add item' }));
+
+  // The authoritative message, verbatim, on the input it was about — the
+  // only way the real ceiling can reach the user now.
+  expect(
+    await screen.findByText('Input should be less than or equal to 10000000'),
+  ).toBeInTheDocument();
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    /some fields need attention/i,
+  );
+});
+
+test('local syntax, precision, sign and safety checks still block first', async () => {
+  const createItem = vi.fn(async () => ok(item({ id: 'x' })));
+  renderApp(
+    `${MENU}/items/new?categoryId=${CAT}`,
+    client(oneCategory, { catalog: { createItem } }),
+  );
+
+  fireEvent.change(await screen.findByLabelText('Name'), {
+    target: { value: 'Samosa' },
+  });
+  const price = screen.getByLabelText(/^Price/);
+
+  // Anchored past the field's own hint ("Digits and a dot, for example
+  // 12.50."), which would otherwise match the malformed message too.
+  for (const [value, expected] of [
+    ['abc', /enter a price using digits and a dot/i],
+    ['1,50', /enter a price using digits and a dot/i],
+    ['-1', /cannot be negative/i],
+    ['1.234', /use at most 2 decimal places/i],
+    ['999999999999999999.99', /too long to convert exactly/i],
+    ['', /^Enter a price\.$/],
+  ] as const) {
+    fireEvent.change(price, { target: { value } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add item' }));
+    expect(await screen.findByText(expected)).toBeInTheDocument();
+  }
+
+  // Not one of them reached the API.
+  expect(createItem).not.toHaveBeenCalled();
+});
+
 test('the create form offers no update-only controls', async () => {
   renderApp(`${MENU}/items/new?categoryId=${CAT}`, client(oneCategory));
   await screen.findByLabelText('Name');

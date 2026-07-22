@@ -24,6 +24,7 @@ import {
   emptyItemValues,
   itemFieldsSchema,
   itemValues,
+  serverFieldErrors,
   toItemUpdate,
   type ItemFormValues,
 } from './itemForm';
@@ -92,7 +93,7 @@ export function ItemEditorPage() {
     values: item === null ? undefined : itemValues(item, currency),
     mode: 'onBlur',
   });
-  const { formState, handleSubmit, register, control, reset } = form;
+  const { formState, handleSubmit, register, control, reset, setError } = form;
 
   useEffect(() => {
     if (item !== null) {
@@ -175,7 +176,14 @@ export function ItemEditorPage() {
             return;
           }
 
-          setFailure(mapFailure(apiFailure, 'The item could not be saved.'));
+          const mapped = mapFailure(apiFailure, 'The item could not be saved.');
+          setFailure(mapped);
+          // The server's own words, on the input it rejected. The price
+          // ceiling reaches the user this way and no other, because this app
+          // deliberately does not know what it is.
+          for (const { field, message } of serverFieldErrors(mapped.fields)) {
+            setError(field, { type: 'server', message });
+          }
         },
       },
     );

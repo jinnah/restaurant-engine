@@ -7,9 +7,14 @@ import {
   formatMinor,
   fractionDigits,
   minorToMajorInput,
+  moneyErrorMessage,
   parseMajorToMinor,
 } from '../src/menu/money';
-import { MAX_PRICE_MINOR_DISPLAY } from '../src/menu/policy';
+
+// The value the backend ceiling happens to sit at today. It is referenced
+// only to prove this module does NOT stop there — nothing here may treat it
+// as a bound, which is why it is not imported from application code.
+const FORMER_FRONTEND_CEILING = 10_000_000;
 
 function minor(input: string, currency = 'USD'): number | string {
   const result = parseMajorToMinor(input, currency);
@@ -66,17 +71,42 @@ describe('parsing a three-decimal currency', () => {
   });
 });
 
-describe('bounds', () => {
-  test('the exact maximum is accepted', () => {
-    expect(minor('100000.00')).toBe(MAX_PRICE_MINOR_DISPLAY);
+describe('representability, the only bound this module owns', () => {
+  test('a price above the former frontend ceiling parses instead of failing', () => {
+    // The ceiling is the server's, and it is not published in any form this
+    // app can check, so nothing here may refuse a value on its behalf.
+    expect(minor('100000.00')).toBe(FORMER_FRONTEND_CEILING);
+    expect(minor('100000.01')).toBe(FORMER_FRONTEND_CEILING + 1);
+    expect(minor('999999.99')).toBe(99_999_999);
   });
 
-  test('one minor unit above the maximum is refused', () => {
-    expect(minor('100000.01')).toBe('tooLarge');
+  test('the largest exactly representable integer is accepted', () => {
+    expect(minor('90071992547409.91')).toBe(Number.MAX_SAFE_INTEGER);
   });
 
-  test('an absurd value is refused rather than overflowing', () => {
-    expect(minor('999999999999999999.99')).toBe('tooLarge');
+  test('one minor unit beyond exact representability is refused', () => {
+    // Not a policy: past MAX_SAFE_INTEGER the digits cannot be carried
+    // exactly, so no faithful price_minor could be sent at all.
+    expect(minor('90071992547409.92')).toBe('unsafe');
+    expect(minor('999999999999999999.99')).toBe('unsafe');
+  });
+
+  test('no message states a maximum price', () => {
+    // Naming a ceiling in prose would reintroduce the copied limit by another
+    // route. "at most 2 decimal places" is deliberately not caught: precision
+    // is a property of the currency, not a bound on the amount.
+    for (const error of [
+      'unsafe',
+      'tooPrecise',
+      'wholeOnly',
+      'negative',
+      'malformed',
+      'required',
+    ] as const) {
+      expect(moneyErrorMessage(error, 'USD')).not.toMatch(
+        /maximum|higher than|this system allows|too (large|high|big)/i,
+      );
+    }
   });
 });
 
@@ -120,7 +150,7 @@ describe('display and round trips', () => {
     expect(minorToMajorInput(0, 'USD')).toBe('0.00');
     expect(minorToMajorInput(1250, 'JPY')).toBe('1250');
     expect(minorToMajorInput(1234, 'BHD')).toBe('1.234');
-    expect(minorToMajorInput(MAX_PRICE_MINOR_DISPLAY, 'USD')).toBe('100000.00');
+    expect(minorToMajorInput(FORMER_FRONTEND_CEILING, 'USD')).toBe('100000.00');
   });
 
   test('every stored integer round-trips through the editable form', () => {
@@ -134,7 +164,11 @@ describe('display and round trips', () => {
       350,
       1250,
       999999,
-      MAX_PRICE_MINOR_DISPLAY,
+      FORMER_FRONTEND_CEILING,
+      // Above the old ceiling, and at the edge of exact representability:
+      // both must survive the round trip untouched.
+      FORMER_FRONTEND_CEILING + 1,
+      Number.MAX_SAFE_INTEGER,
     ];
     for (const currency of ['USD', 'JPY', 'BHD']) {
       for (const value of values) {
@@ -147,7 +181,7 @@ describe('display and round trips', () => {
     expect(formatMinor(1250, 'USD')).toContain('12.50');
     expect(formatMinor(0, 'USD')).toContain('0.00');
     expect(formatMinor(10, 'USD')).toContain('0.10');
-    expect(formatMinor(MAX_PRICE_MINOR_DISPLAY, 'USD')).toContain('100,000.00');
+    expect(formatMinor(FORMER_FRONTEND_CEILING, 'USD')).toContain('100,000.00');
     // A zero-decimal currency must not gain decimals.
     expect(formatMinor(1250, 'JPY')).not.toContain('.');
     expect(formatMinor(1234, 'BHD')).toContain('1.234');
