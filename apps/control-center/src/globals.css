@@ -12,10 +12,16 @@
   --color-danger-bg: #fbeceb;
   --color-success: #1d6b43;
   --color-success-bg: #e9f4ec;
+  --color-warning: #7a4b06;
+  --color-warning-bg: #fdf3e3;
   --radius: 10px;
   --space-1: 0.5rem;
   --space-2: 1rem;
   --space-3: 2rem;
+  /* Blueprint §12.4: at least 44 CSS px for any touch target, with 48px
+     preferred for primary administrative controls. */
+  --target-min: 44px;
+  --target-primary: 48px;
 }
 
 *,
@@ -49,4 +55,31 @@ a {
 h1 {
   font-size: 1.6rem;
   line-height: 1.25;
+}
+
+/* User-entered names and descriptions can be long, and Bengali — the launch
+   market's script — wraps differently from Latin text. Nothing is ever
+   truncated with an ellipsis, and long words break rather than forcing a
+   horizontal scrollbar (blueprint §12.4). */
+h1,
+h2,
+h3,
+h4 {
+  overflow-wrap: anywhere;
+}
+
+/* A global backstop: no page may scroll sideways at any width. */
+body {
+  overflow-x: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

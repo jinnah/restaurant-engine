@@ -1,4 +1,7 @@
-/* Shared styling for the platform-administration pages. */
+/* Styling for the platform-administration pages.
+   The form, button, dialog, and status primitives are composed from the
+   shared controls stylesheet (M3E) so the platform area and the business
+   workspace cannot drift apart; only platform-specific rules live here. */
 
 .section {
   margin-bottom: var(--space-3);
@@ -15,94 +18,27 @@
 }
 
 .field {
-  margin-bottom: var(--space-2);
-  max-width: 26rem;
-}
-
-.field label {
-  display: block;
-  font-weight: 600;
-  margin-bottom: 0.25rem;
-}
-
-.field input,
-.field select {
-  width: 100%;
-  min-height: 44px;
-  padding: 0 0.75rem;
-  font: inherit;
-  color: inherit;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-}
-
-.field input[aria-invalid='true'] {
-  border-color: var(--color-danger);
+  composes: field from '../components/controls.module.css';
 }
 
 .fieldError {
-  margin: 0.35rem 0 0;
-  color: var(--color-danger);
-  font-size: 0.9rem;
+  composes: fieldError from '../components/controls.module.css';
 }
 
 .submit {
-  min-height: 44px;
-  padding: 0 var(--space-2);
-  font: inherit;
-  font-weight: 600;
-  color: #ffffff;
-  background: var(--color-accent);
-  border: 1px solid var(--color-accent);
-  border-radius: var(--radius);
-  cursor: pointer;
-}
-
-.submit:disabled {
-  opacity: 0.6;
-  cursor: default;
+  composes: submit from '../components/controls.module.css';
 }
 
 .secondary {
-  min-height: 44px;
-  padding: 0 var(--space-2);
-  font: inherit;
-  font-weight: 600;
-  color: var(--color-accent);
-  background: var(--color-surface);
-  border: 1px solid var(--color-accent);
-  border-radius: var(--radius);
-  cursor: pointer;
-}
-
-.secondary:disabled {
-  opacity: 0.6;
-  cursor: default;
+  composes: secondary from '../components/controls.module.css';
 }
 
 .danger {
-  min-height: 44px;
-  padding: 0 var(--space-2);
-  font: inherit;
-  font-weight: 600;
-  color: #ffffff;
-  background: var(--color-danger);
-  border: 1px solid var(--color-danger);
-  border-radius: var(--radius);
-  cursor: pointer;
-}
-
-.danger:disabled {
-  opacity: 0.6;
-  cursor: default;
+  composes: danger from '../components/controls.module.css';
 }
 
 .actions {
-  display: flex;
-  gap: var(--space-1);
-  flex-wrap: wrap;
-  margin-top: var(--space-2);
+  composes: actions from '../components/controls.module.css';
 }
 
 .list {
@@ -176,47 +112,15 @@
 }
 
 .empty {
-  color: var(--color-muted);
+  composes: empty from '../components/controls.module.css';
 }
 
 .loading {
-  color: var(--color-muted);
+  composes: loading from '../components/controls.module.css';
 }
 
 .errorPanel {
-  padding: var(--space-2);
-  background: var(--color-danger-bg);
-  border: 1px solid var(--color-danger);
-  border-radius: var(--radius);
-}
-
-.errorPanel p {
-  margin: 0 0 var(--space-1);
-}
-
-.overlay {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-2);
-  background: rgb(33 38 31 / 55%);
-  z-index: 10;
-}
-
-.dialog {
-  width: 100%;
-  max-width: 26rem;
-  padding: var(--space-2);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-}
-
-.dialog h2 {
-  margin: 0 0 var(--space-1);
-  font-size: 1.2rem;
+  composes: errorPanel from '../components/controls.module.css';
 }
 
 .detail {

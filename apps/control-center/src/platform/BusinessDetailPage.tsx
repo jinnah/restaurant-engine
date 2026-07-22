@@ -9,7 +9,7 @@ import {
   usePlatformBusiness,
   type LifecycleAction,
 } from './businessData';
-import { ConfirmDialog } from './ConfirmDialog';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { InvitationsPanel } from './InvitationsPanel';
 import { statusBadgeClass } from './statusBadge';
 import styles from './platform.module.css';

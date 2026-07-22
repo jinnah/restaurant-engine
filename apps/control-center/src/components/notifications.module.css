@@ -1,0 +1,97 @@
+/* The application notification region (M3E).
+
+   z-index sits BELOW the modal overlay (10) on purpose. A dismissible
+   notification rendered above an aria-modal dialog is visible but
+   unreachable, because the dialog owns keyboard focus — so a success that
+   happens inside a dialog closes the dialog first and publishes afterwards
+   (ADR-018 ruling 6). Rendering it on top would look correct and be
+   operable only with a mouse. */
+
+.region {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  pointer-events: none;
+}
+
+/* The region is always mounted (an empty live region is what makes later
+   insertions announce), so it must not swallow clicks while empty. */
+.notification {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 30rem;
+  margin: 0 auto;
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-success-bg);
+  border: 1px solid var(--color-success);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 8px rgb(33 38 31 / 18%);
+  animation: appear 150ms ease-out;
+}
+
+.info {
+  composes: notification;
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+.message {
+  margin: 0;
+  padding: 0.5rem 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.dismiss {
+  flex: none;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+  padding: 0 0.75rem;
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.dismiss:hover {
+  border-color: var(--color-border);
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+    transform: translateY(-0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notification,
+  .info {
+    animation: none;
+  }
+}
+
+@media (min-width: 40rem) {
+  .region {
+    left: auto;
+    width: min(30rem, 100vw - 2 * var(--space-2));
+    padding: var(--space-2);
+  }
+}

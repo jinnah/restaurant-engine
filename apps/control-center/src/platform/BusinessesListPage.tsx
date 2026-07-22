@@ -5,7 +5,7 @@ import { asApiFailure, type ApiFailure } from '../api/failure';
 import { mapFailure, type FormFailure } from '../components/formErrors';
 import { ErrorSummary, SuccessPanel } from '../components/StatusPanels';
 import { useCreateBusiness, usePlatformBusinesses } from './businessData';
-import { FormField } from './FormField';
+import { FormField } from '../components/FormField';
 import { statusBadgeClass } from './statusBadge';
 import styles from './platform.module.css';
 

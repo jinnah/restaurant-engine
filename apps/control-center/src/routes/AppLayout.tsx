@@ -1,6 +1,7 @@
 import { Link, Outlet } from 'react-router';
 import { useLogout } from '../auth/useLogout';
 import { useSession } from '../auth/useSession';
+import { BusinessSwitcher } from '../business/BusinessSwitcher';
 import styles from './AppLayout.module.css';
 
 /**
@@ -30,6 +31,7 @@ export function AppLayout() {
             </Link>
           )}
         </nav>
+        <BusinessSwitcher memberships={session.session.memberships} />
         <p className={styles.identity}>
           Signed in as <strong>{session.session.user.display_name}</strong>{' '}
           <span className={styles.email}>({session.session.user.email})</span>

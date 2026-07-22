@@ -691,19 +691,21 @@ Use one application with route groups:
 
 ```text
 /login
-/restaurants/:restaurantId/overview
-/restaurants/:restaurantId/menu
-/restaurants/:restaurantId/storefront
-/restaurants/:restaurantId/hours
-/restaurants/:restaurantId/orders
-/restaurants/:restaurantId/team
+/businesses/:businessId/overview
+/businesses/:businessId/menu
+/businesses/:businessId/storefront
+/businesses/:businessId/hours
+/businesses/:businessId/orders
+/businesses/:businessId/team
 /platform/overview
-/platform/restaurants
-/platform/restaurants/:restaurantId
+/platform/businesses
+/platform/businesses/:businessId
 /platform/audit
 ```
 
-Route loaders/guards improve experience, but the API remains the authorization authority. The restaurant switcher lists only authenticated memberships. Platform routes are absent or denied for non-platform users.
+Amended 2026-07-21 (ADR-018): the route vocabulary is `businesses`, matching the tenant aggregate ADR-012 established and the paths every API, domain module, and shipped control-center area already use. The earlier `restaurants` spelling predates that rename and is not reintroduced.
+
+Route loaders/guards improve experience, but the API remains the authorization authority. The business switcher lists only authenticated memberships. Platform routes are absent or denied for non-platform users.
 
 Maintain the strongest current UX patterns:
 

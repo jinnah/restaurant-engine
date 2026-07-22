@@ -1,12 +1,14 @@
 """Catalog command-schema validation (M3A): strict commands, normalized
 inputs, registry-validated dietary tags, and PATCH null semantics."""
 
+import json
 import uuid
 
 import pytest
 from pydantic import ValidationError
 
 from app.domains.catalog import policies
+from app.domains.catalog.dietary import DietaryTag
 from app.domains.catalog.schemas import (
     CategoryCreate,
     CategoryReorder,
@@ -68,17 +70,129 @@ class TestCategoryUpdate:
 
 
 class TestItemCreate:
+    # Dietary tags arrive as untyped wire JSON, so these go through
+    # model_validate rather than the typed constructor: the declared type is
+    # the DietaryTag registry (M3E contract-fidelity correction) while the
+    # mode="before" validator still accepts and canonicalizes raw strings.
     def test_dietary_tags_are_canonicalized(self) -> None:
-        payload = ItemCreate(name="Samosa", price_minor=350, dietary_tags=[" Halal "])
-        assert payload.dietary_tags == ["halal"]
+        payload = ItemCreate.model_validate(
+            {"name": "Samosa", "price_minor": 350, "dietary_tags": [" Halal "]}
+        )
+        assert payload.dietary_tags == [DietaryTag.HALAL]
+        assert payload.dietary_tags == ["halal"]  # StrEnum: still equals the stored value
+
+    def test_dietary_tags_serialize_as_canonical_strings(self) -> None:
+        payload = ItemCreate.model_validate(
+            {"name": "Samosa", "price_minor": 350, "dietary_tags": ["VEGAN", " vegetarian"]}
+        )
+        assert json.loads(payload.model_dump_json())["dietary_tags"] == ["vegan", "vegetarian"]
+
+    def test_recognized_tags_are_accepted(self) -> None:
+        payload = ItemCreate.model_validate(
+            {
+                "name": "Samosa",
+                "price_minor": 350,
+                "dietary_tags": ["halal", "vegetarian", "vegan"],
+            }
+        )
+        assert payload.dietary_tags == [
+            DietaryTag.HALAL,
+            DietaryTag.VEGETARIAN,
+            DietaryTag.VEGAN,
+        ]
 
     def test_unknown_dietary_tag_is_rejected(self) -> None:
         with pytest.raises(ValidationError, match="unknown dietary tag"):
-            ItemCreate(name="Samosa", price_minor=350, dietary_tags=["spicy"])
+            ItemCreate.model_validate(
+                {"name": "Samosa", "price_minor": 350, "dietary_tags": ["spicy"]}
+            )
 
     def test_duplicate_tags_after_canonicalization_are_rejected(self) -> None:
         with pytest.raises(ValidationError, match="duplicate dietary tag"):
-            ItemCreate(name="Samosa", price_minor=350, dietary_tags=["halal", "HALAL"])
+            ItemCreate.model_validate(
+                {"name": "Samosa", "price_minor": 350, "dietary_tags": ["halal", "HALAL"]}
+            )
+
+    def test_non_string_dietary_tag_element_is_an_enum_error(self) -> None:
+        """A non-string element is rejected by the declared enum, not by str.
+
+        This is the one place the M3E contract-fidelity change altered
+        observable behaviour, so it is pinned exactly rather than loosely.
+        The before-validator returns a list containing a non-string untouched
+        (calling ``.strip()`` on it would raise ``AttributeError`` from inside
+        validation), so the declared ``list[DietaryTag]`` judges it. Under the
+        previous ``list[str]`` annotation the same input produced
+        ``string_type`` / "Input should be a valid string"; it now produces
+        ``enum``. Asserting only that "dietary_tags" appears somewhere would
+        pass under both and pin nothing.
+        """
+        with pytest.raises(ValidationError) as excinfo:
+            ItemCreate.model_validate({"name": "Samosa", "price_minor": 350, "dietary_tags": [7]})
+
+        errors = excinfo.value.errors()
+        assert len(errors) == 1
+        assert errors[0]["type"] == "enum"
+        # Indexed at the element, not the field: the list itself was fine.
+        assert errors[0]["loc"] == ("dietary_tags", 0)
+        assert errors[0]["msg"] == "Input should be 'halal', 'vegetarian' or 'vegan'"
+        assert errors[0]["input"] == 7
+
+    def test_null_dietary_tag_element_is_the_same_enum_error(self) -> None:
+        # None is not special-cased anywhere on the element path.
+        with pytest.raises(ValidationError) as excinfo:
+            ItemCreate.model_validate(
+                {"name": "Samosa", "price_minor": 350, "dietary_tags": [None]}
+            )
+
+        errors = excinfo.value.errors()
+        assert [error["type"] for error in errors] == ["enum"]
+        assert errors[0]["loc"] == ("dietary_tags", 0)
+
+    def test_non_list_dietary_tags_is_a_list_type_error(self) -> None:
+        """A non-list payload still fails as a list, exactly as it did before.
+
+        Unlike the element case this one is genuinely unchanged: the
+        before-validator returns a non-list untouched and ``list[...]``
+        rejects it identically under either annotation.
+        """
+        with pytest.raises(ValidationError) as excinfo:
+            ItemCreate.model_validate(
+                {"name": "Samosa", "price_minor": 350, "dietary_tags": "halal"}
+            )
+
+        errors = excinfo.value.errors()
+        assert len(errors) == 1
+        assert errors[0]["type"] == "list_type"
+        assert errors[0]["loc"] == ("dietary_tags",)
+
+    def test_unknown_tag_keeps_its_friendly_value_error(self) -> None:
+        """The registry precheck still owns the message an unknown tag gets.
+
+        The declared enum stands behind the validator as the type invariant,
+        but it must not become the thing that reports an unknown tag, or the
+        per-value message ruled in D6 would be replaced by a generic enum
+        complaint.
+        """
+        with pytest.raises(ValidationError) as excinfo:
+            ItemCreate.model_validate(
+                {"name": "Samosa", "price_minor": 350, "dietary_tags": ["spicy"]}
+            )
+
+        errors = excinfo.value.errors()
+        assert len(errors) == 1
+        assert errors[0]["type"] == "value_error"
+        # The whole field, because the before-validator raised for the list.
+        assert errors[0]["loc"] == ("dietary_tags",)
+        assert errors[0]["msg"] == "Value error, unknown dietary tag: 'spicy'"
+
+    def test_patch_non_string_dietary_tag_element_is_also_an_enum_error(self) -> None:
+        # ItemUpdate declares the same registry behind an optional field.
+        with pytest.raises(ValidationError) as excinfo:
+            ItemUpdate.model_validate({"dietary_tags": [7]})
+
+        errors = excinfo.value.errors()
+        assert [error["type"] for error in errors] == ["enum"]
+        assert errors[0]["loc"] == ("dietary_tags", 0)
 
     def test_negative_price_is_rejected(self) -> None:
         with pytest.raises(ValidationError):

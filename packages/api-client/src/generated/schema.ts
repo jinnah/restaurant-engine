@@ -1247,6 +1247,16 @@ export interface components {
             status: "deleted";
         };
         /**
+         * DietaryTag
+         * @description Structured dietary attributes of a menu item (append-only).
+         *
+         *     Seeded per ruling D6: halal (blueprint §2.1 names it as structured
+         *     menu data), vegetarian, and vegan. Stored canonical lowercase (the
+         *     DB CHECK is the storage invariant).
+         * @enum {string}
+         */
+        DietaryTag: "halal" | "vegetarian" | "vegan";
+        /**
          * EmptyCommand
          * @description Body for no-argument lifecycle commands.
          *
@@ -1490,7 +1500,7 @@ export interface components {
             /** Description */
             description?: string | null;
             /** Dietary Tags */
-            dietary_tags?: string[];
+            dietary_tags?: components["schemas"]["DietaryTag"][];
             /** Name */
             name: string;
             /** Price Minor */
@@ -1545,7 +1555,7 @@ export interface components {
             /** Description */
             description: string | null;
             /** Dietary Tags */
-            dietary_tags: string[];
+            dietary_tags: components["schemas"]["DietaryTag"][];
             /**
              * Id
              * Format: uuid
@@ -1587,7 +1597,7 @@ export interface components {
             /** Description */
             description?: string | null;
             /** Dietary Tags */
-            dietary_tags?: string[] | null;
+            dietary_tags?: components["schemas"]["DietaryTag"][] | null;
             /** Is Featured */
             is_featured?: boolean | null;
             /** Is Hidden */
@@ -2034,7 +2044,7 @@ export interface components {
             /** Description */
             description: string | null;
             /** Dietary Tags */
-            dietary_tags: string[];
+            dietary_tags: components["schemas"]["DietaryTag"][];
             /**
              * Id
              * Format: uuid

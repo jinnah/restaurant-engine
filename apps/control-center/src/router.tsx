@@ -1,6 +1,11 @@
-import { createBrowserRouter, type RouteObject } from 'react-router';
+import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
 import { GuestOnly } from './auth/GuestOnly';
 import { RequireAuth } from './auth/RequireAuth';
+import { BusinessWorkspaceLayout } from './business/BusinessWorkspaceLayout';
+import { RequireBusinessMembership } from './business/RequireBusinessMembership';
+import { ItemCreatePage } from './menu/ItemCreatePage';
+import { ItemEditorPage } from './menu/ItemEditorPage';
+import { MenuOverviewPage } from './menu/MenuOverviewPage';
 import { AuditPage } from './platform/AuditPage';
 import { BusinessDetailPage } from './platform/BusinessDetailPage';
 import { BusinessesListPage } from './platform/BusinessesListPage';
@@ -33,6 +38,31 @@ export const routes: RouteObject[] = [
             element: <AppLayout />,
             children: [
               { index: true, element: <MembershipsHome /> },
+              {
+                // The business workspace (ADR-018). `businesses`, never
+                // `restaurants`: ADR-012 renamed the tenant aggregate and the
+                // blueprint route sketch was amended to match.
+                path: 'businesses/:businessId',
+                element: <RequireBusinessMembership />,
+                children: [
+                  {
+                    element: <BusinessWorkspaceLayout />,
+                    children: [
+                      { index: true, element: <Navigate to="menu" replace /> },
+                      { path: 'menu', element: <MenuOverviewPage /> },
+                      // React Router ranks a static segment above a dynamic
+                      // one, so `new` can never be captured as an :itemId.
+                      { path: 'menu/items/new', element: <ItemCreatePage /> },
+                      {
+                        path: 'menu/items/:itemId',
+                        element: <ItemEditorPage />,
+                      },
+                      // Unknown workspace children fall through to the root
+                      // catch-all not-found route.
+                    ],
+                  },
+                ],
+              },
               {
                 path: 'platform',
                 element: <RequirePlatformAdmin />,

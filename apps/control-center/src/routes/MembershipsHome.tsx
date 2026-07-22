@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
+import { Link } from 'react-router';
 import { useSession } from '../auth/useSession';
 import styles from './MembershipsHome.module.css';
 
 /**
- * The deliberately minimal authenticated landing (ADR-015): identity,
- * session-provided memberships (name, role, status), nothing else.
- * Business workspaces and platform administration arrive in later
- * sub-milestones.
+ * The authenticated landing: identity and the session's memberships, each a
+ * way into that business's workspace (M3E). The switcher in the app bar is
+ * the fast path once you are inside one; this is the map you start from.
  */
 export function MembershipsHome() {
   const session = useSession();
@@ -38,7 +38,12 @@ export function MembershipsHome() {
         <ul className={styles.list}>
           {memberships.map((membership) => (
             <li key={membership.business_id} className={styles.item}>
-              <span className={styles.name}>{membership.business_name}</span>
+              <Link
+                to={`/businesses/${membership.business_id}/menu`}
+                className={styles.name}
+              >
+                {membership.business_name}
+              </Link>
               <span className={styles.meta}>
                 <span className={styles.role}>{membership.role}</span>
                 <span

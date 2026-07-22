@@ -3,10 +3,13 @@
 
 import { vi } from 'vitest';
 import type {
+  AdminMenu,
   ApiClient,
   ApiResult,
   BusinessSummary,
+  CategoryWithItems,
   ErrorEnvelope,
+  ItemSummary,
   MembershipSummary,
   SessionView,
 } from '@restaurant-engine/api-client';
@@ -104,6 +107,50 @@ export interface ClientOverrides {
   invitations?: Partial<ApiClient['invitations']>;
   passwordResets?: Partial<ApiClient['passwordResets']>;
   platform?: Partial<ApiClient['platform']>;
+  businesses?: Partial<ApiClient['businesses']>;
+  catalog?: Partial<ApiClient['catalog']>;
+  media?: Partial<ApiClient['media']>;
+}
+
+/** An empty administrative menu — the starting point for most menu tests. */
+export function adminMenu(categories: CategoryWithItems[] = []): AdminMenu {
+  return { categories };
+}
+
+export function category(
+  overrides: Partial<CategoryWithItems> = {},
+): CategoryWithItems {
+  return {
+    id: '11111111-1111-4111-8111-111111111111',
+    name: 'Starters',
+    description: null,
+    position: 0,
+    is_visible: true,
+    created_at: '2026-07-21T00:00:00Z',
+    updated_at: '2026-07-21T00:00:00Z',
+    items: [],
+    ...overrides,
+  };
+}
+
+export function item(overrides: Partial<ItemSummary> = {}): ItemSummary {
+  return {
+    id: '22222222-2222-4222-8222-222222222222',
+    category_id: '11111111-1111-4111-8111-111111111111',
+    name: 'Samosa',
+    description: null,
+    price_minor: 350,
+    position: 0,
+    is_available: true,
+    is_hidden: false,
+    is_featured: false,
+    dietary_tags: [],
+    image_media_id: null,
+    image_alt_text: null,
+    created_at: '2026-07-21T00:00:00Z',
+    updated_at: '2026-07-21T00:00:00Z',
+    ...overrides,
+  };
 }
 
 /**
@@ -157,9 +204,52 @@ export function makeClient(overrides: ClientOverrides = {}): ApiClient {
       listAuditEvents: vi.fn(async () => deniedPlatform()),
       ...overrides.platform,
     },
-    // Surfaces the control center never touches as an admin; present so
-    // accidental use fails loudly.
-    businesses: {},
+    businesses: {
+      // Neutral denial defaults across the business surface too: a test that
+      // means to exercise a success path must say so.
+      get: vi.fn(async () => neutralNotFound()),
+      getEntitlements: vi.fn(async () => neutralNotFound()),
+      createInvitation: vi.fn(async () => neutralNotFound()),
+      listInvitations: vi.fn(async () => neutralNotFound()),
+      revokeInvitation: vi.fn(async () => neutralNotFound()),
+      listAuditEvents: vi.fn(async () => neutralNotFound()),
+      ...overrides.businesses,
+    },
+    catalog: {
+      getMenu: vi.fn(async () => neutralNotFound()),
+      createCategory: vi.fn(async () => neutralNotFound()),
+      updateCategory: vi.fn(async () => neutralNotFound()),
+      deleteCategory: vi.fn(async () => neutralNotFound()),
+      reorderCategories: vi.fn(async () => neutralNotFound()),
+      createItem: vi.fn(async () => neutralNotFound()),
+      getItem: vi.fn(async () => neutralNotFound()),
+      updateItem: vi.fn(async () => neutralNotFound()),
+      deleteItem: vi.fn(async () => neutralNotFound()),
+      reorderItems: vi.fn(async () => neutralNotFound()),
+      setItemAvailability: vi.fn(async () => neutralNotFound()),
+      setItemImage: vi.fn(async () => neutralNotFound()),
+      getModifierGroups: vi.fn(async () => neutralNotFound()),
+      createModifierGroup: vi.fn(async () => neutralNotFound()),
+      updateModifierGroup: vi.fn(async () => neutralNotFound()),
+      deleteModifierGroup: vi.fn(async () => neutralNotFound()),
+      reorderModifierGroups: vi.fn(async () => neutralNotFound()),
+      createModifierOption: vi.fn(async () => neutralNotFound()),
+      updateModifierOption: vi.fn(async () => neutralNotFound()),
+      deleteModifierOption: vi.fn(async () => neutralNotFound()),
+      reorderModifierOptions: vi.fn(async () => neutralNotFound()),
+      ...overrides.catalog,
+    },
+    media: {
+      uploadAsset: vi.fn(async () => neutralNotFound()),
+      listAssets: vi.fn(async () => neutralNotFound()),
+      getAsset: vi.fn(async () => neutralNotFound()),
+      deleteAsset: vi.fn(async () => neutralNotFound()),
+      fileUrl: (businessId: string, assetId: string, variant: string) =>
+        `/api/v1/businesses/${businessId}/media/${assetId}/file/${variant}`,
+      ...overrides.media,
+    },
+    // A surface the control center never touches; present so accidental use
+    // fails loudly rather than silently returning undefined.
     public: {},
   };
   return fake as unknown as ApiClient;
@@ -170,4 +260,12 @@ function deniedPlatform(): ApiResult<never> {
     403,
     envelope('permission_denied', 'You do not have permission to do that.'),
   );
+}
+
+/**
+ * The backend's non-disclosure default for business-scoped routes: a
+ * nonmember, a foreign tenant, and a nonexistent id are all this response.
+ */
+function neutralNotFound(): ApiResult<never> {
+  return apiError(404, envelope('not_found', 'Not found.'));
 }

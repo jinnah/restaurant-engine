@@ -20,6 +20,7 @@ loser into a 409.
 """
 
 import uuid
+from collections.abc import Sequence
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -81,7 +82,7 @@ def _category_summary(category: MenuCategory) -> CategorySummary:
     )
 
 
-def _item_summary(item: MenuItem, tags: list[str]) -> ItemSummary:
+def _item_summary(item: MenuItem, tags: Sequence[str]) -> ItemSummary:
     # Reads are fail-closed on dietary tags (D6): unregistered stored
     # values are never surfaced.
     return ItemSummary(

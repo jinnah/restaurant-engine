@@ -6,8 +6,8 @@ import { ApiFailure, asApiFailure } from '../api/failure';
 import { currentCsrfToken } from '../auth/csrf';
 import { mapFailure, type FormFailure } from '../components/formErrors';
 import { ErrorSummary } from '../components/StatusPanels';
-import { unwrapPrivileged } from './api';
-import { FormField } from './FormField';
+import { unwrapPrivileged } from '../api/failures';
+import { FormField } from '../components/FormField';
 import { OneTimeTokenReveal } from './OneTimeTokenReveal';
 import styles from './platform.module.css';
 

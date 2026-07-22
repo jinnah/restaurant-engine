@@ -16,7 +16,7 @@
 .navLink {
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
+  min-height: var(--target-min);
   padding: 0 var(--space-2);
   border-radius: var(--radius);
   font-weight: 600;
@@ -32,7 +32,7 @@
 }
 
 .signOut {
-  min-height: 44px;
+  min-height: var(--target-min);
   padding: 0 var(--space-2);
   font: inherit;
   font-weight: 600;

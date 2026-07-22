@@ -1,0 +1,575 @@
+.loading {
+  composes: loading from '../components/controls.module.css';
+}
+
+.empty {
+  composes: empty from '../components/controls.module.css';
+}
+
+.errorPanel {
+  composes: errorPanel from '../components/controls.module.css';
+}
+
+.secondary {
+  composes: secondary from '../components/controls.module.css';
+}
+
+.submit {
+  composes: submit from '../components/controls.module.css';
+}
+
+.danger {
+  composes: danger from '../components/controls.module.css';
+}
+
+.quiet {
+  composes: quiet from '../components/controls.module.css';
+}
+
+.actions {
+  composes: actions from '../components/controls.module.css';
+}
+
+.pageHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.pageHead h2 {
+  margin: 0;
+}
+
+.categoryActions {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: var(--space-1);
+}
+
+.actionNote {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.quietLink {
+  composes: quiet from '../components/controls.module.css';
+  text-decoration: none;
+}
+
+.crumb {
+  margin: 0 0 var(--space-2);
+}
+
+.crumb a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+}
+
+.noticeText {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius);
+}
+
+.fieldset {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.fieldset legend {
+  font-weight: 600;
+  padding: 0 0.35rem;
+}
+
+.fieldHintText {
+  margin: 0 0 var(--space-2);
+  color: var(--color-muted);
+}
+
+.fieldErrorText {
+  margin: 0.35rem 0 0;
+  color: var(--color-danger);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.dangerZone {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.availability {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+
+.availabilityState {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.actionsInline {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+/* --- Item photo and library -------------------------------------------- */
+
+.imageSection {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.preview {
+  display: block;
+  width: 160px;
+  height: 160px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.libraryTitle {
+  margin: var(--space-2) 0 var(--space-1);
+  font-size: 1rem;
+}
+
+.libraryGrid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  gap: var(--space-1);
+}
+
+.libraryTile {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.35rem;
+  font: inherit;
+  text-align: left;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+/* Selection is a border weight and a colour AND aria-pressed, so it never
+   depends on colour alone. */
+.libraryTileSelected {
+  composes: libraryTile;
+  border-color: var(--color-accent);
+  background: var(--color-success-bg);
+}
+
+.libraryTile img,
+.libraryTileSelected img {
+  width: 100%;
+  height: 5rem;
+  object-fit: cover;
+  border-radius: var(--radius);
+  background: var(--color-bg);
+}
+
+.libraryName {
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.libraryMeta {
+  font-size: 0.75rem;
+  color: var(--color-warning);
+}
+
+/* --- Modifier groups --------------------------------------------------- */
+
+.modifiers {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.groupList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.groupCard {
+  padding: var(--space-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.groupName {
+  margin: 0;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.optionList {
+  list-style: none;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.optionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  padding: 0.35rem var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.optionName {
+  flex: 1 1 8rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.optionPrice {
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+/* An advisory, never a failure: an unsatisfiable group is still storable. */
+.warning {
+  margin: var(--space-1) 0 0;
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius);
+}
+
+/* --- Reordering -------------------------------------------------------- */
+
+.reorder {
+  margin: var(--space-1) 0 var(--space-2);
+  padding: var(--space-2);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.reorderHint {
+  margin: 0 0 var(--space-1);
+  color: var(--color-muted);
+}
+
+.reorderList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.reorderRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  padding: var(--space-1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.reorderPosition {
+  flex: none;
+  min-width: 2rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.reorderName {
+  flex: 1 1 8rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.positionField input {
+  width: 4.5rem;
+  min-height: var(--target-min);
+  padding: 0 0.5rem;
+  font: inherit;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+/* Available to screen readers and to keyboard focus, not to sighted layout. */
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- Featured summary and filtering ---------------------------------- */
+
+.featuredStrip {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-weight: 600;
+}
+
+.featuredNames {
+  font-weight: 400;
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-1);
+}
+
+.filterRow label {
+  font-weight: 600;
+}
+
+.filterRow input {
+  flex: 1 1 14rem;
+  min-height: var(--target-min);
+  padding: 0 0.75rem;
+  font: inherit;
+  color: inherit;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.filterCount {
+  margin: 0 0 var(--space-2);
+  color: var(--color-muted);
+}
+
+/* --- Categories -------------------------------------------------------- */
+
+.categoryList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.categoryCard {
+  padding: var(--space-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.categoryHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.categoryName {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: 1.1rem;
+  overflow-wrap: anywhere;
+}
+
+.categoryDescription {
+  margin: 0.25rem 0 0;
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+
+.count {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+/* --- Items ------------------------------------------------------------- */
+
+.itemList {
+  list-style: none;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.itemRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+/* Explicit width/height on the image plus a same-size placeholder means a
+   row never reflows as thumbnails arrive. */
+.thumb,
+.thumbPlaceholder {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius);
+  object-fit: cover;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+}
+
+.itemMain {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.itemName {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.itemPrice {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* --- Status chips ------------------------------------------------------
+   Each chip carries its own word, so none of these depends on colour being
+   perceived (blueprint §12.4). */
+
+.chips {
+  display: inline-flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.chip {
+  display: inline-block;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.chipHidden {
+  composes: chip;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border-style: dashed;
+}
+
+.chipSoldOut {
+  composes: chip;
+  color: var(--color-danger);
+  background: var(--color-danger-bg);
+  border-color: var(--color-danger);
+}
+
+.chipFeatured {
+  composes: chip;
+  color: var(--color-success);
+  background: var(--color-success-bg);
+  border-color: var(--color-success);
+}
+
+.chipDietary {
+  composes: chip;
+  background: var(--color-surface);
+}
+
+/* --- Responsive -------------------------------------------------------
+   Mobile first: everything above stacks and wraps at 320px, and these
+   refinements only add breathing room once there is room to give. */
+
+@media (min-width: 48rem) {
+  .itemRow {
+    flex-wrap: nowrap;
+  }
+
+  .categoryCard {
+    padding: var(--space-2) var(--space-3);
+  }
+}
+
+/* Below the tablet breakpoint a menu row is a stack, so the price and the
+   availability control need to sit under the name rather than beside it. */
+@media (max-width: 47.99rem) {
+  .itemMain {
+    flex: 1 1 100%;
+  }
+
+  .availability {
+    margin-bottom: 0;
+  }
+
+  .reorderRow .positionField {
+    flex: 1 1 100%;
+  }
+}
+
+/* The library grid gets narrower tiles on a phone so two still fit. */
+@media (max-width: 30rem) {
+  .libraryGrid {
+    grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+  }
+}
