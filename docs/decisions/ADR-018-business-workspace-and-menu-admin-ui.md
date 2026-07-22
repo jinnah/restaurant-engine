@@ -46,18 +46,28 @@ genuine, and it is the reason this ADR still stands. It is also explicitly
 **not** retroactive authorization: the implementation remains unaccepted and
 under review, and approval of the design says nothing about the code.
 
-Three corrections were required before the implementation could be
-considered further, and were applied on the same branch as additive commits:
-the image picker's dismissal behaviour (ruling 10), the featured-limit
-display (ruling 7), and the evidence pinning the dietary-tag validation
-change (ruling 13). The original thirteen commits were left unrewritten, as
-the record of what occurred.
+Corrections have been required in two review rounds, all applied on the same
+branch as additive commits. The first round: the image picker's dismissal
+behaviour (ruling 10), the featured-limit display (ruling 7), and the
+evidence pinning the dietary-tag validation change (ruling 13). The second
+round, after that round's own report was reviewed: the **price** ceiling,
+which ruling 7 had exempted on reasoning that did not survive scrutiny, and
+the upload notice, whose first correction overclaimed in two ways. Both are
+recorded in the rulings they change.
+
+That two rounds were needed is itself part of the record. Each round's
+report argued its own position and each was found wanting on a point the
+report had raised but resolved in its own favour — the price mirror was
+described as "advisory" in the same paragraph that admitted it could reject
+what the server would accept. The original thirteen commits were left
+unrewritten, as the record of what occurred.
 
 ## Decision: architectural rulings
 
 Approved in principle 2026-07-22, after implementation, per the process
 record above. Rulings 7 and 10 are stated below **as corrected**; both
-originally read differently, and the difference is recorded in each.
+originally read differently and both were revised twice, and each records
+what it previously said.
 
 ### 1. Route vocabulary is `businesses`, never `restaurants`
 
@@ -155,12 +165,11 @@ business-row lock, and a limit over rows cannot be expressed in JSON Schema,
 so it appears nowhere in the OpenAPI document and nothing generated can be
 checked against a copy of it.
 
-That made it the one mirrored value with no way to fail loudly. A stale
-price bound corrects itself the first time the server rejects a price. A
-stale featured denominator is rendered on every page load and never corrects
-itself, because someone who reads "of 6" stops at six and never triggers the
-409 that carries the real number — the UI would assert, with the authority of
-a published limit, a number the contract never gave it.
+A displayed ceiling is worse than an enforced one, because nothing ever
+contradicts it. A stale featured denominator is rendered on every page load
+and never corrects itself: someone who reads "of 6" stops at six and never
+triggers the 409 that carries the real number, so the UI asserts — with the
+authority of a published limit — a figure the contract never gave it.
 
 So: the overview shows the count alone; the item editor's ceiling starts
 unknown and is filled in only from a 409's `details.limit`, and until then
@@ -168,13 +177,28 @@ the hint says a limit exists without inventing its value. Once the server
 states a number, that number is what the page shows. Because no client-side
 expectation remains, there is no drift to detect and none is reported.
 
-`MAX_PRICE_MINOR` is deliberately **not** treated the same way, and the
-distinction is the ruling. It is mirrored because the client must classify
-typed input before a request exists; it can only ever reject values the
-server would also reject; it is never rendered as a published ceiling; and
-the 422 remains authoritative for anything that reaches the server. A
-mirror that can only over-reject locally is advisory. A mirror that is
-displayed as fact is not.
+The price ceiling is treated the same way, and an earlier revision of this
+ruling was wrong to exempt it. It argued that a mirrored `MAX_PRICE_MINOR`
+was merely "advisory" because it could only ever reject values the server
+would also reject — but that reasoning assumes the two numbers agree, which
+is exactly what an uncheckable mirror cannot guarantee. Raise the backend
+bound and the client silently refuses prices the server would accept, which
+is the client overriding the server, not advising anyone. A limit that
+blocks is enforcement wherever it is written.
+
+So the frontend holds no price maximum at all. Money conversion validates
+only properties of the _conversion_ — syntax, the currency's decimal
+precision, sign, and exact representability as a JavaScript integer past
+which no faithful `price_minor` could be sent — and any amount that survives
+those goes to the API. The 422 decides, and its field error is mapped back
+onto the price input so the real ceiling reaches the user in the server's
+own words. The distinction that survives is therefore not "advisory versus
+displayed" but **conversion versus domain**: the client may refuse input it
+cannot faithfully transmit, and nothing else.
+
+The upload size cap remains genuinely advisory, and is the contrast worth
+keeping: it only ever _warns_, never blocks, so a deployment configured
+above the client's floor still accepts the file (ruling 10).
 
 ### 8. Money is converted by string arithmetic, never floating point
 
@@ -225,11 +249,23 @@ It also protected nothing, since the upload continues either way. Focus
 therefore moves to the dismissal control when an upload starts, so it can
 never land outside the dialog.
 
-The notice says plainly that closing the dialog or leaving the page does
-**not** cancel the upload — the generated client exposes no abort mechanism
-— and that the image finishes uploading and appears in the library. That is
-true because the cache invalidation lives on the mutation itself rather than
-on the dialog's callbacks, and so survives the dialog unmounting.
+The notice is scoped to exactly what holds. It offers the one exit that is
+genuinely survivable — closing this dialog — and conditions continuation on
+the application staying open, because a reload, a tab close, or navigating
+out of the app terminates an in-flight request like any other fetch. It does
+not promise success either: the upload may still fail, so the library
+appearance is stated as conditional.
+
+_Corrected 2026-07-22 a second time. The first correction's wording ("closing
+this dialog or leaving this page will not cancel it. The upload finishes on
+its own and the image appears in your library") was too broad on both counts:
+it implied the request could not be cancelled by any means, and it read as an
+unconditional guarantee of success._
+
+Closing the dialog is survivable because the cache invalidation lives on the
+mutation itself rather than on the dialog's per-call callbacks, so it runs
+even after the dialog unmounts. That is a property of the mutation, not of
+the browser, which is precisely why the promise stops at the app boundary.
 
 The **attach** keeps the stricter behaviour, as do the confirm and lifecycle
 dialogs: it is a short mutation whose result the dialog reports, so
