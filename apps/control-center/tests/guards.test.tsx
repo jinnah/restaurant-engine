@@ -16,7 +16,9 @@ test('loading flashes neither protected nor guest-only content', () => {
   expect(screen.getByRole('status')).toHaveTextContent(
     /checking your session/i,
   );
-  expect(screen.queryByRole('heading', { name: /control center/i })).toBeNull();
+  expect(
+    screen.queryByRole('heading', { name: /restaurant dashboard/i }),
+  ).toBeNull();
   protectedRender.view.unmount();
 
   renderApp('/login', client);
@@ -59,7 +61,7 @@ test('an unexpected bootstrap failure is retryable, not anonymous', async () => 
 
   fireEvent.click(screen.getByRole('button', { name: /try again/i }));
   expect(
-    await screen.findByRole('heading', { name: /control center/i }),
+    await screen.findByRole('heading', { name: /restaurant dashboard/i }),
   ).toBeInTheDocument();
 });
 

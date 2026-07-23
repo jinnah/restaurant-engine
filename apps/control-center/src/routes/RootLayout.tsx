@@ -11,7 +11,7 @@ export function RootLayout() {
         <Outlet />
       </main>
       <footer className={styles.footer}>
-        <p>Restaurant Engine — internal control center</p>
+        <p>Restaurant Engine</p>
       </footer>
     </>
   );

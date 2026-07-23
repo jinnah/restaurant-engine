@@ -1,3 +1,12 @@
+.eyebrow {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
 .area h1 {
   margin: 0 0 var(--space-1);
   overflow-wrap: anywhere;

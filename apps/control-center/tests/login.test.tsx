@@ -55,7 +55,7 @@ test('login establishes the authoritative session before navigating', async () =
   expect(loginOrder).toBeLessThan(establishOrder);
   // The protected landing rendered from the SessionView, not the login body.
   expect(
-    await screen.findByRole('heading', { name: /control center/i }),
+    await screen.findByRole('heading', { name: /restaurant dashboard/i }),
   ).toBeInTheDocument();
 });
 

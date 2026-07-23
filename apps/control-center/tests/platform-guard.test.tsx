@@ -58,7 +58,7 @@ test('the primary navigation shows Platform only to administrators', async () =>
     auth: { getSession: vi.fn(async () => ok(adminSessionView())) },
   });
   const adminRender = renderApp('/', adminClient);
-  await screen.findByRole('heading', { name: /control center/i });
+  await screen.findByRole('heading', { name: /platform administration/i });
   expect(screen.getByRole('link', { name: /^platform$/i })).toBeInTheDocument();
   adminRender.view.unmount();
 
@@ -66,7 +66,7 @@ test('the primary navigation shows Platform only to administrators', async () =>
     auth: { getSession: vi.fn(async () => ok(sessionView())) },
   });
   renderApp('/', memberClient);
-  await screen.findByRole('heading', { name: /control center/i });
+  await screen.findByRole('heading', { name: /restaurant dashboard/i });
   expect(screen.queryByRole('link', { name: /^platform$/i })).toBeNull();
 });
 

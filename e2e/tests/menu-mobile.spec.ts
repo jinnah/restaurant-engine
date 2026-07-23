@@ -64,7 +64,9 @@ test('menu administration is usable at a phone width', async ({ page }) => {
 
   // The switcher is a native <select>: at this width the operating system
   // renders its own picker, which is the reason it was chosen.
-  await expect(page.getByLabel('Business', { exact: true })).toBeVisible();
+  await expect(
+    page.getByLabel('Switch restaurant', { exact: true }),
+  ).toBeVisible();
 
   await page.getByRole('link', { name: ns.businessName }).click();
   await expect(

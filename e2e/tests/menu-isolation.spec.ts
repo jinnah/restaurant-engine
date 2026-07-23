@@ -95,9 +95,9 @@ test('one business cannot see or reach another through the menu or its media', a
   await signIn(page, nsB.ownerEmail, nsB.ownerPassword);
 
   // The switcher lists memberships, so it lists exactly one business.
-  const switcher = page.getByLabel('Business', { exact: true });
+  const switcher = page.getByLabel('Switch restaurant', { exact: true });
   await expect(switcher.getByRole('option')).toHaveText([
-    '— Choose a business —',
+    '— Choose a restaurant —',
     new RegExp(nsB.businessName),
   ]);
   await expect(page.getByRole('link', { name: nsA.businessName })).toHaveCount(

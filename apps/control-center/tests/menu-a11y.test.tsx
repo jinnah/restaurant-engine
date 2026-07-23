@@ -72,7 +72,7 @@ test('the primary navigation still works alongside the switcher', async () => {
   const primary = await screen.findByRole('navigation', { name: 'Primary' });
   expect(primary).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument();
-  expect(screen.getByLabelText('Business')).toBeInTheDocument();
+  expect(screen.getByLabelText('Switch restaurant')).toBeInTheDocument();
 });
 
 test('a dialog traps Tab, closes on Escape, and returns focus to its trigger', async () => {

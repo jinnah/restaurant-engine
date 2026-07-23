@@ -48,6 +48,7 @@ export function BusinessWorkspaceLayout() {
 
   return (
     <section aria-labelledby="workspace-title" className={styles.area}>
+      <p className={styles.eyebrow}>Restaurant Dashboard</p>
       <h1 id="workspace-title">{membership.business_name}</h1>
       <nav aria-label="Workspace sections" className={styles.nav}>
         <NavLink

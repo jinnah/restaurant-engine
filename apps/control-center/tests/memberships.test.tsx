@@ -39,7 +39,7 @@ test('the landing shows identity and session-provided memberships only', async (
   renderApp('/', client);
 
   expect(
-    await screen.findByRole('heading', { name: /control center/i }),
+    await screen.findByRole('heading', { name: /restaurant dashboard/i }),
   ).toBeInTheDocument();
   expect(screen.getByText(/signed in as/i)).toHaveTextContent('Test Owner');
   expect(screen.getByText('(owner@example.com)')).toBeInTheDocument();
@@ -62,20 +62,40 @@ test('an empty membership list renders the honest empty state', async () => {
   });
   renderApp('/', client);
   expect(
-    await screen.findByText(/do not have any business memberships yet/i),
+    await screen.findByText(/don't manage any restaurants yet/i),
   ).toBeInTheDocument();
 });
 
-test('a platform administrator sees the badge', async () => {
+test('a restaurant owner lands on their Restaurant Dashboard', async () => {
+  const client = makeClient({
+    auth: { getSession: vi.fn(async () => ok(sessionView())) },
+  });
+  renderApp('/', client);
+  // The owner-facing landing is named for what it is, not "control center".
+  expect(
+    await screen.findByRole('heading', { name: /restaurant dashboard/i }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('heading', { name: /my restaurants/i }),
+  ).toBeInTheDocument();
+});
+
+test('a platform administrator lands on a distinct Platform Administration home', async () => {
   const view = sessionView();
   view.user = { ...view.user, is_platform_admin: true };
+  view.memberships = [];
   const client = makeClient({
     auth: { getSession: vi.fn(async () => ok(view)) },
   });
   renderApp('/', client);
+  // A platform admin's landing is not identical to an owner's: it is named
+  // Platform Administration and points at the platform area (item 1).
   expect(
-    await screen.findByText(/platform administrator/i),
+    await screen.findByRole('heading', { name: /platform administration/i }),
   ).toBeInTheDocument();
+  expect(
+    screen.getByRole('link', { name: /platform administration/i }),
+  ).toHaveAttribute('href', '/platform');
 });
 
 test('logout sends the current CSRF token and clears session state', async () => {
