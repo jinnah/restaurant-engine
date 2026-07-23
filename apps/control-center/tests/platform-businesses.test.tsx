@@ -62,7 +62,7 @@ test('an empty platform shows the honest empty state', async () => {
     adminClient({ platform: { listBusinesses } }),
   );
   expect(
-    await screen.findByText(/no businesses exist yet/i),
+    await screen.findByText(/no restaurants exist yet/i),
   ).toBeInTheDocument();
 });
 
@@ -121,17 +121,17 @@ test('creating a business sends the CSRF token and refreshes the list', async ()
     adminClient({ platform: { createBusiness, listBusinesses } }),
   );
 
-  await screen.findByText(/no businesses exist yet/i);
+  await screen.findByText(/no restaurants exist yet/i);
   fireEvent.change(screen.getByLabelText(/name/i), {
     target: { value: 'Fresh Biz' },
   });
   fireEvent.change(screen.getByLabelText(/slug/i), {
     target: { value: 'fresh' },
   });
-  fireEvent.click(screen.getByRole('button', { name: /create business/i }));
+  fireEvent.click(screen.getByRole('button', { name: /create restaurant/i }));
 
   expect(await screen.findByRole('status')).toHaveTextContent(
-    /business created/i,
+    /restaurant created/i,
   );
   expect(createBusiness).toHaveBeenCalledWith(
     { name: 'Fresh Biz', slug: 'fresh' },
@@ -154,14 +154,14 @@ test('a slug conflict lands on the slug field', async () => {
     adminClient({ platform: { createBusiness, listBusinesses } }),
   );
 
-  await screen.findByText(/no businesses exist yet/i);
+  await screen.findByText(/no restaurants exist yet/i);
   fireEvent.change(screen.getByLabelText(/name/i), {
     target: { value: 'Dup' },
   });
   fireEvent.change(screen.getByLabelText(/slug/i), {
     target: { value: 'shalik' },
   });
-  fireEvent.click(screen.getByRole('button', { name: /create business/i }));
+  fireEvent.click(screen.getByRole('button', { name: /create restaurant/i }));
 
   const alert = await screen.findByRole('alert');
   expect(alert).toHaveTextContent(/some fields need attention/i);
@@ -186,14 +186,14 @@ test('422 field errors map to their inputs', async () => {
     adminClient({ platform: { createBusiness, listBusinesses } }),
   );
 
-  await screen.findByText(/no businesses exist yet/i);
+  await screen.findByText(/no restaurants exist yet/i);
   fireEvent.change(screen.getByLabelText(/name/i), {
     target: { value: 'X' },
   });
   fireEvent.change(screen.getByLabelText(/slug/i), {
     target: { value: 'BAD SLUG' },
   });
-  fireEvent.click(screen.getByRole('button', { name: /create business/i }));
+  fireEvent.click(screen.getByRole('button', { name: /create restaurant/i }));
 
   await screen.findByRole('alert');
   expect(screen.getByLabelText(/slug/i)).toHaveAccessibleDescription(

@@ -23,8 +23,8 @@ test('a platform administrator onboards a business and owner end to end', async 
   // Create the spec-owned business.
   await page.getByLabel('Name').fill(ns.businessName);
   await page.getByLabel('Slug').fill(ns.slug);
-  await page.getByRole('button', { name: 'Create business' }).click();
-  await expect(page.getByText('Business created')).toBeVisible();
+  await page.getByRole('button', { name: 'Create restaurant' }).click();
+  await expect(page.getByText('Restaurant created')).toBeVisible();
 
   // Open its detail page from the refreshed list.
   await page.getByRole('link', { name: new RegExp(ns.businessName) }).click();

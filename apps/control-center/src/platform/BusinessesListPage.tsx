@@ -39,7 +39,7 @@ export function BusinessesListPage() {
   const create = useCreateBusiness();
 
   useEffect(() => {
-    document.title = 'Businesses — Restaurant Engine';
+    document.title = 'Restaurants — Restaurant Engine';
   }, []);
 
   function onSubmit(event: FormEvent) {
@@ -67,14 +67,16 @@ export function BusinessesListPage() {
   return (
     <div>
       <section className={styles.section} aria-labelledby="create-business">
-        <h2 id="create-business">Create a business</h2>
+        <h2 id="create-business">Create restaurant</h2>
         <p className={styles.hint}>
-          The business starts in provisioning. Currency and timezone use the
-          platform defaults; the slug becomes its subdomain.
+          Onboarding creates the restaurant in provisioning. Currency and
+          timezone use the platform defaults; invite an owner and activate it
+          from its detail page. (Restaurants are the platform&rsquo;s business
+          tenant — the model is unchanged; this is the launch vertical.)
         </p>
         {failure !== null && <ErrorSummary failure={failure} />}
         {created !== null && (
-          <SuccessPanel heading="Business created">
+          <SuccessPanel heading="Restaurant created">
             <p>
               <strong>{created.name}</strong> ({created.slug}) is provisioning.
               Invite an owner from its detail page, then activate it.
@@ -90,6 +92,7 @@ export function BusinessesListPage() {
             required
             value={name}
             onChange={(event) => setName(event.target.value)}
+            hint="The restaurant’s display name — shown to staff, and to customers once its public menu is live."
             error={failure?.fields['name']}
           />
           <FormField
@@ -103,6 +106,7 @@ export function BusinessesListPage() {
             required
             value={slug}
             onChange={(event) => setSlug(event.target.value)}
+            hint="The unique address identifier, used in the restaurant’s public web address — for example, taste-of-bengal. Choose it carefully: lowercase letters, numbers, and hyphens."
             error={failure?.fields['slug']}
           />
           <button
@@ -110,13 +114,13 @@ export function BusinessesListPage() {
             className={styles.submit}
             disabled={create.isPending}
           >
-            {create.isPending ? 'Creating…' : 'Create business'}
+            {create.isPending ? 'Creating…' : 'Create restaurant'}
           </button>
         </form>
       </section>
 
       <section className={styles.section} aria-labelledby="all-businesses">
-        <h2 id="all-businesses">All businesses</h2>
+        <h2 id="all-businesses">All restaurants</h2>
         {businesses.isPending && (
           <p role="status" className={styles.loading}>
             Loading businesses…
@@ -124,7 +128,7 @@ export function BusinessesListPage() {
         )}
         {businesses.isError && (
           <div role="alert" className={styles.errorPanel}>
-            <p>The businesses list could not be loaded.</p>
+            <p>The restaurants list could not be loaded.</p>
             <button
               type="button"
               className={styles.secondary}
@@ -138,7 +142,7 @@ export function BusinessesListPage() {
         )}
         {businesses.isSuccess && businesses.data.items.length === 0 && (
           <p className={styles.empty}>
-            No businesses exist yet. Create the first one above.
+            No restaurants exist yet. Create the first one above.
           </p>
         )}
         {businesses.isSuccess && businesses.data.items.length > 0 && (
