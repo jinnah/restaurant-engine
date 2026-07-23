@@ -98,6 +98,52 @@ export function ItemCreatePage() {
     );
   }
 
+  // Reached the new-item route with no categories to file an item under
+  // (item 1): rather than an item form that cannot be submitted, offer a
+  // prominent way to create the first category. Creating it selects it, and
+  // the refetched tree brings the form in with that category chosen.
+  if (categories.length === 0) {
+    return (
+      <section aria-labelledby="new-item-title">
+        <h2 id="new-item-title">New item</h2>
+        <p className={styles.crumb}>
+          <Link to={`/businesses/${businessId}/menu`}>Back to the menu</Link>
+        </p>
+        <p>
+          Create your first category before adding menu items. A category is a
+          section of your menu, such as Starters or Biryani.
+        </p>
+        <div className={styles.actions}>
+          <button
+            type="button"
+            className={styles.submit}
+            onClick={() => {
+              setCreatingCategory(true);
+            }}
+          >
+            Add a category
+          </button>
+        </div>
+
+        {creatingCategory && (
+          <CreateCategoryInlineDialog
+            businessId={businessId}
+            onCancel={() => {
+              setCreatingCategory(false);
+            }}
+            onCreated={(cat) => {
+              setCreatingCategory(false);
+              setValue('categoryId', cat.id, {
+                shouldDirty: true,
+                shouldValidate: true,
+              });
+            }}
+          />
+        )}
+      </section>
+    );
+  }
+
   const featuredCount = categories.reduce(
     (total, entry) => total + entry.items.filter((i) => i.is_featured).length,
     0,
@@ -150,7 +196,11 @@ export function ItemCreatePage() {
       )}
       {failure !== null && <ErrorSummary failure={failure} />}
 
-      <form noValidate onSubmit={(event) => void handleSubmit(onSubmit)(event)}>
+      <form
+        noValidate
+        className={styles.formLayout}
+        onSubmit={(event) => void handleSubmit(onSubmit)(event)}
+      >
         <ItemFields
           register={register}
           control={control}

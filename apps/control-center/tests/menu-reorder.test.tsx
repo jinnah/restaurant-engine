@@ -126,25 +126,18 @@ test('each move is announced', async () => {
   ).toBeInTheDocument();
 });
 
-test('the position field moves an entry directly', async () => {
-  const reorderCategories = vi.fn(async () => ok(adminMenu(twoCategories)));
-  renderApp(MENU, client(twoCategories, { catalog: { reorderCategories } }));
-
+test('a read-only position indicator reports each entry’s place (item 5)', async () => {
+  renderApp(MENU, client(twoCategories));
   fireEvent.click(
     await screen.findByRole('button', { name: 'Arrange categories' }),
   );
-  fireEvent.change(screen.getByLabelText('Position for Starters'), {
-    target: { value: '2' },
-  });
-  fireEvent.click(screen.getByRole('button', { name: 'Save category order' }));
 
-  await waitFor(() => {
-    expect(reorderCategories).toHaveBeenCalledWith(
-      SHALIK,
-      { ordered_category_ids: ['c2', 'c1'] },
-      'csrf-token-1',
-    );
-  });
+  // The position is reported, not editable: there is no number input to type
+  // into — Move up and Move down are the whole mechanism now.
+  expect(screen.getByText('Position 1')).toBeInTheDocument();
+  expect(screen.getByText('Position 2')).toBeInTheDocument();
+  expect(screen.queryByLabelText(/Position for/)).toBeNull();
+  expect(screen.queryByRole('spinbutton')).toBeNull();
 });
 
 test('the first entry cannot move up and the last cannot move down', async () => {

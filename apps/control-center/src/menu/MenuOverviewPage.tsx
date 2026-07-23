@@ -273,7 +273,39 @@ export function MenuOverviewPage() {
           rather than the same actions competing inside every card. */}
       {(canWrite || categories.length > 0) && (
         <div className={styles.toolbar} role="group" aria-label="Menu actions">
-          {canWrite && (
+          {/* First-use journey (item 1): with no categories yet, an item
+              cannot be created — the form could not be submitted — so the
+              primary action is "Add first category" and "Add menu item" is
+              present but disabled, with a plain-text reason rather than a
+              dead-end link. */}
+          {canWrite && categories.length === 0 && (
+            <>
+              <button
+                type="button"
+                className={styles.submit}
+                onClick={() => {
+                  setFailure(null);
+                  setDialog({ mode: 'create' });
+                }}
+              >
+                Add first category
+              </button>
+              <span className={styles.blockedAction}>
+                <button
+                  type="button"
+                  className={styles.secondary}
+                  disabled
+                  aria-describedby="add-item-blocked"
+                >
+                  Add menu item
+                </button>
+                <span id="add-item-blocked" className={styles.actionNote}>
+                  Add a category before you can add items.
+                </span>
+              </span>
+            </>
+          )}
+          {canWrite && categories.length > 0 && (
             <Link
               to={`/businesses/${businessId}/menu/items/new`}
               className={styles.submitLink}
@@ -281,7 +313,7 @@ export function MenuOverviewPage() {
               Add menu item
             </Link>
           )}
-          {canWrite && (
+          {canWrite && categories.length > 0 && (
             <button
               type="button"
               className={styles.secondary}
@@ -362,8 +394,9 @@ export function MenuOverviewPage() {
 
       {categories.length === 0 ? (
         <p className={styles.empty}>
-          Your menu is empty. Start by adding a category — a category is a
-          section of your menu, such as Starters or Biryani.
+          Your menu is empty. Create your first category before adding menu
+          items — a category is a section of your menu, such as Starters or
+          Biryani.
         </p>
       ) : (
         <>
@@ -461,7 +494,7 @@ export function MenuOverviewPage() {
                           Arrange items
                         </button>
                       )}
-                      {source.items.length === 0 && (
+                      {source.items.length === 0 ? (
                         <button
                           type="button"
                           className={styles.quiet}
@@ -473,6 +506,31 @@ export function MenuOverviewPage() {
                         >
                           Delete
                         </button>
+                      ) : (
+                        // Deletion stays discoverable rather than hidden
+                        // (item 2): the action is present but unavailable, and
+                        // a visible line — no hover required — says exactly
+                        // what must happen first. The backend guard is
+                        // unchanged; this only explains it up front.
+                        <span className={styles.blockedAction}>
+                          <button
+                            type="button"
+                            className={styles.quiet}
+                            disabled
+                            aria-describedby={`delete-blocked-${category.id}`}
+                            aria-label={scopedLabel('Delete', category.name)}
+                          >
+                            Delete
+                          </button>
+                          <span
+                            id={`delete-blocked-${category.id}`}
+                            className={styles.actionNote}
+                          >
+                            {source.items.length === 1
+                              ? 'Move or delete its 1 item before deleting this category.'
+                              : `Move or delete its ${String(source.items.length)} items before deleting this category.`}
+                          </span>
+                        </span>
                       )}
                       {source.items.length > 1 && filtering && (
                         // A permutation over a searched subset would be an
@@ -534,6 +592,7 @@ export function MenuOverviewPage() {
                           businessId={businessId}
                           item={item}
                           currency={currency}
+                          canManage={canWrite}
                           asset={
                             item.image_media_id === null
                               ? undefined

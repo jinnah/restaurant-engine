@@ -74,8 +74,9 @@ test('menu administration is usable at a phone width', async ({ page }) => {
   ).toBeVisible();
   await expectNoPageOverflow(page, 'the empty workspace menu');
 
-  // A dialog can be completed, not just opened.
-  const newCategory = page.getByRole('button', { name: 'Add category' });
+  // A dialog can be completed, not just opened. On the empty menu the primary
+  // action is "Add first category" (item 1).
+  const newCategory = page.getByRole('button', { name: 'Add first category' });
   await expect(newCategory).toBeEnabled();
   await newCategory.click();
   const dialog = page.getByRole('dialog', { name: 'Add a category' });
@@ -98,7 +99,9 @@ test('menu administration is usable at a phone width', async ({ page }) => {
   await expectNoPageOverflow(page, 'the item editor');
 
   // The editor's principal controls are reachable at this width.
-  await expect(page.getByRole('button', { name: 'Add a photo', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Add a photo', exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole('button', { name: 'New group' })).toBeVisible();
 
   // The image picker is the densest dialog in the workspace: a grid, a
@@ -113,6 +116,14 @@ test('menu administration is usable at a phone width', async ({ page }) => {
   await picker.getByRole('button', { name: 'Cancel' }).click();
 
   await page.getByRole('link', { name: 'Back to the menu' }).click();
-  await expect(page.getByRole('link', { name: ITEM })).toBeVisible();
+  // Exact: the row also carries a "Manage <item>" action (item 6), which a
+  // loose name match would select alongside the item-name link.
+  await expect(
+    page.getByRole('link', { name: ITEM, exact: true }),
+  ).toBeVisible();
+  // The Manage action (item 6) is reachable at this width, not just the name.
+  await expect(
+    page.getByRole('link', { name: `Manage ${ITEM}` }),
+  ).toBeVisible();
   await expectNoPageOverflow(page, 'the menu with one item');
 });

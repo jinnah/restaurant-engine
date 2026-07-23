@@ -99,7 +99,9 @@ test('an owner builds a menu and it becomes publicly visible', async ({
   await expect(page.getByText('Your menu is empty')).toBeVisible();
 
   // --- A category ----------------------------------------------------
-  await page.getByRole('button', { name: 'Add category' }).click();
+  // On an empty menu the primary action is "Add first category" (item 1); the
+  // dialog's own confirm stays "Add category".
+  await page.getByRole('button', { name: 'Add first category' }).click();
   const categoryDialog = page.getByRole('dialog', { name: 'Add a category' });
   await categoryDialog.getByLabel('Name', { exact: true }).fill(CATEGORY);
   await categoryDialog.getByRole('button', { name: 'Add category' }).click();
@@ -186,7 +188,9 @@ test('an owner builds a menu and it becomes publicly visible', async ({
   await expect(page.getByText(`Featured items: 1`)).toContainText(
     FEATURED_ITEM,
   );
-  await expect(page.getByText('2 items')).toBeVisible();
+  // Exact: the non-empty category now carries a "Move or delete its 2 items…"
+  // deletion explanation (item 2), which a loose match would also select.
+  await expect(page.getByText('2 items', { exact: true })).toBeVisible();
 
   // --- The reorder controls persist the requested order ---------------
   // Buttons and an explicit position field are the whole mechanism —
@@ -199,9 +203,11 @@ test('an owner builds a menu and it becomes publicly visible', async ({
   await page.getByRole('button', { name: `Move ${HIDDEN_ITEM} up` }).click();
   await page.getByRole('button', { name: 'Save item order' }).click();
   await expect(toasts(page)).toContainText(`Item order saved for ${CATEGORY}.`);
+  // Anchored so it matches only the item-name links, not the "Manage <item>"
+  // actions each row now also carries (item 6).
   await expect(
     page.getByRole('link', {
-      name: new RegExp(`${FEATURED_ITEM}|${HIDDEN_ITEM}`),
+      name: new RegExp(`^(?:${FEATURED_ITEM}|${HIDDEN_ITEM})$`),
     }),
   ).toHaveText([HIDDEN_ITEM, FEATURED_ITEM]);
 

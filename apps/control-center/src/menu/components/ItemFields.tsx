@@ -98,6 +98,15 @@ export function ItemFields({
       />
 
       <div className={styles.categoryField}>
+        {/* The context sits immediately above the Category field (item 4), so
+            "Adding to: X" reads as a heading for the control it describes. It
+            appears only once a category is actually selected — a page-level
+            "Add menu item" with nothing chosen claims no context. */}
+        {mode === 'create' && selectedCategory !== undefined && (
+          <p className={styles.contextNote}>
+            Adding to: <strong>{selectedCategory.name}</strong>
+          </p>
+        )}
         {/* Controlled (not `register`) so that a category created inline —
             whose <option> only appears after the menu refetches — is shown
             as selected once it arrives; an uncontrolled select cannot resync
@@ -137,11 +146,6 @@ export function ItemFields({
         >
           + Create a new category
         </button>
-        {mode === 'create' && selectedCategory !== undefined && (
-          <p className={styles.contextNote}>
-            Adding to: <strong>{selectedCategory.name}</strong>
-          </p>
-        )}
       </div>
 
       <fieldset className={styles.fieldset}>

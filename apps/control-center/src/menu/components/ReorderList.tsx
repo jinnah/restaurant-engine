@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import styles from '../menu.module.css';
-import { moveDown, moveTo, moveUp, sameOrder } from '../reorder';
+import { moveDown, moveUp, sameOrder } from '../reorder';
 
 export interface ReorderEntry {
   id: string;
@@ -20,11 +20,13 @@ interface ReorderListProps {
 /**
  * Reordering by keyboard, with no drag-and-drop anywhere.
  *
- * Move up, Move down, and an explicit position field are the whole
- * mechanism, not a fallback behind a drag handle (ADR-018 ruling 5). Drag
- * would need a dependency or a hand-written pointer system, would still
- * require exactly this as its accessible alternative, and would still have
- * to compute the same permutation — so it buys nothing here.
+ * Move up and Move down are the whole mechanism, alongside a read-only
+ * "Position N" indicator (item 5): one understandable control, not a button
+ * pair competing with an editable position box that did the same job in a
+ * second, more ambiguous way. Drag would need a dependency or a hand-written
+ * pointer system, would still require exactly the buttons as its accessible
+ * alternative, and would still have to compute the same permutation — so it
+ * buys nothing here (ADR-018 ruling 5).
  *
  * Every move is announced politely, because a purely visual reorder is
  * invisible to someone who cannot see the list move.
@@ -55,13 +57,15 @@ export function ReorderList({
   return (
     <div className={styles.reorder}>
       <p className={styles.reorderHint}>
-        Use the buttons to change the order, then save. Nothing changes until
-        you do.
+        Use Move up and Move down to change the order, then save. Nothing
+        changes until you do.
       </p>
       <ol className={styles.reorderList}>
         {order.map((entry, index) => (
           <li key={entry.id} className={styles.reorderRow}>
-            <span className={styles.reorderPosition}>{index + 1}</span>
+            {/* A read-only indicator, not an input: it reports where the entry
+                sits, and the buttons are the only way to change it (item 5). */}
+            <span className={styles.reorderPosition}>Position {index + 1}</span>
             <span className={styles.reorderName}>{entry.name}</span>
             <button
               type="button"
@@ -72,7 +76,7 @@ export function ReorderList({
                 apply(moveUp(order, index), entry);
               }}
             >
-              Up
+              Move up
             </button>
             <button
               type="button"
@@ -83,30 +87,8 @@ export function ReorderList({
                 apply(moveDown(order, index), entry);
               }}
             >
-              Down
+              Move down
             </button>
-            <label
-              className={styles.positionField}
-              htmlFor={`position-${entry.id}`}
-            >
-              <span className={styles.visuallyHidden}>
-                Position for {entry.name}
-              </span>
-              <input
-                id={`position-${entry.id}`}
-                type="number"
-                min={1}
-                max={order.length}
-                value={index + 1}
-                disabled={pending}
-                onChange={(event) => {
-                  const target = Number(event.target.value) - 1;
-                  if (Number.isInteger(target)) {
-                    apply(moveTo(order, index, target), entry);
-                  }
-                }}
-              />
-            </label>
           </li>
         ))}
       </ol>

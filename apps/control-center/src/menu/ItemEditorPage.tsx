@@ -215,6 +215,7 @@ export function ItemEditorPage() {
       {canWrite ? (
         <form
           noValidate
+          className={styles.formLayout}
           onSubmit={(event) => void handleSubmit(onSubmit)(event)}
         >
           <ItemFields

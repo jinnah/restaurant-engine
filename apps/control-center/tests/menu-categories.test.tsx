@@ -65,7 +65,11 @@ test('a category is created and confirmed after the dialog closes', async () => 
   );
   renderApp(MENU, client([], { catalog: { createCategory } }));
 
-  fireEvent.click(await screen.findByRole('button', { name: 'Add category' }));
+  // On an empty menu the primary action is "Add first category" (item 1); the
+  // dialog's own confirm stays "Add category".
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Add first category' }),
+  );
   fireEvent.change(screen.getByLabelText('Name'), {
     target: { value: '  Biryani  ' },
   });
@@ -96,7 +100,9 @@ test('a blank name is caught before any request is made', async () => {
   const createCategory = vi.fn(async () => ok(category()));
   renderApp(MENU, client([], { catalog: { createCategory } }));
 
-  fireEvent.click(await screen.findByRole('button', { name: 'Add category' }));
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Add first category' }),
+  );
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: '   ' } });
   submitCategoryDialog();
 
@@ -117,7 +123,9 @@ test('a duplicate-name conflict lands on the name field', async () => {
   );
   renderApp(MENU, client([], { catalog: { createCategory } }));
 
-  fireEvent.click(await screen.findByRole('button', { name: 'Add category' }));
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Add first category' }),
+  );
   fireEvent.change(screen.getByLabelText('Name'), {
     target: { value: 'Starters' },
   });
@@ -200,25 +208,35 @@ test('an unchanged edit closes without calling the server', async () => {
   expect(updateCategory).not.toHaveBeenCalled();
 });
 
-test('deleting is offered only for an empty category and is confirmed', async () => {
+test('an empty category deletes with confirmation; a non-empty one explains why it cannot yet (items 2, 4)', async () => {
   const deleteCategory = vi.fn(async () => ok({ status: 'deleted' as const }));
   renderApp(
     MENU,
     client(
       [
         category({ id: 'c1', name: 'Empty', items: [] }),
-        category({ id: 'c2', name: 'Full', items: [item()] }),
+        category({
+          id: 'c2',
+          name: 'Full',
+          items: [item(), item({ id: 'x' })],
+        }),
       ],
       { catalog: { deleteCategory } },
     ),
   );
 
-  // Delete is offered only where it can succeed — the empty category — so a
-  // non-empty one shows no dead disabled control and no persistent note
-  // (item 6). The empty one's Delete is present and reachable.
-  await screen.findByRole('button', { name: /Delete Empty/ });
-  expect(screen.queryByRole('button', { name: /Delete Full/ })).toBeNull();
-  expect(screen.queryByText(/Move or delete its items/)).toBeNull();
+  // Deletion stays discoverable for a non-empty category (item 2): the action
+  // is present but unavailable, and a visible line — no hover — says what must
+  // happen first. The empty one's Delete is enabled and reachable.
+  expect(
+    await screen.findByRole('button', { name: /Delete Empty/ }),
+  ).toBeEnabled();
+  expect(screen.getByRole('button', { name: /Delete Full/ })).toBeDisabled();
+  expect(
+    screen.getByText(
+      'Move or delete its 2 items before deleting this category.',
+    ),
+  ).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('button', { name: /Delete Empty/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Delete category' }));
@@ -229,6 +247,20 @@ test('deleting is offered only for an empty category and is confirmed', async ()
   expect(
     await screen.findByText(/Category .Empty. deleted/),
   ).toBeInTheDocument();
+});
+
+test('the non-empty delete explanation is singular for a single item (item 2)', async () => {
+  renderApp(
+    MENU,
+    client([category({ id: 'c2', name: 'Full', items: [item()] })]),
+  );
+  await screen.findByText('Full');
+  expect(
+    screen.getByText(
+      'Move or delete its 1 item before deleting this category.',
+    ),
+  ).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Delete Full/ })).toBeDisabled();
 });
 
 test('a stale non-empty conflict explains and refetches instead of failing silently', async () => {
