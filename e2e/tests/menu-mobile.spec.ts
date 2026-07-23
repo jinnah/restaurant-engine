@@ -98,12 +98,12 @@ test('menu administration is usable at a phone width', async ({ page }) => {
   await expectNoPageOverflow(page, 'the item editor');
 
   // The editor's principal controls are reachable at this width.
-  await expect(page.getByRole('button', { name: 'Add a photo' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add a photo', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'New group' })).toBeVisible();
 
   // The image picker is the densest dialog in the workspace: a grid, a
   // file input, and a description field inside a modal.
-  await page.getByRole('button', { name: 'Add a photo' }).click();
+  await page.getByRole('button', { name: 'Add a photo', exact: true }).click();
   const picker = page.getByRole('dialog', { name: 'Choose an image' });
   await expect(picker).toBeVisible();
   await expect(

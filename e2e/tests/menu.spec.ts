@@ -127,7 +127,7 @@ test('an owner builds a menu and it becomes publicly visible', async ({
   );
 
   // --- Its photo ------------------------------------------------------
-  await page.getByRole('button', { name: 'Add a photo' }).click();
+  await page.getByRole('button', { name: 'Add a photo', exact: true }).click();
   const picker = page.getByRole('dialog', { name: 'Choose an image' });
   await picker
     .getByLabel('Upload a new image', { exact: true })
@@ -312,7 +312,7 @@ test('an owner builds a menu and it becomes publicly visible', async ({
   await page.getByRole('button', { name: 'Remove from item' }).click();
   await expect(toasts(page)).toContainText('Photo removed from this item.');
 
-  await page.getByRole('button', { name: 'Add a photo' }).click();
+  await page.getByRole('button', { name: 'Add a photo', exact: true }).click();
   await library.getByRole('button', { name: `Delete ${FIXTURE_NAME}` }).click();
   await library.getByRole('button', { name: 'Delete permanently' }).click();
   // Gone from the rendered library, not merely from a local list.
