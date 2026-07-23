@@ -2,7 +2,7 @@
 // updates, the separate availability command, the featured ceiling, and
 // unsaved-change protection.
 
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 import {
   adminMenu,
@@ -69,6 +69,78 @@ test('a stale categoryId explains itself and still lets the user continue', asyn
     await screen.findByText(/that category is no longer available/i),
   ).toBeInTheDocument();
   expect(screen.getByLabelText<HTMLSelectElement>('Category').value).toBe('');
+});
+
+const twoCategories = [
+  category({ id: 'c1', name: 'River Fish', items: [] }),
+  category({ id: 'c2', name: 'Drinks', items: [] }),
+];
+
+test('the add-item context names the chosen category and can be changed (item 4)', async () => {
+  renderApp(`${MENU}/items/new?categoryId=c1`, client(twoCategories));
+
+  const select = await screen.findByLabelText<HTMLSelectElement>('Category');
+  expect(select.value).toBe('c1');
+  expect(screen.getByText(/Adding to:/)).toHaveTextContent('River Fish');
+
+  // The category stays changeable, and the visible context follows the choice.
+  fireEvent.change(select, { target: { value: 'c2' } });
+  expect(select.value).toBe('c2');
+  expect(screen.getByText(/Adding to:/)).toHaveTextContent('Drinks');
+});
+
+test('add item from a different category preselects that category (item 4)', async () => {
+  renderApp(`${MENU}/items/new?categoryId=c2`, client(twoCategories));
+  const select = await screen.findByLabelText<HTMLSelectElement>('Category');
+  expect(select.value).toBe('c2');
+  expect(screen.getByText(/Adding to:/)).toHaveTextContent('Drinks');
+});
+
+test('a category can be created from the item form, selecting it and preserving what was typed (item 5)', async () => {
+  const createCategory = vi.fn(async () =>
+    ok(category({ id: 'c-new', name: 'Sides' })),
+  );
+  // The tree gains the new category on the post-create refetch, so the
+  // selector can show it as chosen.
+  const getMenu = vi
+    .fn()
+    .mockResolvedValueOnce(ok(adminMenu(oneCategory)))
+    .mockResolvedValue(
+      ok(adminMenu([...oneCategory, category({ id: 'c-new', name: 'Sides' })])),
+    );
+  renderApp(
+    `${MENU}/items/new`,
+    client(oneCategory, { catalog: { getMenu, createCategory } }),
+  );
+
+  // Enter item data first, with no category chosen.
+  fireEvent.change(await screen.findByLabelText('Name'), {
+    target: { value: 'Raita' },
+  });
+  fireEvent.change(screen.getByLabelText(/^Price/), {
+    target: { value: '1.00' },
+  });
+
+  // Create a category inline, using the same dialog and validation.
+  fireEvent.click(
+    screen.getByRole('button', { name: '+ Create a new category' }),
+  );
+  const dialog = screen.getByRole('dialog');
+  fireEvent.change(within(dialog).getByLabelText('Name'), {
+    target: { value: 'Sides' },
+  });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Add category' }));
+
+  await waitFor(() => {
+    expect(createCategory).toHaveBeenCalledTimes(1);
+  });
+  // The new category becomes the item's category, and nothing typed was lost.
+  const select = await screen.findByLabelText<HTMLSelectElement>('Category');
+  await waitFor(() => {
+    expect(select.value).toBe('c-new');
+  });
+  expect(screen.getByLabelText<HTMLInputElement>('Name').value).toBe('Raita');
+  expect(screen.getByLabelText<HTMLInputElement>(/^Price/).value).toBe('1.00');
 });
 
 test('creation sends only ItemCreate fields, with the category as a path argument', async () => {

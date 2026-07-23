@@ -16,6 +16,7 @@ import { useNotify } from '../components/NotificationProvider';
 import { ErrorSummary } from '../components/StatusPanels';
 import { NotFoundPage } from '../routes/NotFoundPage';
 import { AvailabilityToggle } from './components/AvailabilityToggle';
+import { CreateCategoryInlineDialog } from './components/CreateCategoryInlineDialog';
 import { ItemFields } from './components/ItemFields';
 import { ItemImageSection } from './components/ItemImageSection';
 import { ModifierGroupsSection } from './components/ModifierGroupsSection';
@@ -72,6 +73,7 @@ export function ItemEditorPage() {
   // ceiling, so there is nothing honest to seed it with.
   const [featuredLimit, setFeaturedLimit] = useState<number | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [creatingCategory, setCreatingCategory] = useState(false);
   const [leaving, setLeaving] = useState(false);
 
   const categories = menu.data?.categories ?? [];
@@ -93,7 +95,15 @@ export function ItemEditorPage() {
     values: item === null ? undefined : itemValues(item, currency),
     mode: 'onBlur',
   });
-  const { formState, handleSubmit, register, control, reset, setError } = form;
+  const {
+    formState,
+    handleSubmit,
+    register,
+    control,
+    reset,
+    setError,
+    setValue,
+  } = form;
 
   useEffect(() => {
     if (item !== null) {
@@ -214,6 +224,9 @@ export function ItemEditorPage() {
             categories={categories}
             currency={currency}
             mode="edit"
+            onCreateCategory={() => {
+              setCreatingCategory(true);
+            }}
             featuredCount={featuredCount}
             featuredLimit={featuredLimit}
           />
@@ -309,6 +322,24 @@ export function ItemEditorPage() {
             stays in your image library.
           </p>
         </ConfirmDialog>
+      )}
+
+      {/* Outside the form (no nested <form>): a category created here is
+          selected on the item without disturbing other edits (item 5). */}
+      {creatingCategory && (
+        <CreateCategoryInlineDialog
+          businessId={businessId}
+          onCancel={() => {
+            setCreatingCategory(false);
+          }}
+          onCreated={(cat) => {
+            setCreatingCategory(false);
+            setValue('categoryId', cat.id, {
+              shouldDirty: true,
+              shouldValidate: true,
+            });
+          }}
+        />
       )}
 
       <UnsavedChangesPrompt

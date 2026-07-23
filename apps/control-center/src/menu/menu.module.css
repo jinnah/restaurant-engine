@@ -113,6 +113,17 @@
   border-radius: var(--radius);
 }
 
+/* The category field plus its inline "create a new category" affordance and
+   the "Adding to:" context line (items 4/5). */
+.categoryField {
+  margin-bottom: var(--space-2);
+}
+
+.contextNote {
+  margin: var(--space-1) 0 0;
+  color: var(--color-muted);
+}
+
 .fieldset {
   margin: 0 0 var(--space-2);
   padding: var(--space-1) var(--space-2);

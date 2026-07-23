@@ -7,6 +7,7 @@ import { useCurrentBusinessId } from '../business/useCurrentBusinessId';
 import { mapFailure, type FormFailure } from '../components/formErrors';
 import { useNotify } from '../components/NotificationProvider';
 import { ErrorSummary } from '../components/StatusPanels';
+import { CreateCategoryInlineDialog } from './components/CreateCategoryInlineDialog';
 import { ItemFields } from './components/ItemFields';
 import { UnsavedChangesPrompt } from './components/UnsavedChangesPrompt';
 import {
@@ -38,6 +39,7 @@ export function ItemCreatePage() {
   const createItem = useCreateItem(businessId);
   const [failure, setFailure] = useState<FormFailure | null>(null);
   const [createdId, setCreatedId] = useState<string | null>(null);
+  const [creatingCategory, setCreatingCategory] = useState(false);
 
   const categories = menu.data?.categories ?? [];
   const currency = business.data?.currency ?? 'USD';
@@ -54,7 +56,15 @@ export function ItemCreatePage() {
     defaultValues: emptyItemValues(preselected),
     mode: 'onBlur',
   });
-  const { formState, handleSubmit, register, control, reset, setError } = form;
+  const {
+    formState,
+    handleSubmit,
+    register,
+    control,
+    reset,
+    setError,
+    setValue,
+  } = form;
 
   useEffect(() => {
     document.title = 'New item — Restaurant Engine';
@@ -144,6 +154,9 @@ export function ItemCreatePage() {
           categories={categories}
           currency={currency}
           mode="create"
+          onCreateCategory={() => {
+            setCreatingCategory(true);
+          }}
           featuredCount={featuredCount}
           // Creation cannot feature an item — ItemCreate carries no
           // `is_featured` — so no ceiling is ever relevant here.
@@ -168,6 +181,25 @@ export function ItemCreatePage() {
           </button>
         </div>
       </form>
+
+      {/* Rendered outside the item form so no <form> nests inside another;
+          creating a category selects it here without disturbing what has
+          already been typed (item 5). */}
+      {creatingCategory && (
+        <CreateCategoryInlineDialog
+          businessId={businessId}
+          onCancel={() => {
+            setCreatingCategory(false);
+          }}
+          onCreated={(cat) => {
+            setCreatingCategory(false);
+            setValue('categoryId', cat.id, {
+              shouldDirty: true,
+              shouldValidate: true,
+            });
+          }}
+        />
+      )}
 
       <UnsavedChangesPrompt
         when={formState.isDirty && createdId === null}
