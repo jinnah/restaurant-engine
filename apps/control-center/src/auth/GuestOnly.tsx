@@ -3,13 +3,15 @@ import {
   BootstrapErrorPanel,
   SessionPending,
 } from '../components/StatusPanels';
-import { sanitizeNext } from './redirect';
+import { landingPath } from './landing';
 import { useSession } from './useSession';
 
 /**
  * Layout guard for guest-only routes (login). Loading renders the
  * neutral pending state so the form cannot flash for an authenticated
- * user; authenticated visitors are sent to their sanitized destination.
+ * user; an already-authenticated visitor is sent to their role-appropriate
+ * landing — an intended deep link when they can reach it, otherwise their
+ * own home rather than Page Not Found (item 2).
  */
 export function GuestOnly() {
   const session = useSession();
@@ -22,7 +24,9 @@ export function GuestOnly() {
     return <BootstrapErrorPanel retry={session.retry} />;
   }
   if (session.status === 'authenticated') {
-    return <Navigate to={sanitizeNext(params.get('next'))} replace />;
+    return (
+      <Navigate to={landingPath(params.get('next'), session.session)} replace />
+    );
   }
   return <Outlet />;
 }
