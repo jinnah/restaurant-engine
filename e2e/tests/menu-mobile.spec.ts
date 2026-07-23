@@ -75,7 +75,7 @@ test('menu administration is usable at a phone width', async ({ page }) => {
   await expectNoPageOverflow(page, 'the empty workspace menu');
 
   // A dialog can be completed, not just opened.
-  const newCategory = page.getByRole('button', { name: 'New category' });
+  const newCategory = page.getByRole('button', { name: 'Add category' });
   await expect(newCategory).toBeEnabled();
   await newCategory.click();
   const dialog = page.getByRole('dialog', { name: 'Add a category' });

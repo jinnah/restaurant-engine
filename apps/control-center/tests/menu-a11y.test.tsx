@@ -2,7 +2,7 @@
 // (M3E). Layout itself is verified in the authorized visual smoke — jsdom
 // computes none — so what is asserted here is semantics and behaviour.
 
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 import {
   adminMenu,
@@ -78,7 +78,7 @@ test('the primary navigation still works alongside the switcher', async () => {
 test('a dialog traps Tab, closes on Escape, and returns focus to its trigger', async () => {
   renderApp(MENU, client());
 
-  const trigger = await screen.findByRole('button', { name: 'New category' });
+  const trigger = await screen.findByRole('button', { name: 'Add category' });
   trigger.focus();
   fireEvent.click(trigger);
 
@@ -106,11 +106,17 @@ test('a form failure moves focus to the summary so it is announced', async () =>
     }),
   );
 
-  fireEvent.click(await screen.findByRole('button', { name: 'New category' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Add category' }));
   fireEvent.change(screen.getByLabelText('Name'), {
     target: { value: 'Starters' },
   });
-  fireEvent.click(screen.getByRole('button', { name: 'Add category' }));
+  // "Add category" names both the toolbar trigger and the dialog confirm
+  // (item 3), so the confirm is scoped to the open dialog.
+  fireEvent.click(
+    within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Add category',
+    }),
+  );
 
   const alert = await screen.findByRole('alert');
   expect(alert).toHaveTextContent('That name is taken.');
@@ -122,9 +128,13 @@ test('a form failure moves focus to the summary so it is announced', async () =>
 test('every field error is associated with its input', async () => {
   renderApp(MENU, client());
 
-  fireEvent.click(await screen.findByRole('button', { name: 'New category' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Add category' }));
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: '  ' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Add category' }));
+  fireEvent.click(
+    within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Add category',
+    }),
+  );
 
   const input = await screen.findByLabelText('Name');
   await waitFor(() => {
@@ -195,19 +205,27 @@ test('a 403 revalidates the session so affordances recompute from real roles', a
     }),
   );
 
-  fireEvent.click(await screen.findByRole('button', { name: 'New category' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Add category' }));
   fireEvent.change(screen.getByLabelText('Name'), {
     target: { value: 'Biryani' },
   });
-  fireEvent.click(screen.getByRole('button', { name: 'Add category' }));
+  fireEvent.click(
+    within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Add category',
+    }),
+  );
 
-  // The session is refetched, and the write affordance disappears once the
-  // authoritative role says it should.
+  // The session is refetched, and the page-level write affordance disappears
+  // once the authoritative role says it should. Scoped to the menu toolbar so
+  // it is unambiguous even while the (now stale) create dialog lingers.
   await waitFor(() => {
     expect(getSession).toHaveBeenCalledTimes(2);
   });
   await waitFor(() => {
-    expect(screen.queryByRole('button', { name: 'New category' })).toBeNull();
+    const toolbar = screen.getByRole('group', { name: 'Menu actions' });
+    expect(
+      within(toolbar).queryByRole('button', { name: 'Add category' }),
+    ).toBeNull();
   });
 });
 

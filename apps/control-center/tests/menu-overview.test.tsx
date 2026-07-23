@@ -182,7 +182,7 @@ test('filtering narrows items and announces the count', async () => {
     ]),
   );
 
-  fireEvent.change(await screen.findByLabelText(/filter items by name/i), {
+  fireEvent.change(await screen.findByLabelText(/search menu items/i), {
     target: { value: 'sam' },
   });
 
@@ -198,7 +198,7 @@ test('a category with no filter matches says so instead of looking empty', async
       category({ name: 'Starters', items: [item({ name: 'Samosa' })] }),
     ]),
   );
-  fireEvent.change(await screen.findByLabelText(/filter items by name/i), {
+  fireEvent.change(await screen.findByLabelText(/search menu items/i), {
     target: { value: 'zzz' },
   });
   expect(

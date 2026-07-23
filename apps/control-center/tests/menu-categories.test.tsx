@@ -1,7 +1,7 @@
 // Category administration (M3E): create, edit, delete, and the honest
 // handling of the conflicts the catalog service can return.
 
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 import {
   adminMenu,
@@ -16,6 +16,21 @@ import {
   sessionView,
 } from './support/mockClient';
 import { renderApp } from './support/render';
+
+/**
+ * Confirm a category create from inside its dialog.
+ *
+ * "Add category" is deliberately the consistent label for both the toolbar
+ * trigger and the dialog's confirm (item 3), so once the dialog is open the
+ * name resolves twice — the confirm is the one inside the dialog.
+ */
+function submitCategoryDialog() {
+  fireEvent.click(
+    within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Add category',
+    }),
+  );
+}
 
 const SHALIK = '5f0d2c9a-7f5e-4c1b-9a37-0b8a52a9c001';
 const MENU = `/businesses/${SHALIK}/menu`;
@@ -50,11 +65,11 @@ test('a category is created and confirmed after the dialog closes', async () => 
   );
   renderApp(MENU, client([], { catalog: { createCategory } }));
 
-  fireEvent.click(await screen.findByRole('button', { name: 'New category' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Add category' }));
   fireEvent.change(screen.getByLabelText('Name'), {
     target: { value: '  Biryani  ' },
   });
-  fireEvent.click(screen.getByRole('button', { name: 'Add category' }));
+  submitCategoryDialog();
 
   await waitFor(() => {
     expect(createCategory).toHaveBeenCalledTimes(1);
@@ -81,9 +96,9 @@ test('a blank name is caught before any request is made', async () => {
   const createCategory = vi.fn(async () => ok(category()));
   renderApp(MENU, client([], { catalog: { createCategory } }));
 
-  fireEvent.click(await screen.findByRole('button', { name: 'New category' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Add category' }));
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: '   ' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Add category' }));
+  submitCategoryDialog();
 
   expect(
     await screen.findByText('Enter a name for this category.'),
@@ -102,11 +117,11 @@ test('a duplicate-name conflict lands on the name field', async () => {
   );
   renderApp(MENU, client([], { catalog: { createCategory } }));
 
-  fireEvent.click(await screen.findByRole('button', { name: 'New category' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Add category' }));
   fireEvent.change(screen.getByLabelText('Name'), {
     target: { value: 'Starters' },
   });
-  fireEvent.click(screen.getByRole('button', { name: 'Add category' }));
+  submitCategoryDialog();
 
   expect(await screen.findByText('Already used.')).toBeInTheDocument();
   // The dialog stays open so nothing typed is lost.
@@ -198,11 +213,12 @@ test('deleting is offered only for an empty category and is confirmed', async ()
     ),
   );
 
-  const blocked = await screen.findByRole('button', { name: /Delete Full/ });
-  expect(blocked).toBeDisabled();
-  expect(
-    screen.getByText(/Move or delete its items before deleting the category/),
-  ).toBeInTheDocument();
+  // Delete is offered only where it can succeed — the empty category — so a
+  // non-empty one shows no dead disabled control and no persistent note
+  // (item 6). The empty one's Delete is present and reachable.
+  await screen.findByRole('button', { name: /Delete Empty/ });
+  expect(screen.queryByRole('button', { name: /Delete Full/ })).toBeNull();
+  expect(screen.queryByText(/Move or delete its items/)).toBeNull();
 
   fireEvent.click(screen.getByRole('button', { name: /Delete Empty/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Delete category' }));
@@ -253,7 +269,7 @@ test('staff see no category write affordances at all', async () => {
   );
 
   await screen.findByText('Starters');
-  expect(screen.queryByRole('button', { name: 'New category' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Add category' })).toBeNull();
   expect(screen.queryByRole('button', { name: /Edit Starters/ })).toBeNull();
   expect(screen.queryByRole('button', { name: /Delete Starters/ })).toBeNull();
 });
@@ -285,5 +301,5 @@ test('a closed business offers no category writes to an owner either', async () 
   );
 
   await screen.findByText('Starters');
-  expect(screen.queryByRole('button', { name: 'New category' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Add category' })).toBeNull();
 });

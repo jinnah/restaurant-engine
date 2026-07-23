@@ -42,6 +42,40 @@
   margin: 0;
 }
 
+/* The one page-level action area (item 3): primary "Add menu item", then
+   "Add category", "Arrange categories", and the search — consistent and in
+   one place instead of competing per-card buttons. */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+
+.submitLink {
+  composes: submit from '../components/controls.module.css';
+  text-decoration: none;
+}
+
+.toolbarSearch {
+  display: flex;
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.toolbarSearch input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--target-min);
+  padding: 0 0.75rem;
+  font: inherit;
+  color: inherit;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
 .categoryActions {
   display: flex;
   gap: var(--space-1);
@@ -117,9 +151,13 @@
   margin-bottom: var(--space-2);
 }
 
-.availabilityState {
-  color: var(--color-muted);
-  font-size: 0.9rem;
+/* The single availability status word, shown only when a state to report
+   exists (sold out). Non-colour: it is the word, not the hue, that carries
+   the meaning (item 7, blueprint §12.4). */
+.soldOutStatus {
+  font-weight: 600;
+  color: var(--color-danger);
+  white-space: nowrap;
 }
 
 .actionsInline {
@@ -365,29 +403,6 @@
   font-weight: 400;
   color: var(--color-muted);
   overflow-wrap: anywhere;
-}
-
-.filterRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-1);
-}
-
-.filterRow label {
-  font-weight: 600;
-}
-
-.filterRow input {
-  flex: 1 1 14rem;
-  min-height: var(--target-min);
-  padding: 0 0.75rem;
-  font: inherit;
-  color: inherit;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
 }
 
 .filterCount {

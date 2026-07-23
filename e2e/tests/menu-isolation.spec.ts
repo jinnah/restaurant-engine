@@ -110,7 +110,7 @@ test('one business cannot see or reach another through the menu or its media', a
   await expect(
     page.getByRole('heading', { name: 'Page not found' }),
   ).toBeVisible();
-  await expect(page.getByRole('button', { name: 'New category' })).toHaveCount(
+  await expect(page.getByRole('button', { name: 'Add category' })).toHaveCount(
     0,
   );
   await expect(page.getByText(A_CATEGORY)).toHaveCount(0);

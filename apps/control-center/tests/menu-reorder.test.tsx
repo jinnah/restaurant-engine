@@ -99,7 +99,7 @@ test('categories reorder by keyboard and send the complete permutation', async (
   renderApp(MENU, client(twoCategories, { catalog: { reorderCategories } }));
 
   fireEvent.click(
-    await screen.findByRole('button', { name: 'Reorder categories' }),
+    await screen.findByRole('button', { name: 'Arrange categories' }),
   );
   fireEvent.click(screen.getByRole('button', { name: 'Move Biryani up' }));
   fireEvent.click(screen.getByRole('button', { name: 'Save category order' }));
@@ -117,7 +117,7 @@ test('categories reorder by keyboard and send the complete permutation', async (
 test('each move is announced', async () => {
   renderApp(MENU, client(twoCategories));
   fireEvent.click(
-    await screen.findByRole('button', { name: 'Reorder categories' }),
+    await screen.findByRole('button', { name: 'Arrange categories' }),
   );
   fireEvent.click(screen.getByRole('button', { name: 'Move Biryani up' }));
 
@@ -131,7 +131,7 @@ test('the position field moves an entry directly', async () => {
   renderApp(MENU, client(twoCategories, { catalog: { reorderCategories } }));
 
   fireEvent.click(
-    await screen.findByRole('button', { name: 'Reorder categories' }),
+    await screen.findByRole('button', { name: 'Arrange categories' }),
   );
   fireEvent.change(screen.getByLabelText('Position for Starters'), {
     target: { value: '2' },
@@ -150,7 +150,7 @@ test('the position field moves an entry directly', async () => {
 test('the first entry cannot move up and the last cannot move down', async () => {
   renderApp(MENU, client(twoCategories));
   fireEvent.click(
-    await screen.findByRole('button', { name: 'Reorder categories' }),
+    await screen.findByRole('button', { name: 'Arrange categories' }),
   );
   expect(
     screen.getByRole('button', { name: 'Move Starters up' }),
@@ -163,7 +163,7 @@ test('the first entry cannot move up and the last cannot move down', async () =>
 test('saving is disabled until the order actually changes', async () => {
   renderApp(MENU, client(twoCategories));
   fireEvent.click(
-    await screen.findByRole('button', { name: 'Reorder categories' }),
+    await screen.findByRole('button', { name: 'Arrange categories' }),
   );
   expect(
     screen.getByRole('button', { name: 'Save category order' }),
@@ -180,14 +180,14 @@ test('cancel leaves the stored order untouched', async () => {
   renderApp(MENU, client(twoCategories, { catalog: { reorderCategories } }));
 
   fireEvent.click(
-    await screen.findByRole('button', { name: 'Reorder categories' }),
+    await screen.findByRole('button', { name: 'Arrange categories' }),
   );
   fireEvent.click(screen.getByRole('button', { name: 'Move Biryani up' }));
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
   expect(reorderCategories).not.toHaveBeenCalled();
   expect(
-    await screen.findByRole('button', { name: 'Reorder categories' }),
+    await screen.findByRole('button', { name: 'Arrange categories' }),
   ).toBeInTheDocument();
 });
 
@@ -196,7 +196,7 @@ test('items reorder within one category and carry that category id', async () =>
   renderApp(MENU, client(twoItems, { catalog: { reorderItems } }));
 
   fireEvent.click(
-    await screen.findByRole('button', { name: 'Reorder items in Starters' }),
+    await screen.findByRole('button', { name: 'Arrange items in Starters' }),
   );
   fireEvent.click(screen.getByRole('button', { name: 'Move Beguni up' }));
   fireEvent.click(screen.getByRole('button', { name: 'Save item order' }));
@@ -227,7 +227,7 @@ test('a stale inexact-set conflict explains and refreshes', async () => {
   );
 
   fireEvent.click(
-    await screen.findByRole('button', { name: 'Reorder categories' }),
+    await screen.findByRole('button', { name: 'Arrange categories' }),
   );
   fireEvent.click(screen.getByRole('button', { name: 'Move Biryani up' }));
   fireEvent.click(screen.getByRole('button', { name: 'Save category order' }));
@@ -242,15 +242,17 @@ test('a stale inexact-set conflict explains and refreshes', async () => {
 
 test('reordering is disabled while a filter is active, and says why', async () => {
   renderApp(MENU, client(twoItems));
-  fireEvent.change(await screen.findByLabelText(/filter items by name/i), {
+  fireEvent.change(await screen.findByLabelText(/search menu items/i), {
     target: { value: 'sam' },
   });
 
   // A permutation over a filtered subset would be an inexact set.
   expect(
-    screen.getByRole('button', { name: 'Reorder items in Starters' }),
+    screen.getByRole('button', { name: 'Arrange items in Starters' }),
   ).toBeDisabled();
-  expect(screen.getByText('Clear the filter to reorder.')).toBeInTheDocument();
+  expect(
+    screen.getByText('Clear the search to arrange items.'),
+  ).toBeInTheDocument();
 });
 
 test('reordering is not offered for a single entry', async () => {
@@ -260,15 +262,17 @@ test('reordering is not offered for a single entry', async () => {
   );
   await screen.findByText('Only');
   expect(
-    screen.queryByRole('button', { name: 'Reorder categories' }),
+    screen.queryByRole('button', { name: 'Arrange categories' }),
   ).toBeNull();
-  expect(screen.queryByRole('button', { name: /Reorder Only/ })).toBeNull();
+  expect(
+    screen.queryByRole('button', { name: /Arrange items in Only/ }),
+  ).toBeNull();
 });
 
 test('staff are offered no reordering at all', async () => {
   renderApp(MENU, client(twoCategories, {}, 'staff'));
   await screen.findByText('Starters');
   expect(
-    screen.queryByRole('button', { name: 'Reorder categories' }),
+    screen.queryByRole('button', { name: 'Arrange categories' }),
   ).toBeNull();
 });

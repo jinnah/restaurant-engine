@@ -99,7 +99,7 @@ test('an owner builds a menu and it becomes publicly visible', async ({
   await expect(page.getByText('Your menu is empty')).toBeVisible();
 
   // --- A category ----------------------------------------------------
-  await page.getByRole('button', { name: 'New category' }).click();
+  await page.getByRole('button', { name: 'Add category' }).click();
   const categoryDialog = page.getByRole('dialog', { name: 'Add a category' });
   await categoryDialog.getByLabel('Name', { exact: true }).fill(CATEGORY);
   await categoryDialog.getByRole('button', { name: 'Add category' }).click();
@@ -194,7 +194,7 @@ test('an owner builds a menu and it becomes publicly visible', async ({
   // that the requested order is saved and rendered, not how it was
   // driven.
   await page
-    .getByRole('button', { name: `Reorder items in ${CATEGORY}` })
+    .getByRole('button', { name: `Arrange items in ${CATEGORY}` })
     .click();
   await page.getByRole('button', { name: `Move ${HIDDEN_ITEM} up` }).click();
   await page.getByRole('button', { name: 'Save item order' }).click();
@@ -270,9 +270,11 @@ test('an owner builds a menu and it becomes publicly visible', async ({
   expect(w320.width).toBe(320);
 
   // --- Sold out is a listing state, not a visibility state -------------
+  // One control, one status word (item 7): marking sold out reveals the
+  // single "Sold out" status; marking available removes it.
   await openItem(page, FEATURED_ITEM);
   await page.getByRole('button', { name: 'Mark sold out' }).click();
-  await expect(page.getByText('Sold out today')).toBeVisible();
+  await expect(page.getByText('Sold out', { exact: true })).toBeVisible();
 
   const soldOutMenu = await readPublicMenu(visitorPage, origin);
   const soldOutItem = soldOutMenu.categories[0]!.items[0]!;
@@ -281,7 +283,10 @@ test('an owner builds a menu and it becomes publicly visible', async ({
   expect(soldOutItem.is_orderable).toBe(false);
 
   await page.getByRole('button', { name: 'Mark available' }).click();
-  await expect(page.getByText('Available', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Mark sold out' }),
+  ).toBeVisible();
+  await expect(page.getByText('Sold out', { exact: true })).toHaveCount(0);
 
   // --- Detaching and deleting are different operations ------------------
   // Deleting an image a menu item still points at is refused: the RESTRICT

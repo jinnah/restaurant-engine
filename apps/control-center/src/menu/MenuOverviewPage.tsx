@@ -266,33 +266,64 @@ export function MenuOverviewPage() {
     <section aria-labelledby="menu-title">
       <div className={styles.pageHead}>
         <h2 id="menu-title">Menu</h2>
-        {canWrite && (
-          <div className={styles.actionsInline}>
-            {categories.length > 1 && reordering === null && (
-              <button
-                type="button"
-                className={styles.secondary}
-                onClick={() => {
-                  setReorderError(null);
-                  setReordering('');
-                }}
-              >
-                Reorder categories
-              </button>
-            )}
+      </div>
+
+      {/* One page-level action area (item 3): the primary "Add menu item"
+          alongside "Add category", "Arrange categories", and the search,
+          rather than the same actions competing inside every card. */}
+      {(canWrite || categories.length > 0) && (
+        <div className={styles.toolbar} role="group" aria-label="Menu actions">
+          {canWrite && (
+            <Link
+              to={`/businesses/${businessId}/menu/items/new`}
+              className={styles.submitLink}
+            >
+              Add menu item
+            </Link>
+          )}
+          {canWrite && (
             <button
               type="button"
-              className={styles.submit}
+              className={styles.secondary}
               onClick={() => {
                 setFailure(null);
                 setDialog({ mode: 'create' });
               }}
             >
-              New category
+              Add category
             </button>
-          </div>
-        )}
-      </div>
+          )}
+          {canWrite && categories.length > 1 && reordering === null && (
+            <button
+              type="button"
+              className={styles.quiet}
+              onClick={() => {
+                setReorderError(null);
+                setReordering('');
+              }}
+            >
+              Arrange categories
+            </button>
+          )}
+          {categories.length > 0 && (
+            <div className={styles.toolbarSearch}>
+              <label htmlFor="menu-search" className={styles.visuallyHidden}>
+                Search menu items
+              </label>
+              <input
+                id="menu-search"
+                type="search"
+                placeholder="Search menu items…"
+                value={filter}
+                autoComplete="off"
+                onChange={(event) => {
+                  setFilter(event.target.value);
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {pageError !== null && <ErrorSummary failure={pageError} />}
       {reorderError !== null && (
@@ -303,7 +334,7 @@ export function MenuOverviewPage() {
 
       {reordering === '' && (
         <section aria-labelledby="reorder-categories-title">
-          <h3 id="reorder-categories-title">Reorder categories</h3>
+          <h3 id="reorder-categories-title">Arrange categories</h3>
           <ReorderList
             noun="category"
             entries={categories.map((entry) => ({
@@ -350,18 +381,6 @@ export function MenuOverviewPage() {
             )}
           </p>
 
-          <div className={styles.filterRow}>
-            <label htmlFor="menu-filter">Filter items by name</label>
-            <input
-              id="menu-filter"
-              type="search"
-              value={filter}
-              autoComplete="off"
-              onChange={(event) => {
-                setFilter(event.target.value);
-              }}
-            />
-          </div>
           {filtering && (
             <p role="status" className={styles.filterCount}>
               {matchCount === 1
@@ -395,6 +414,12 @@ export function MenuOverviewPage() {
                     </p>
                   </div>
                   {canWrite && (
+                    // Decluttered (item 6): the common action — Add item —
+                    // stays prominent; Edit and Arrange are consistent
+                    // secondaries; Delete appears only when it can actually
+                    // succeed (an empty category), which removes both the
+                    // dead disabled control and the persistent explanatory
+                    // note that used to crowd every card.
                     <div className={styles.categoryActions}>
                       <Link
                         to={`/businesses/${businessId}/menu/items/new?categoryId=${category.id}`}
@@ -414,23 +439,6 @@ export function MenuOverviewPage() {
                       >
                         Edit
                       </button>
-                      <button
-                        type="button"
-                        className={styles.quiet}
-                        disabled={source.items.length > 0}
-                        aria-describedby={
-                          source.items.length > 0
-                            ? `delete-blocked-${category.id}`
-                            : undefined
-                        }
-                        onClick={() => {
-                          setPageError(null);
-                          setDialog({ mode: 'delete', category: source });
-                        }}
-                        aria-label={scopedLabel('Delete', category.name)}
-                      >
-                        Delete
-                      </button>
                       {source.items.length > 1 && reordering === null && (
                         <button
                           type="button"
@@ -438,7 +446,7 @@ export function MenuOverviewPage() {
                           disabled={filtering}
                           aria-describedby={
                             filtering
-                              ? `reorder-blocked-${category.id}`
+                              ? `arrange-blocked-${category.id}`
                               : undefined
                           }
                           onClick={() => {
@@ -446,30 +454,35 @@ export function MenuOverviewPage() {
                             setReordering(category.id);
                           }}
                           aria-label={scopedLabel(
-                            'Reorder items in',
+                            'Arrange items in',
                             category.name,
                           )}
                         >
-                          Reorder items
+                          Arrange items
+                        </button>
+                      )}
+                      {source.items.length === 0 && (
+                        <button
+                          type="button"
+                          className={styles.quiet}
+                          onClick={() => {
+                            setPageError(null);
+                            setDialog({ mode: 'delete', category: source });
+                          }}
+                          aria-label={scopedLabel('Delete', category.name)}
+                        >
+                          Delete
                         </button>
                       )}
                       {source.items.length > 1 && filtering && (
-                        // A permutation over a filtered subset would be an
+                        // A permutation over a searched subset would be an
                         // inexact set, which the server rejects — so the
                         // affordance is disabled and says why.
                         <span
-                          id={`reorder-blocked-${category.id}`}
+                          id={`arrange-blocked-${category.id}`}
                           className={styles.actionNote}
                         >
-                          Clear the filter to reorder.
-                        </span>
-                      )}
-                      {source.items.length > 0 && (
-                        <span
-                          id={`delete-blocked-${category.id}`}
-                          className={styles.actionNote}
-                        >
-                          Move or delete its items before deleting the category.
+                          Clear the search to arrange items.
                         </span>
                       )}
                     </div>

@@ -6,7 +6,7 @@ import { useSetItemAvailability } from '../menuData';
 import styles from '../menu.module.css';
 
 /**
- * The "sold out today" toggle.
+ * The availability control — one control, one status (item 7).
  *
  * A separate workflow command with its own capability
  * (`business.catalog.availability`), which is why staff can operate it while
@@ -15,8 +15,12 @@ import styles from '../menu.module.css';
  * part of the item PATCH contract (ruling D4), and it is independent of
  * hidden: a sold-out item stays listed publicly, a hidden one does not.
  *
- * `aria-pressed` rather than a checkbox: this is a command that takes effect
- * immediately, not a form field awaiting a save.
+ * The single status word "Sold out" is shown only when there is a state to
+ * report — an available item carries none, matching the item chips, so a menu
+ * is not a wall of "Available" labels. The one control is a toggle button
+ * whose label is the action it performs; `aria-pressed` conveys the state to
+ * assistive technology, and the change takes effect immediately (no save).
+ * The word carries the meaning, never colour alone (blueprint §12.4).
  */
 export function AvailabilityToggle({
   businessId,
@@ -29,17 +33,20 @@ export function AvailabilityToggle({
   const notify = useNotify();
   const [error, setError] = useState<string | null>(null);
 
+  const soldOut = !item.is_available;
+
   return (
     <div className={styles.availability}>
+      {soldOut && <span className={styles.soldOutStatus}>Sold out</span>}
       <button
         type="button"
         className={styles.quiet}
-        aria-pressed={!item.is_available}
+        aria-pressed={soldOut}
         disabled={setAvailability.isPending}
         onClick={() => {
           setError(null);
           setAvailability.mutate(
-            { itemId: item.id, isAvailable: !item.is_available },
+            { itemId: item.id, isAvailable: soldOut },
             {
               onSuccess: (updated) => {
                 notify({
@@ -59,11 +66,8 @@ export function AvailabilityToggle({
           );
         }}
       >
-        {item.is_available ? 'Mark sold out' : 'Mark available'}
+        {soldOut ? 'Mark available' : 'Mark sold out'}
       </button>
-      <span className={styles.availabilityState}>
-        {item.is_available ? 'Available' : 'Sold out today'}
-      </span>
       {error !== null && (
         <span role="alert" className={styles.fieldErrorText}>
           {error}
