@@ -268,7 +268,9 @@ test('a suspended business is editable and says so; a closed one says it is not'
     catalog: { getMenu },
   });
   const { view } = renderApp(`/businesses/${NUR}/menu`, client);
-  expect(await screen.findByText(/storefront is offline/i)).toBeInTheDocument();
+  expect(
+    await screen.findByText(/available to customers/i),
+  ).toBeInTheDocument();
   expect(screen.getByText(/still edit the menu/i)).toBeInTheDocument();
   view.unmount();
 
@@ -368,12 +370,12 @@ test('switching business discards the overview filter and reorder mode', async (
   );
 
   // Establish visible local state under Shalik.
-  fireEvent.change(await screen.findByLabelText('Filter items by name'), {
+  fireEvent.change(await screen.findByLabelText('Search menu items'), {
     target: { value: 'samosa' },
   });
-  fireEvent.click(screen.getByRole('button', { name: 'Reorder categories' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Arrange categories' }));
   expect(
-    await screen.findByRole('heading', { name: 'Reorder categories' }),
+    await screen.findByRole('heading', { name: 'Arrange categories' }),
   ).toBeInTheDocument();
 
   fireEvent.change(screen.getByLabelText('Switch restaurant'), {
@@ -386,10 +388,10 @@ test('switching business discards the overview filter and reorder mode', async (
   expect(await screen.findByText('Grill')).toBeInTheDocument();
   // Nur's workspace starts clean rather than inheriting Shalik's session.
   expect(
-    screen.getByLabelText<HTMLInputElement>('Filter items by name').value,
+    screen.getByLabelText<HTMLInputElement>('Search menu items').value,
   ).toBe('');
   expect(
-    screen.queryByRole('heading', { name: 'Reorder categories' }),
+    screen.queryByRole('heading', { name: 'Arrange categories' }),
   ).toBeNull();
 });
 
@@ -399,7 +401,7 @@ test('switching business carries no open dialog or its entered values', async ()
     twoBusinessClient(),
   );
 
-  fireEvent.click(await screen.findByRole('button', { name: 'New category' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Add category' }));
   const dialog = await screen.findByRole('dialog');
   fireEvent.change(within(dialog).getByLabelText('Name'), {
     target: { value: 'Shalik Only Category' },

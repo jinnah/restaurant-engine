@@ -48,6 +48,32 @@ export type MoneyParseResult =
 const BENGALI_ZERO = 0x09e6; // ০
 const SYNTAX = /^[0-9]*\.?[0-9]*$/;
 
+/** The currency's symbol (e.g. USD → "$"), from the runtime's own data. */
+export function currencySymbol(currency: string): string {
+  try {
+    const parts = new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).formatToParts(0);
+    return parts.find((part) => part.type === 'currency')?.value ?? currency;
+  } catch {
+    return currency;
+  }
+}
+
+/**
+ * A representative price for the field hint, in the business's own currency:
+ * USD → "$12.50", JPY → "¥12", BHD → "12.500" prefixed with its symbol.
+ * Shown as a plain example rather than a technical "digits and a dot" rule.
+ */
+export function priceExample(currency: string): string {
+  const digits = fractionDigits(currency);
+  const sample = digits === 0 ? '12' : `12.${'5'.padEnd(digits, '0')}`;
+  return `${currencySymbol(currency)}${sample}`;
+}
+
 /** The currency's minor-unit exponent, from the runtime's own currency data. */
 export function fractionDigits(currency: string): number {
   try {

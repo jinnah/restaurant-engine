@@ -285,7 +285,7 @@ test('local syntax, precision, sign and safety checks still block first', async 
 test('the create form offers no update-only controls', async () => {
   renderApp(`${MENU}/items/new?categoryId=${CAT}`, client(oneCategory));
   await screen.findByLabelText('Name');
-  expect(screen.queryByLabelText(/hide from the storefront/i)).toBeNull();
+  expect(screen.queryByLabelText(/hide from the public menu/i)).toBeNull();
   expect(screen.queryByLabelText(/feature this item/i)).toBeNull();
   expect(screen.queryByRole('button', { name: /sold out/i })).toBeNull();
   // The defaults are explained rather than faked with inert controls.
@@ -437,7 +437,7 @@ test('an item update never carries is_available', async () => {
   const updateItem = vi.fn(async () => ok({ ...existing, is_hidden: true }));
   renderApp(`${MENU}/items/i1`, client(withItem, { catalog: { updateItem } }));
 
-  fireEvent.click(await screen.findByLabelText(/hide from the storefront/i));
+  fireEvent.click(await screen.findByLabelText(/hide from the public menu/i));
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
   await waitFor(() => {

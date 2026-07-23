@@ -177,7 +177,7 @@ test('an owner builds a menu and it becomes publicly visible', async ({
   await field(page, 'Name').fill(HIDDEN_ITEM);
   await field(page, 'Price (USD)').fill('14.00');
   await page.getByRole('button', { name: 'Add item' }).click();
-  await field(page, 'Hide from the storefront').check();
+  await field(page, 'Hide from the public menu').check();
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(toasts(page)).toContainText(new RegExp(`${HIDDEN_ITEM}.+saved`));
 

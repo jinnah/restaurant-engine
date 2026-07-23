@@ -110,10 +110,14 @@ export function ItemCreatePage() {
       {
         onSuccess: (created) => {
           // Clear dirtiness first, then record the id; the effect above does
-          // the navigating once React has committed both.
+          // the navigating once React has committed both. The confirmation
+          // lands on the item's editor, so it points at the next things the
+          // owner can do there (item 9).
           reset(emptyItemValues(values.categoryId));
           setCreatedId(created.id);
-          notify({ message: `Item “${created.name}” added.` });
+          notify({
+            message: `Item “${created.name}” added. Add a photo or options below.`,
+          });
         },
         onError: (error: unknown) => {
           const mapped = mapFailure(

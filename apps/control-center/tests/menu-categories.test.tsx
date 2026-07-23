@@ -168,7 +168,7 @@ test('a visibility change alone is sent alone', async () => {
   );
 
   fireEvent.click(await screen.findByRole('button', { name: /Edit Starters/ }));
-  fireEvent.click(screen.getByLabelText('Visible on the storefront'));
+  fireEvent.click(screen.getByLabelText('Visible on your public menu'));
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
   await waitFor(() => {

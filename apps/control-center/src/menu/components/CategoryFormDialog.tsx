@@ -111,7 +111,7 @@ export function CategoryFormDialog({
         {editing && (
           <CheckboxField
             id="category-visible"
-            label="Visible on the storefront"
+            label="Visible on your public menu"
             hint="Hidden categories and everything in them stay off your public menu."
             checked={isVisible}
             onChange={(event) => {

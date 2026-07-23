@@ -9,6 +9,7 @@ import {
 } from '../../components/FormField';
 import { DIETARY_TAGS, dietaryLabel } from '../dietary';
 import type { ItemFormValues } from '../itemForm';
+import { currencySymbol, priceExample } from '../money';
 import styles from '../menu.module.css';
 
 interface ItemFieldsProps {
@@ -90,7 +91,8 @@ export function ItemFields({
         label={`Price (${currency})`}
         inputMode="decimal"
         autoComplete="off"
-        hint="Digits and a dot, for example 12.50."
+        prefix={currencySymbol(currency)}
+        hint={`Example: ${priceExample(currency)}.`}
         error={errors.price?.message}
         {...register('price')}
       />
@@ -176,8 +178,8 @@ export function ItemFields({
         <>
           <CheckboxField
             id="item-visible"
-            label="Hide from the storefront"
-            hint="Hidden items disappear from your public menu. This is separate from “sold out today”."
+            label="Hide from the public menu"
+            hint="Hidden items disappear from your public menu. This is separate from “sold out”."
             {...register('isHidden')}
           />
           <CheckboxField
