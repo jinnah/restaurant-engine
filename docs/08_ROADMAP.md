@@ -23,7 +23,7 @@ initial architecture-contract commit.
 | M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                        |
 | M1 — Platform foundation                                       | **Complete** (2026-07-15)                        |
 | M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                        |
-| M3 — Catalog and media                                         | **In progress** (2026-07-19)                     |
+| M3 — Catalog and media                                         | **Complete** (2026-07-23)                        |
 | M4 – M8 — Storefront, hours, ordering, operations, pilot       | Not started                                      |
 | M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23) |
 
@@ -46,14 +46,42 @@ The Playwright menu journey remains **deferred to M3F** — M3E's automated
 coverage is component/integration level, and its visual acceptance is a
 disposable-environment check, not new end-to-end specs.
 
-| Sub                              | Scope                                                                                                                                                                                      | State                              |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
-| **M3A** — Catalog core backend   | menu categories/items, dietary tags, integer minor-unit pricing, availability/hidden/featured, transactional normalized reorder, catalog capabilities, admin APIs, audit, isolation matrix | **Complete** (2026-07-20, ADR-017) |
-| **M3B** — Modifiers backend      | modifier groups/options, selection rules, satisfiability model, admin APIs                                                                                                                 | **Complete** (2026-07-20, ADR-017) |
-| **M3C** — Media backend          | media domain, storage adapter, upload pipeline, responsive WebP variants, pending/active lifecycle, sweep, item image attachment                                                           | **Complete** (2026-07-21, ADR-017) |
-| **M3D** — Public menu API        | host-resolved public menu + public media delivery, neutral-404 contract                                                                                                                    | **Complete** (2026-07-21, ADR-017) |
-| **M3E** — Menu administration UI | business workspace + menu management in the control center                                                                                                                                 | **Complete** (2026-07-22, ADR-018) |
-| **M3F** — E2E and close-out      | Playwright menu journey, verification, final documentation                                                                                                                                 | Not started                        |
+| Sub                              | Scope                                                                                                                                                                                      | State                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| **M3A** — Catalog core backend   | menu categories/items, dietary tags, integer minor-unit pricing, availability/hidden/featured, transactional normalized reorder, catalog capabilities, admin APIs, audit, isolation matrix | **Complete** (2026-07-20, ADR-017)         |
+| **M3B** — Modifiers backend      | modifier groups/options, selection rules, satisfiability model, admin APIs                                                                                                                 | **Complete** (2026-07-20, ADR-017)         |
+| **M3C** — Media backend          | media domain, storage adapter, upload pipeline, responsive WebP variants, pending/active lifecycle, sweep, item image attachment                                                           | **Complete** (2026-07-21, ADR-017)         |
+| **M3D** — Public menu API        | host-resolved public menu + public media delivery, neutral-404 contract                                                                                                                    | **Complete** (2026-07-21, ADR-017)         |
+| **M3E** — Menu administration UI | business workspace + menu management in the control center                                                                                                                                 | **Complete** (2026-07-22, ADR-018)         |
+| **M3F** — E2E and close-out      | Playwright menu journey, verification, final documentation                                                                                                                                 | **Complete** (2026-07-23, ADR-019, PR #17) |
+
+## Milestone 3 close-out (2026-07-23)
+
+Milestone 3 is **complete**. Owner UAT was accepted on 2026-07-23 — the
+corrected invitation-acceptance flow, restaurant activation, owner access, the
+menu-management corrections, the responsive/mobile review, and creation and
+activation of an additional restaurant. M3F (the Playwright menu journey,
+verification, and this close-out) is delivered, completing the M3A—M3F
+progression.
+
+Merge evidence (PR #17):
+
+- Reviewed feature head `47276f4bb3be9c121015de0f9d52f93be335aedb`, merged to
+  `main` as `742659122c008ed93c6eeea428f4c26e3f935c60` (ordered parents
+  `caafc1bdcdc7d74a409f47be43e793d2563fecaf` then
+  `47276f4bb3be9c121015de0f9d52f93be335aedb`; the merge tree equals the
+  reviewed feature-head tree).
+- Branch CI run `30060951076` and post-merge push CI run `30061694722` both
+  completed successfully — all five jobs (repository-contract, backend,
+  frontend, contract, e2e) green, zero artifacts.
+- PR #17 also carried the owner-UAT menu/interface corrections and the
+  commercial roadmap reconciliation.
+
+M4 has not started. The future commitments recorded by the reconciliation
+(customer ordering and order management, promotions and checkout-integrated
+discounts, pop-up campaigns, Facebook Page publishing, the expanded Control
+Center, and later notifications/payments/delivery/POS/reporting) remain future
+work in milestones M4—M11 and are not implemented by this close-out.
 
 ## Milestone 2 delivery decision (2026-07-16)
 
