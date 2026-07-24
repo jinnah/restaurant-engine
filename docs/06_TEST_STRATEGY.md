@@ -2,11 +2,12 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (Milestone 3F — in progress)
+## Current state (Milestone 3F — complete)
 
 M3F adds the end-to-end coverage for Milestone 3 (ADR-019). It is
-implemented and verified locally; the milestone is **not closed**, and
-owner acceptance is a gate before it can be.
+implemented, verified, and — with owner UAT accepted — **closed**, so
+Milestone 3 is complete (2026-07-23; PR #17, merge
+`742659122c008ed93c6eeea428f4c26e3f935c60`).
 
 `pnpm e2e` grows from four journeys to nine tests, still Chromium-only,
 one worker, zero retries:

@@ -1,8 +1,7 @@
 # ADR-019: M3F End-to-End Coverage and Milestone 3 Verification
 
-- **Status:** Accepted (architecture); delivery record open — M3F is **not
-  closed** and Milestone 3 remains **In progress** pending owner
-  acceptance
+- **Status:** Accepted (architecture); delivery record closed — M3F and
+  Milestone 3 are **complete** (owner UAT accepted 2026-07-23; PR #17)
 - **Date:** 2026-07-22
 - **Deciders:** Product owner, principal architect
 
@@ -256,7 +255,26 @@ S3-backed media (the disposable root becomes a disposable bucket prefix).
 
 ## Delivery record
 
-**Open.** The technical implementation is complete and verified locally on
-`feature/m3f-e2e-closeout`; the milestone is not closed. Owner UAT is a
-mandatory gate before M3F or Milestone 3 may be marked complete, and the
-roadmap is deliberately unchanged until then.
+**Closed (2026-07-23).** Owner UAT was accepted — the corrected
+invitation-acceptance flow, restaurant activation, owner access, the
+menu-management corrections, the responsive/mobile review, and creation and
+activation of an additional restaurant. M3F merged to `main` via PR #17, and
+Milestone 3 is complete.
+
+- Reviewed feature head: `47276f4bb3be9c121015de0f9d52f93be335aedb`.
+- Merge commit: `742659122c008ed93c6eeea428f4c26e3f935c60` — ordered
+  parents `caafc1bdcdc7d74a409f47be43e793d2563fecaf` then
+  `47276f4bb3be9c121015de0f9d52f93be335aedb`; the merge tree equals the
+  reviewed feature-head tree.
+- Branch CI run `30060951076` (pull_request) and post-merge push CI run
+  `30061694722` (on the merge SHA) both completed successfully — all five
+  jobs (repository-contract, backend, frontend, contract, e2e) green, zero
+  artifacts.
+- PR #17 also carried the owner-UAT menu/interface corrections and the
+  commercial roadmap reconciliation.
+
+M4 has not started; the reconciliation's future commitments (ordering and
+order management, promotions and checkout-integrated discounts, pop-up
+campaigns, Facebook Page publishing, the expanded Control Center, and later
+notifications/payments/delivery/POS/reporting) remain future work and are not
+implemented by this close-out.
