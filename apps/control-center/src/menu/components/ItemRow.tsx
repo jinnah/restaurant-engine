@@ -5,6 +5,7 @@ import type {
   MediaAssetView,
 } from '@restaurant-engine/api-client';
 import { useApiClient } from '../../api/ClientProvider';
+import { scopedLabel } from '../../components/ScopedLabel';
 import { formatMinor } from '../money';
 import { StatusChips } from './StatusChips';
 import styles from '../menu.module.css';
@@ -42,6 +43,12 @@ interface ItemRowProps {
   currency: string;
   /** The item's image asset when it is known; thumbnails degrade without it. */
   asset?: MediaAssetView;
+  /**
+   * Show a visible "Manage" action opening the item editor (item 6). Offered
+   * to those who can edit the catalog; the item name stays a link either way,
+   * so nobody has to infer that clicking the name opens management.
+   */
+  canManage?: boolean;
   /** Rendered after the price — availability toggle, row actions. */
   actions?: ReactNode;
 }
@@ -51,6 +58,7 @@ export function ItemRow({
   item,
   currency,
   asset,
+  canManage = false,
   actions,
 }: ItemRowProps) {
   const client = useApiClient();
@@ -90,6 +98,15 @@ export function ItemRow({
       <p className={styles.itemPrice}>
         {formatMinor(item.price_minor, currency)}
       </p>
+      {canManage && (
+        <Link
+          to={`/businesses/${businessId}/menu/items/${item.id}`}
+          className={styles.quietLink}
+          aria-label={scopedLabel('Manage', item.name)}
+        >
+          Manage
+        </Link>
+      )}
       {actions}
     </li>
   );

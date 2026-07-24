@@ -2,7 +2,7 @@
 // updates, the separate availability command, the featured ceiling, and
 // unsaved-change protection.
 
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 import {
   adminMenu,
@@ -69,6 +69,129 @@ test('a stale categoryId explains itself and still lets the user continue', asyn
     await screen.findByText(/that category is no longer available/i),
   ).toBeInTheDocument();
   expect(screen.getByLabelText<HTMLSelectElement>('Category').value).toBe('');
+});
+
+test('the new-item route with no categories offers a category action, not an unsubmittable form (item 1)', async () => {
+  renderApp(`${MENU}/items/new`, client([]));
+
+  expect(
+    await screen.findByText(
+      /Create your first category before adding menu items/i,
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: 'Add a category' }),
+  ).toBeInTheDocument();
+  // The item form is withheld: there is nothing to file an item under yet.
+  expect(screen.queryByLabelText('Name')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Add item' })).toBeNull();
+});
+
+test('creating the first category from the empty new-item route returns to the form with it selected (items 1, 3)', async () => {
+  const createCategory = vi.fn(async () =>
+    ok(category({ id: 'c-new', name: 'Sides' })),
+  );
+  const getMenu = vi
+    .fn()
+    .mockResolvedValueOnce(ok(adminMenu([])))
+    .mockResolvedValue(
+      ok(adminMenu([category({ id: 'c-new', name: 'Sides', items: [] })])),
+    );
+  renderApp(
+    `${MENU}/items/new`,
+    client([], { catalog: { getMenu, createCategory } }),
+  );
+
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Add a category' }),
+  );
+  const dialog = screen.getByRole('dialog');
+  fireEvent.change(within(dialog).getByLabelText('Name'), {
+    target: { value: 'Sides' },
+  });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Add category' }));
+
+  await waitFor(() => {
+    expect(createCategory).toHaveBeenCalledTimes(1);
+  });
+  // The refetched tree brings in the form, and the new category is chosen.
+  const select = await screen.findByLabelText<HTMLSelectElement>('Category');
+  await waitFor(() => {
+    expect(select.value).toBe('c-new');
+  });
+  expect(screen.getByText(/Adding to:/)).toHaveTextContent('Sides');
+});
+
+const twoCategories = [
+  category({ id: 'c1', name: 'River Fish', items: [] }),
+  category({ id: 'c2', name: 'Drinks', items: [] }),
+];
+
+test('the add-item context names the chosen category and can be changed (item 4)', async () => {
+  renderApp(`${MENU}/items/new?categoryId=c1`, client(twoCategories));
+
+  const select = await screen.findByLabelText<HTMLSelectElement>('Category');
+  expect(select.value).toBe('c1');
+  expect(screen.getByText(/Adding to:/)).toHaveTextContent('River Fish');
+
+  // The category stays changeable, and the visible context follows the choice.
+  fireEvent.change(select, { target: { value: 'c2' } });
+  expect(select.value).toBe('c2');
+  expect(screen.getByText(/Adding to:/)).toHaveTextContent('Drinks');
+});
+
+test('add item from a different category preselects that category (item 4)', async () => {
+  renderApp(`${MENU}/items/new?categoryId=c2`, client(twoCategories));
+  const select = await screen.findByLabelText<HTMLSelectElement>('Category');
+  expect(select.value).toBe('c2');
+  expect(screen.getByText(/Adding to:/)).toHaveTextContent('Drinks');
+});
+
+test('a category can be created from the item form, selecting it and preserving what was typed (item 5)', async () => {
+  const createCategory = vi.fn(async () =>
+    ok(category({ id: 'c-new', name: 'Sides' })),
+  );
+  // The tree gains the new category on the post-create refetch, so the
+  // selector can show it as chosen.
+  const getMenu = vi
+    .fn()
+    .mockResolvedValueOnce(ok(adminMenu(oneCategory)))
+    .mockResolvedValue(
+      ok(adminMenu([...oneCategory, category({ id: 'c-new', name: 'Sides' })])),
+    );
+  renderApp(
+    `${MENU}/items/new`,
+    client(oneCategory, { catalog: { getMenu, createCategory } }),
+  );
+
+  // Enter item data first, with no category chosen.
+  fireEvent.change(await screen.findByLabelText('Name'), {
+    target: { value: 'Raita' },
+  });
+  fireEvent.change(screen.getByLabelText(/^Price/), {
+    target: { value: '1.00' },
+  });
+
+  // Create a category inline, using the same dialog and validation.
+  fireEvent.click(
+    screen.getByRole('button', { name: '+ Create a new category' }),
+  );
+  const dialog = screen.getByRole('dialog');
+  fireEvent.change(within(dialog).getByLabelText('Name'), {
+    target: { value: 'Sides' },
+  });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Add category' }));
+
+  await waitFor(() => {
+    expect(createCategory).toHaveBeenCalledTimes(1);
+  });
+  // The new category becomes the item's category, and nothing typed was lost.
+  const select = await screen.findByLabelText<HTMLSelectElement>('Category');
+  await waitFor(() => {
+    expect(select.value).toBe('c-new');
+  });
+  expect(screen.getByLabelText<HTMLInputElement>('Name').value).toBe('Raita');
+  expect(screen.getByLabelText<HTMLInputElement>(/^Price/).value).toBe('1.00');
 });
 
 test('creation sends only ItemCreate fields, with the category as a path argument', async () => {
@@ -213,7 +336,7 @@ test('local syntax, precision, sign and safety checks still block first', async 
 test('the create form offers no update-only controls', async () => {
   renderApp(`${MENU}/items/new?categoryId=${CAT}`, client(oneCategory));
   await screen.findByLabelText('Name');
-  expect(screen.queryByLabelText(/hide from the storefront/i)).toBeNull();
+  expect(screen.queryByLabelText(/hide from the public menu/i)).toBeNull();
   expect(screen.queryByLabelText(/feature this item/i)).toBeNull();
   expect(screen.queryByRole('button', { name: /sold out/i })).toBeNull();
   // The defaults are explained rather than faked with inert controls.
@@ -365,7 +488,7 @@ test('an item update never carries is_available', async () => {
   const updateItem = vi.fn(async () => ok({ ...existing, is_hidden: true }));
   renderApp(`${MENU}/items/i1`, client(withItem, { catalog: { updateItem } }));
 
-  fireEvent.click(await screen.findByLabelText(/hide from the storefront/i));
+  fireEvent.click(await screen.findByLabelText(/hide from the public menu/i));
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
   await waitFor(() => {
@@ -591,4 +714,21 @@ test('the overview offers the availability toggle to staff and links to the edit
   );
   // Staff still get no create affordance.
   expect(screen.queryByRole('link', { name: /add item to/i })).toBeNull();
+});
+
+test('each item row offers a Manage action that opens that item for that restaurant (items 6, 9)', async () => {
+  renderApp(MENU, client(withItem));
+  // The action names the item, so it is distinguishable out of context, and
+  // points at the same editor route scoped to this business.
+  const manage = await screen.findByRole('link', { name: 'Manage Samosa' });
+  expect(manage).toHaveAttribute('href', `${MENU}/items/i1`);
+});
+
+test('staff, who cannot edit, are not offered Manage — only the availability toggle (item 6)', async () => {
+  renderApp(MENU, client(withItem, {}, 'staff'));
+  await screen.findByText('Samosa');
+  expect(screen.queryByRole('link', { name: /Manage Samosa/ })).toBeNull();
+  expect(
+    screen.getByRole('button', { name: 'Mark sold out' }),
+  ).toBeInTheDocument();
 });

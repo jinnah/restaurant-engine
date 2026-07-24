@@ -51,6 +51,13 @@ interface FormFieldProps extends ComponentPropsWithRef<'input'> {
   hint?: string;
   /** Inline field error from the Zod schema or the mapped ADR-008 envelope. */
   error?: string;
+  /**
+   * A short decorative symbol inside the field box — a currency symbol for a
+   * price, for example. Purely visual (the label already carries the meaning),
+   * so it is hidden from assistive technology. Typed as `string` to stay
+   * compatible with the global HTML `prefix` attribute this interface extends.
+   */
+  prefix?: string;
 }
 
 /** Labelled input with accessible error association (the M2E form pattern). */
@@ -59,18 +66,36 @@ export function FormField({
   label,
   hint,
   error,
+  prefix,
   ...inputProps
 }: FormFieldProps) {
   return (
     <FieldShell id={id} label={label} hint={hint} error={error}>
-      {(describedBy) => (
-        <input
-          id={id}
-          aria-invalid={error !== undefined}
-          aria-describedby={describedBy}
-          {...inputProps}
-        />
-      )}
+      {(describedBy) =>
+        prefix === undefined ? (
+          <input
+            id={id}
+            aria-invalid={error !== undefined}
+            aria-describedby={describedBy}
+            {...inputProps}
+          />
+        ) : (
+          <div
+            className={styles.affix}
+            data-invalid={error !== undefined ? 'true' : undefined}
+          >
+            <span className={styles.affixSymbol} aria-hidden="true">
+              {prefix}
+            </span>
+            <input
+              id={id}
+              aria-invalid={error !== undefined}
+              aria-describedby={describedBy}
+              {...inputProps}
+            />
+          </div>
+        )
+      }
     </FieldShell>
   );
 }

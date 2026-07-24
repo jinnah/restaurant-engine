@@ -65,6 +65,29 @@ test('an empty category says so rather than rendering a blank card', async () =>
   expect(await screen.findByText('No items yet.')).toBeInTheDocument();
 });
 
+test('an empty menu guides the owner to create the first category (item 1)', async () => {
+  renderApp(MENU, clientWith([]));
+
+  expect(
+    await screen.findByText(
+      /Create your first category before adding menu items/i,
+    ),
+  ).toBeInTheDocument();
+  // The primary action is creating the first category; adding an item is
+  // present but disabled, because a category must exist first.
+  expect(
+    screen.getByRole('button', { name: 'Add first category' }),
+  ).toBeEnabled();
+  const addItem = screen.getByRole('button', { name: 'Add menu item' });
+  expect(addItem).toBeDisabled();
+  // The reason is plain visible text, not a hover-only tooltip.
+  expect(
+    screen.getByText('Add a category before you can add items.'),
+  ).toBeInTheDocument();
+  // No dead-end "Add menu item" link on an empty menu.
+  expect(screen.queryByRole('link', { name: 'Add menu item' })).toBeNull();
+});
+
 test('hidden categories and hidden items are shown — this is the management view', async () => {
   renderApp(
     MENU,
@@ -182,7 +205,7 @@ test('filtering narrows items and announces the count', async () => {
     ]),
   );
 
-  fireEvent.change(await screen.findByLabelText(/filter items by name/i), {
+  fireEvent.change(await screen.findByLabelText(/search menu items/i), {
     target: { value: 'sam' },
   });
 
@@ -198,7 +221,7 @@ test('a category with no filter matches says so instead of looking empty', async
       category({ name: 'Starters', items: [item({ name: 'Samosa' })] }),
     ]),
   );
-  fireEvent.change(await screen.findByLabelText(/filter items by name/i), {
+  fireEvent.change(await screen.findByLabelText(/search menu items/i), {
     target: { value: 'zzz' },
   });
   expect(

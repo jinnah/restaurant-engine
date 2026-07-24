@@ -1,7 +1,13 @@
 import { screen, waitFor } from '@testing-library/react';
 import { fireEvent } from '@testing-library/react';
 import { vi, expect, test } from 'vitest';
-import { apiError, makeClient, ok, sessionView } from './support/mockClient';
+import {
+  adminSessionView,
+  apiError,
+  makeClient,
+  ok,
+  sessionView,
+} from './support/mockClient';
 import { renderApp } from './support/render';
 
 test('loading flashes neither protected nor guest-only content', () => {
@@ -16,7 +22,9 @@ test('loading flashes neither protected nor guest-only content', () => {
   expect(screen.getByRole('status')).toHaveTextContent(
     /checking your session/i,
   );
-  expect(screen.queryByRole('heading', { name: /control center/i })).toBeNull();
+  expect(
+    screen.queryByRole('heading', { name: /restaurant dashboard/i }),
+  ).toBeNull();
   protectedRender.view.unmount();
 
   renderApp('/login', client);
@@ -59,7 +67,7 @@ test('an unexpected bootstrap failure is retryable, not anonymous', async () => 
 
   fireEvent.click(screen.getByRole('button', { name: /try again/i }));
   expect(
-    await screen.findByRole('heading', { name: /control center/i }),
+    await screen.findByRole('heading', { name: /restaurant dashboard/i }),
   ).toBeInTheDocument();
 });
 
@@ -85,6 +93,35 @@ test('an authenticated visitor with a safe next lands on that path', async () =>
     expect(router.state.location.pathname).toBe('/somewhere');
   });
   expect(router.state.location.search).toBe('?page=2');
+});
+
+test('an already-authenticated admin at /login with an unreachable owner next goes to the platform home', async () => {
+  const client = makeClient({
+    auth: { getSession: vi.fn(async () => ok(adminSessionView())) },
+  });
+  const { router } = renderApp(
+    '/login?next=' +
+      encodeURIComponent(
+        '/businesses/99999999-9999-4999-8999-999999999999/menu',
+      ),
+    client,
+  );
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe('/platform');
+  });
+});
+
+test('an already-authenticated owner at /login with a platform next goes to their dashboard', async () => {
+  const client = makeClient({
+    auth: { getSession: vi.fn(async () => ok(sessionView())) },
+  });
+  const { router } = renderApp(
+    '/login?next=' + encodeURIComponent('/platform/businesses'),
+    client,
+  );
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe('/');
+  });
 });
 
 test.each([

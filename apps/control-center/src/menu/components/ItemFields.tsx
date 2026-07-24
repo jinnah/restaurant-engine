@@ -1,5 +1,5 @@
 import type { UseFormRegister, FieldErrors, Control } from 'react-hook-form';
-import { Controller } from 'react-hook-form';
+import { Controller, useWatch } from 'react-hook-form';
 import type { CategoryWithItems } from '@restaurant-engine/api-client';
 import {
   CheckboxField,
@@ -9,6 +9,7 @@ import {
 } from '../../components/FormField';
 import { DIETARY_TAGS, dietaryLabel } from '../dietary';
 import type { ItemFormValues } from '../itemForm';
+import { currencySymbol, priceExample } from '../money';
 import styles from '../menu.module.css';
 
 interface ItemFieldsProps {
@@ -19,6 +20,8 @@ interface ItemFieldsProps {
   currency: string;
   /** Editing exposes visibility and featuring; creation does not. */
   mode: 'create' | 'edit';
+  /** Open the inline "create a new category" dialog (item 5). */
+  onCreateCategory: () => void;
   /** Shown next to the featured control so the count is never a surprise. */
   featuredCount: number;
   /**
@@ -51,11 +54,19 @@ export function ItemFields({
   categories,
   currency,
   mode,
+  onCreateCategory,
   featuredCount,
   featuredLimit,
 }: ItemFieldsProps) {
   const atFeaturedLimit =
     featuredLimit !== null && featuredCount >= featuredLimit;
+
+  // The category currently chosen, so the form can show plainly which one an
+  // item is being added to (item 4).
+  const selectedCategoryId = useWatch({ control, name: 'categoryId' });
+  const selectedCategory = categories.find(
+    (category) => category.id === selectedCategoryId,
+  );
 
   return (
     <>
@@ -80,29 +91,62 @@ export function ItemFields({
         label={`Price (${currency})`}
         inputMode="decimal"
         autoComplete="off"
-        hint="Digits and a dot, for example 12.50."
+        prefix={currencySymbol(currency)}
+        hint={`Example: ${priceExample(currency)}.`}
         error={errors.price?.message}
         {...register('price')}
       />
 
-      <SelectField
-        id="item-category"
-        label="Category"
-        hint={
-          mode === 'edit'
-            ? 'Moving an item places it at the end of the new category.'
-            : undefined
-        }
-        error={errors.categoryId?.message}
-        {...register('categoryId')}
-      >
-        <option value="">— Choose a category —</option>
-        {categories.map((category) => (
-          <option key={category.id} value={category.id}>
-            {category.name}
-          </option>
-        ))}
-      </SelectField>
+      <div className={styles.categoryField}>
+        {/* The context sits immediately above the Category field (item 4), so
+            "Adding to: X" reads as a heading for the control it describes. It
+            appears only once a category is actually selected — a page-level
+            "Add menu item" with nothing chosen claims no context. */}
+        {mode === 'create' && selectedCategory !== undefined && (
+          <p className={styles.contextNote}>
+            Adding to: <strong>{selectedCategory.name}</strong>
+          </p>
+        )}
+        {/* Controlled (not `register`) so that a category created inline —
+            whose <option> only appears after the menu refetches — is shown
+            as selected once it arrives; an uncontrolled select cannot resync
+            to a value whose option did not yet exist (item 5). */}
+        <Controller
+          control={control}
+          name="categoryId"
+          render={({ field }) => (
+            <SelectField
+              id="item-category"
+              label="Category"
+              hint={
+                mode === 'edit'
+                  ? 'Moving an item places it at the end of the new category.'
+                  : undefined
+              }
+              error={errors.categoryId?.message}
+              name={field.name}
+              value={field.value}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+              ref={field.ref}
+            >
+              <option value="">— Choose a category —</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </SelectField>
+          )}
+        />
+        <button
+          type="button"
+          className={styles.quiet}
+          onClick={onCreateCategory}
+        >
+          + Create a new category
+        </button>
+      </div>
 
       <fieldset className={styles.fieldset}>
         <legend>Dietary attributes</legend>
@@ -138,8 +182,8 @@ export function ItemFields({
         <>
           <CheckboxField
             id="item-visible"
-            label="Hide from the storefront"
-            hint="Hidden items disappear from your public menu. This is separate from “sold out today”."
+            label="Hide from the public menu"
+            hint="Hidden items disappear from your public menu. This is separate from “sold out”."
             {...register('isHidden')}
           />
           <CheckboxField

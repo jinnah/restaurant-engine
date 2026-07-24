@@ -17,7 +17,7 @@ test('an anonymous platform deep link round-trips through login', async ({
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 
   await expect(
-    page.getByRole('heading', { name: 'Create a business' }),
+    page.getByRole('heading', { name: 'Create restaurant' }),
   ).toBeVisible();
   await expect(page).toHaveURL(new RegExp('/platform/businesses$'));
   expect(new URL(page.url()).origin).toBe(ORIGIN);

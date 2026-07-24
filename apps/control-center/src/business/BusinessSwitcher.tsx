@@ -54,7 +54,7 @@ export function BusinessSwitcher({
 
   return (
     <div className={styles.switcher}>
-      <label htmlFor="business-switcher">Business</label>
+      <label htmlFor="business-switcher">Switch restaurant</label>
       <select
         id="business-switcher"
         value={value}
@@ -66,7 +66,7 @@ export function BusinessSwitcher({
         }}
       >
         <option value="" disabled={value !== ''}>
-          — Choose a business —
+          — Choose a restaurant —
         </option>
         {memberships.map((membership) => (
           <option key={membership.business_id} value={membership.business_id}>

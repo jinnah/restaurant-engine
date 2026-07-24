@@ -33,5 +33,5 @@ test('a non-administrator cannot see or reach the platform area', async ({
   await expect(
     page.getByRole('heading', { name: 'Platform administration' }),
   ).toHaveCount(0);
-  await expect(page.getByText('Create a business')).toHaveCount(0);
+  await expect(page.getByText('Create restaurant')).toHaveCount(0);
 });

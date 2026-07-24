@@ -2,7 +2,76 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (Milestone 3E)
+## Current state (Milestone 3F — in progress)
+
+M3F adds the end-to-end coverage for Milestone 3 (ADR-019). It is
+implemented and verified locally; the milestone is **not closed**, and
+owner acceptance is a gate before it can be.
+
+`pnpm e2e` grows from four journeys to nine tests, still Chromium-only,
+one worker, zero retries:
+
+- **The menu vertical slice.** An owner signs in, creates a category and
+  two items, uploads and attaches an image, adds a required option group
+  and a choice, hides the second item, features the first, reorders, and
+  the result appears on the tenant's public surface. Money is proved by
+  identity — `12.50` must arrive as exactly `1250` minor units and a
+  `1.00` surcharge as exactly `100` — because a shape assertion would pass
+  for a floating-point path too. Hidden and sold out are asserted as the
+  different things they are: the hidden item is absent from the public
+  menu entirely, the sold-out one stays listed with `is_available` and
+  `is_orderable` false. The image assertions are chosen so they cannot
+  pass vacuously (see the fixture note below).
+- **Cross-business isolation.** Two businesses, both built by the spec.
+  The decisive assertion is media: business A's image URL is a neutral 404
+  under B's host **and** a live 200 under A's, in the same run. A 404 for
+  something that does not exist proves nothing; a 404 for something being
+  served one host away is the boundary.
+- **Tenant-host resolution**, pinned before the journey depends on it, so
+  a resolution failure can never present as a menu-administration failure.
+- **Phone-width administration** at 375×812 — the blueprint's M3
+  acceptance bar, now a project command rather than a documented
+  procedure.
+
+Three things about how this suite reads the public surface are worth
+naming, because each is a trap that would otherwise be rediscovered:
+
+- **Browser navigation, never `request`.** Playwright's `request` fixture
+  runs in the Node driver and uses the OS resolver; Windows does not
+  resolve `*.localhost` (measured: `ENOTFOUND`). Chromium resolves the
+  `.localhost` TLD itself per RFC 6761. Using `request` would have given a
+  suite that passes in CI and fails on a developer machine.
+- **Not through the UI origin.** The Vite proxy forwards with
+  `changeOrigin: false`, so a proxied request keeps `Host: localhost:5273`
+  and resolves to no tenant. A test pins this from the other side.
+- **A fresh browser context per public read.** No session cookie, so a
+  passing assertion cannot be an artefact of being signed in; and an empty
+  HTTP cache, because public media is `max-age=3600, immutable` and a
+  warm context would answer "is this still served?" from its own cache.
+
+The image fixture is committed (`e2e/fixtures/menu-item.png`, 800×600) and
+its width is load-bearing: variants are generated only strictly narrower
+than the canonical, so 800 px yields exactly `w320` and `w640` and no
+`w1280`. A smaller fixture would produce none and the responsive-image
+assertion would prove nothing.
+
+The E2E stack now owns a disposable **media root** as well as a disposable
+database. Both are constructed rather than inherited, both are removed on
+success, failure, timeout, and signal, and the development media root is
+refused by name — an E2E run cannot touch development data.
+
+Two limits are deliberate. The public surface here is the host-resolved
+public **API**, not a rendered storefront: `apps/storefront` is still the
+Milestone 1 shell and customer-facing rendering is M4. And the phone-width
+coverage is limited engineering evidence about layout and reach at one
+width — no accessibility scan runs, and target size, contrast, and focus
+order are not assessed, so no conformance claim is made.
+
+The mandatory journeys 2 and 3 below are therefore **partially** satisfied
+by M3: everything except publication, published-version semantics, and
+storefront composition, which are M4.
+
+## Earlier state (Milestone 3E)
 
 M3E is delivered and merged (PR #15, 2026-07-22, ADR-018). What follows is
 the coverage on `main`.
@@ -39,10 +108,12 @@ deliberately **not** asserted in jsdom, which computes none of them. They are
 verified by driving the real stack in a browser at 320 px, 768 px and 1280 px
 against the disposable E2E database (ADR-018). That is engineering evidence
 rather than a WCAG certification — no axe-core scan is run — and it is not a
-standing per-change requirement. It is also **not committed tooling**: the
-driver is assembled per run, so this evidence is reproducible only by
-repeating the documented procedure, not by a project command. Whether it
-should become one is open. The Playwright menu journey remains M3F.
+standing per-change requirement. At the time it was also **not committed
+tooling**: the driver was assembled per run, so the evidence was reproducible
+only by repeating a documented procedure. M3F closes that gap for the
+milestone's own acceptance bar by committing phone-width coverage (see the
+M3F section above); whether broader visual tooling should follow is still
+open.
 
 ## Earlier state (Milestone 3D)
 

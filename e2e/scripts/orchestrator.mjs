@@ -6,6 +6,10 @@
 // This module is pure orchestration logic over injectable process/net
 // primitives so every failure path is testable without launching the
 // real stack (see orchestrator.test.mjs). run-e2e.mjs wires real deps.
+// `node:path` is the one built-in imported here: it is pure string work,
+// and the media-root guard below must be unit-testable.
+
+import { basename, join, resolve } from 'node:path';
 
 export const E2E_DATABASE_NAME = 'restaurant_engine_e2e';
 // Constructed here, never inherited: an external DATABASE_URL cannot
@@ -14,6 +18,53 @@ export const E2E_DATABASE_NAME = 'restaurant_engine_e2e';
 export const E2E_DATABASE_URL =
   'postgresql+psycopg://restaurant_dev:restaurant_dev_only@127.0.0.1:5433/' +
   E2E_DATABASE_NAME;
+
+// --- Disposable media root (M3F) --------------------------------------
+// Uploading an image is part of the menu journey, and media objects live
+// on the filesystem rather than in the database — so the database drop
+// alone does not undo a run. Without an E2E-owned root the backend falls
+// through to its development default (`backend/var/media`), which docs/07
+// treats as one logical backup set with the development database: an E2E
+// run would write into the developer's data and leave orphans behind.
+//
+// The root is CONSTRUCTED from the repository root, never inherited: an
+// external MEDIA_STORAGE_ROOT cannot choose the target, exactly as an
+// external DATABASE_URL cannot. It sits beside the development root under
+// the already-gitignored `backend/var/`, and `assertRemovableMediaRoot`
+// makes the development root unreachable by the removal.
+export const E2E_MEDIA_DIR_NAME = 'media-e2e';
+/** The development root this runner must never touch (settings.py default). */
+export const DEV_MEDIA_DIR_NAME = 'media';
+
+export function e2eMediaRoot(repoRoot) {
+  return join(repoRoot, 'backend', 'var', E2E_MEDIA_DIR_NAME);
+}
+
+/**
+ * The one directory this runner may destroy, or a hard refusal.
+ *
+ * Layered like the reset script's URL allowlist rather than trusting a
+ * single comparison: the development root is refused by name with its own
+ * message, and anything else must equal the constructed path exactly.
+ * Returns the resolved path so callers delete only what was validated.
+ */
+export function assertRemovableMediaRoot(candidate, repoRoot) {
+  const actual = resolve(candidate);
+  if (basename(actual) === DEV_MEDIA_DIR_NAME) {
+    throw new Error(
+      `refusing to remove ${actual}: that is the development media root ` +
+        '(docs/07 backup set); only the disposable E2E root is removable',
+    );
+  }
+  const expected = resolve(e2eMediaRoot(repoRoot));
+  if (actual !== expected) {
+    throw new Error(
+      `refusing to remove ${actual}: only the constructed E2E media root ` +
+        `${expected} may be reset or removed by this runner`,
+    );
+  }
+  return actual;
+}
 
 export const BACKEND_PORT = 8100;
 export const UI_PORT = 5273;
@@ -109,6 +160,9 @@ function messageOf(error) {
  *   runTests(extraArgs, env) -> Promise<exit code>
  *   uiArgv -> string[]  (entry-resolved: node + vite script + port args)
  *   uiCwd -> string     (the control-center app directory)
+ *   mediaRoot -> string (entry-resolved disposable media root)
+ *   resetMediaRoot(path) -> Promise<void>   (remove, then create empty)
+ *   removeMediaRoot(path) -> Promise<void>  (remove; both validate first)
  *   log(text), logError(text)
  */
 export function createOrchestrator(deps) {
@@ -119,6 +173,8 @@ export function createOrchestrator(deps) {
     killChild,
     pollReady,
     runTests,
+    resetMediaRoot,
+    removeMediaRoot,
     log,
     logError,
   } = deps;
@@ -161,6 +217,22 @@ export function createOrchestrator(deps) {
         `cleanup: FAILED to drop ${E2E_DATABASE_NAME}: ${messageOf(error)}. ` +
           'Drop it manually, or simply rerun pnpm e2e — the next run ' +
           'recreates from scratch.',
+      );
+    }
+    // Media objects outlive the database drop, so the root is removed in
+    // its own step: a failure to drop the database must not skip it, and a
+    // failure here must not hide that. It runs AFTER the children are
+    // stopped — a live backend still holds handles under this root, which
+    // Windows would refuse to delete.
+    try {
+      await removeMediaRoot(deps.mediaRoot);
+      log(`cleanup: removed ${deps.mediaRoot}`);
+    } catch (error) {
+      cleanupFailed = true;
+      logError(
+        `cleanup: FAILED to remove ${deps.mediaRoot}: ${messageOf(error)}. ` +
+          'Delete it manually, or simply rerun pnpm e2e — the next run ' +
+          'recreates it empty. The development media root is untouched.',
       );
     }
     return cleanupFailed;
@@ -214,24 +286,32 @@ export function createOrchestrator(deps) {
         env: { DATABASE_URL: E2E_DATABASE_URL },
       });
 
-      // 3. Universal seed: the documented bootstrap CLI. Password via
+      // 3. Fresh, empty media root. Recreated (not merely created) so an
+      // interrupted prior run cannot leak objects into this one, and set
+      // up before the backend starts because the backend creates its
+      // scratch directory under this root at composition time.
+      await resetMediaRoot(deps.mediaRoot);
+      log(`recreated ${deps.mediaRoot}`);
+
+      // 4. Universal seed: the documented bootstrap CLI. Password via
       // stdin only — it never appears in argv or output.
       await step('admin bootstrap', BOOTSTRAP_ARGV, {
         env: { DATABASE_URL: E2E_DATABASE_URL },
         input: ADMIN_PASSWORD + '\n',
       });
 
-      // 4–5. Backend, readiness-gated (readiness proves the database).
+      // 5–6. Backend, readiness-gated (readiness proves the database).
       const backend = spawnChild('backend', BACKEND_ARGV, {
         env: {
           DATABASE_URL: E2E_DATABASE_URL,
           TRUSTED_ORIGINS: UI_ORIGIN,
+          MEDIA_STORAGE_ROOT: deps.mediaRoot,
         },
       });
       children.push(backend);
       await awaitReady(backend, BACKEND_READY_URLS);
 
-      // 6–7. Control center through the same-origin proxy. Vite must
+      // 7–8. Control center through the same-origin proxy. Vite must
       // run from the app directory so it serves the app and loads its
       // config (index.html, proxy) — not the repository root.
       const ui = spawnChild('control-center', deps.uiArgv, {
@@ -241,13 +321,19 @@ export function createOrchestrator(deps) {
       children.push(ui);
       await awaitReady(ui, UI_READY_URLS);
 
-      // 8. Playwright. Selection args pass through unchanged so single
+      // 9. Playwright. Selection args pass through unchanged so single
       // files and --grep work via pnpm e2e.
       primaryExit = await runTests(extraArgs, {
         E2E_ORCHESTRATED: '1',
         E2E_BASE_URL: UI_ORIGIN,
         E2E_ADMIN_EMAIL: ADMIN_EMAIL,
         E2E_ADMIN_PASSWORD: ADMIN_PASSWORD,
+        // The public surface is reached at `{slug}.localhost:<backend>`,
+        // NOT through the UI origin: the Vite proxy forwards with
+        // `changeOrigin: false`, so a proxied request keeps
+        // `Host: localhost:5273`, which resolves to no tenant. Only the
+        // port travels; support/namespace.ts composes the origin (M3F).
+        E2E_PUBLIC_PORT: String(BACKEND_PORT),
       });
     } catch (error) {
       logError(messageOf(error));

@@ -23,8 +23,8 @@ test('a platform administrator onboards a business and owner end to end', async 
   // Create the spec-owned business.
   await page.getByLabel('Name').fill(ns.businessName);
   await page.getByLabel('Slug').fill(ns.slug);
-  await page.getByRole('button', { name: 'Create business' }).click();
-  await expect(page.getByText('Business created')).toBeVisible();
+  await page.getByRole('button', { name: 'Create restaurant' }).click();
+  await expect(page.getByText('Restaurant created')).toBeVisible();
 
   // Open its detail page from the refreshed list.
   await page.getByRole('link', { name: new RegExp(ns.businessName) }).click();
@@ -79,8 +79,9 @@ test('a platform administrator onboards a business and owner end to end', async 
   await page.getByLabel('Email').fill(ns.ownerEmail);
   await page.getByLabel('Password').fill(ns.ownerPassword);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  // The owner lands on their Restaurant Dashboard (item 1).
   await expect(
-    page.getByRole('heading', { name: 'Control center' }),
+    page.getByRole('heading', { name: 'Restaurant Dashboard' }),
   ).toBeVisible();
   // Role-scoped rather than a bare text match: the business name now also
   // appears in the workspace switcher's <option>, so a loose getByText would

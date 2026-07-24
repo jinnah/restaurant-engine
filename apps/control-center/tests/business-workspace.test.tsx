@@ -116,8 +116,11 @@ test('a platform administrator holds no memberships, so no switcher renders', as
     }),
   );
 
-  await screen.findByRole('heading', { level: 1, name: /control center/i });
-  expect(screen.queryByLabelText('Business')).toBeNull();
+  await screen.findByRole('heading', {
+    level: 1,
+    name: /platform administration/i,
+  });
+  expect(screen.queryByLabelText('Switch restaurant')).toBeNull();
   // Their own navigation is untouched.
   expect(screen.getByRole('link', { name: 'Platform' })).toBeInTheDocument();
 });
@@ -144,12 +147,12 @@ test('the switcher lists only the session memberships', async () => {
     makeClient({ auth: authenticated({ memberships: twoBusinesses }) }),
   );
 
-  const select = await screen.findByLabelText('Business');
+  const select = await screen.findByLabelText('Switch restaurant');
   const labels = Array.from(select.querySelectorAll('option')).map(
     (option) => option.textContent,
   );
   expect(labels).toEqual([
-    '— Choose a business —',
+    '— Choose a restaurant —',
     'Shalik — owner',
     'Nur Kitchen — manager · suspended',
   ]);
@@ -171,7 +174,7 @@ test('a non-active status is spelled out in the option text, not by colour', asy
     }),
   );
 
-  const select = await screen.findByLabelText('Business');
+  const select = await screen.findByLabelText('Switch restaurant');
   // Closed businesses stay selectable: the workspace is read-only, not
   // hidden, and an owner may still need to read the menu.
   expect(select.querySelector('option[value="' + NUR + '"]')?.textContent).toBe(
@@ -189,7 +192,8 @@ test('the switcher reflects the route rather than any internal state', async () 
     }),
   );
 
-  const select = await screen.findByLabelText<HTMLSelectElement>('Business');
+  const select =
+    await screen.findByLabelText<HTMLSelectElement>('Switch restaurant');
   expect(select.value).toBe(NUR);
 });
 
@@ -199,7 +203,8 @@ test('outside a workspace the switcher shows its placeholder', async () => {
     makeClient({ auth: authenticated({ memberships: twoBusinesses }) }),
   );
 
-  const select = await screen.findByLabelText<HTMLSelectElement>('Business');
+  const select =
+    await screen.findByLabelText<HTMLSelectElement>('Switch restaurant');
   expect(select.value).toBe('');
 });
 
@@ -213,7 +218,7 @@ test('choosing a business navigates to that business menu workspace', async () =
     }),
   );
 
-  const select = await screen.findByLabelText('Business');
+  const select = await screen.findByLabelText('Switch restaurant');
   fireEvent.change(select, { target: { value: NUR } });
 
   await waitFor(() => {
@@ -224,10 +229,13 @@ test('choosing a business navigates to that business menu workspace', async () =
 test('the switcher is absent when the session holds no memberships', async () => {
   renderApp('/', makeClient({ auth: authenticated({ memberships: [] }) }));
 
-  await screen.findByRole('heading', { level: 1, name: /control center/i });
-  expect(screen.queryByLabelText('Business')).toBeNull();
+  await screen.findByRole('heading', {
+    level: 1,
+    name: /restaurant dashboard/i,
+  });
+  expect(screen.queryByLabelText('Switch restaurant')).toBeNull();
   expect(
-    screen.getByText(/do not have any business memberships yet/i),
+    screen.getByText(/don't manage any restaurants yet/i),
   ).toBeInTheDocument();
 });
 
@@ -238,7 +246,7 @@ test('a route id outside the memberships selects the placeholder, inventing no o
   );
 
   await screen.findByRole('heading', { level: 1, name: /page not found/i });
-  const select = screen.getByLabelText<HTMLSelectElement>('Business');
+  const select = screen.getByLabelText<HTMLSelectElement>('Switch restaurant');
   expect(select.value).toBe('');
   expect(select.querySelector(`option[value="${FOREIGN}"]`)).toBeNull();
 });
@@ -260,7 +268,9 @@ test('a suspended business is editable and says so; a closed one says it is not'
     catalog: { getMenu },
   });
   const { view } = renderApp(`/businesses/${NUR}/menu`, client);
-  expect(await screen.findByText(/storefront is offline/i)).toBeInTheDocument();
+  expect(
+    await screen.findByText(/available to customers/i),
+  ).toBeInTheDocument();
   expect(screen.getByText(/still edit the menu/i)).toBeInTheDocument();
   view.unmount();
 
@@ -360,15 +370,15 @@ test('switching business discards the overview filter and reorder mode', async (
   );
 
   // Establish visible local state under Shalik.
-  fireEvent.change(await screen.findByLabelText('Filter items by name'), {
+  fireEvent.change(await screen.findByLabelText('Search menu items'), {
     target: { value: 'samosa' },
   });
-  fireEvent.click(screen.getByRole('button', { name: 'Reorder categories' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Arrange categories' }));
   expect(
-    await screen.findByRole('heading', { name: 'Reorder categories' }),
+    await screen.findByRole('heading', { name: 'Arrange categories' }),
   ).toBeInTheDocument();
 
-  fireEvent.change(screen.getByLabelText('Business'), {
+  fireEvent.change(screen.getByLabelText('Switch restaurant'), {
     target: { value: NUR },
   });
 
@@ -378,10 +388,10 @@ test('switching business discards the overview filter and reorder mode', async (
   expect(await screen.findByText('Grill')).toBeInTheDocument();
   // Nur's workspace starts clean rather than inheriting Shalik's session.
   expect(
-    screen.getByLabelText<HTMLInputElement>('Filter items by name').value,
+    screen.getByLabelText<HTMLInputElement>('Search menu items').value,
   ).toBe('');
   expect(
-    screen.queryByRole('heading', { name: 'Reorder categories' }),
+    screen.queryByRole('heading', { name: 'Arrange categories' }),
   ).toBeNull();
 });
 
@@ -391,13 +401,13 @@ test('switching business carries no open dialog or its entered values', async ()
     twoBusinessClient(),
   );
 
-  fireEvent.click(await screen.findByRole('button', { name: 'New category' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Add category' }));
   const dialog = await screen.findByRole('dialog');
   fireEvent.change(within(dialog).getByLabelText('Name'), {
     target: { value: 'Shalik Only Category' },
   });
 
-  fireEvent.change(screen.getByLabelText('Business'), {
+  fireEvent.change(screen.getByLabelText('Switch restaurant'), {
     target: { value: NUR },
   });
 
@@ -423,7 +433,7 @@ test('switching business from a dirty create form prompts, then discards it', as
     target: { value: '3.50' },
   });
 
-  fireEvent.change(screen.getByLabelText('Business'), {
+  fireEvent.change(screen.getByLabelText('Switch restaurant'), {
     target: { value: NUR },
   });
 

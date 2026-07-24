@@ -7,6 +7,7 @@ import { useCurrentBusinessId } from '../business/useCurrentBusinessId';
 import { mapFailure, type FormFailure } from '../components/formErrors';
 import { useNotify } from '../components/NotificationProvider';
 import { ErrorSummary } from '../components/StatusPanels';
+import { CreateCategoryInlineDialog } from './components/CreateCategoryInlineDialog';
 import { ItemFields } from './components/ItemFields';
 import { UnsavedChangesPrompt } from './components/UnsavedChangesPrompt';
 import {
@@ -38,6 +39,7 @@ export function ItemCreatePage() {
   const createItem = useCreateItem(businessId);
   const [failure, setFailure] = useState<FormFailure | null>(null);
   const [createdId, setCreatedId] = useState<string | null>(null);
+  const [creatingCategory, setCreatingCategory] = useState(false);
 
   const categories = menu.data?.categories ?? [];
   const currency = business.data?.currency ?? 'USD';
@@ -54,7 +56,15 @@ export function ItemCreatePage() {
     defaultValues: emptyItemValues(preselected),
     mode: 'onBlur',
   });
-  const { formState, handleSubmit, register, control, reset, setError } = form;
+  const {
+    formState,
+    handleSubmit,
+    register,
+    control,
+    reset,
+    setError,
+    setValue,
+  } = form;
 
   useEffect(() => {
     document.title = 'New item — Restaurant Engine';
@@ -88,6 +98,52 @@ export function ItemCreatePage() {
     );
   }
 
+  // Reached the new-item route with no categories to file an item under
+  // (item 1): rather than an item form that cannot be submitted, offer a
+  // prominent way to create the first category. Creating it selects it, and
+  // the refetched tree brings the form in with that category chosen.
+  if (categories.length === 0) {
+    return (
+      <section aria-labelledby="new-item-title">
+        <h2 id="new-item-title">New item</h2>
+        <p className={styles.crumb}>
+          <Link to={`/businesses/${businessId}/menu`}>Back to the menu</Link>
+        </p>
+        <p>
+          Create your first category before adding menu items. A category is a
+          section of your menu, such as Starters or Biryani.
+        </p>
+        <div className={styles.actions}>
+          <button
+            type="button"
+            className={styles.submit}
+            onClick={() => {
+              setCreatingCategory(true);
+            }}
+          >
+            Add a category
+          </button>
+        </div>
+
+        {creatingCategory && (
+          <CreateCategoryInlineDialog
+            businessId={businessId}
+            onCancel={() => {
+              setCreatingCategory(false);
+            }}
+            onCreated={(cat) => {
+              setCreatingCategory(false);
+              setValue('categoryId', cat.id, {
+                shouldDirty: true,
+                shouldValidate: true,
+              });
+            }}
+          />
+        )}
+      </section>
+    );
+  }
+
   const featuredCount = categories.reduce(
     (total, entry) => total + entry.items.filter((i) => i.is_featured).length,
     0,
@@ -100,10 +156,14 @@ export function ItemCreatePage() {
       {
         onSuccess: (created) => {
           // Clear dirtiness first, then record the id; the effect above does
-          // the navigating once React has committed both.
+          // the navigating once React has committed both. The confirmation
+          // lands on the item's editor, so it points at the next things the
+          // owner can do there (item 9).
           reset(emptyItemValues(values.categoryId));
           setCreatedId(created.id);
-          notify({ message: `Item “${created.name}” added.` });
+          notify({
+            message: `Item “${created.name}” added. Add a photo or options below.`,
+          });
         },
         onError: (error: unknown) => {
           const mapped = mapFailure(
@@ -136,7 +196,11 @@ export function ItemCreatePage() {
       )}
       {failure !== null && <ErrorSummary failure={failure} />}
 
-      <form noValidate onSubmit={(event) => void handleSubmit(onSubmit)(event)}>
+      <form
+        noValidate
+        className={styles.formLayout}
+        onSubmit={(event) => void handleSubmit(onSubmit)(event)}
+      >
         <ItemFields
           register={register}
           control={control}
@@ -144,6 +208,9 @@ export function ItemCreatePage() {
           categories={categories}
           currency={currency}
           mode="create"
+          onCreateCategory={() => {
+            setCreatingCategory(true);
+          }}
           featuredCount={featuredCount}
           // Creation cannot feature an item — ItemCreate carries no
           // `is_featured` — so no ceiling is ever relevant here.
@@ -168,6 +235,25 @@ export function ItemCreatePage() {
           </button>
         </div>
       </form>
+
+      {/* Rendered outside the item form so no <form> nests inside another;
+          creating a category selects it here without disturbing what has
+          already been typed (item 5). */}
+      {creatingCategory && (
+        <CreateCategoryInlineDialog
+          businessId={businessId}
+          onCancel={() => {
+            setCreatingCategory(false);
+          }}
+          onCreated={(cat) => {
+            setCreatingCategory(false);
+            setValue('categoryId', cat.id, {
+              shouldDirty: true,
+              shouldValidate: true,
+            });
+          }}
+        />
+      )}
 
       <UnsavedChangesPrompt
         when={formState.isDirty && createdId === null}

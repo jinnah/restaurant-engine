@@ -9,19 +9,29 @@
 // Child termination targets only tracked process trees — the recorded
 // PID tree via taskkill /T on Windows, the child's own detached process
 // group elsewhere (processControl.mjs) — never a port or process name.
+// The disposable media root is removed with `fs.rmSync` (identical on
+// both platforms) and only after `assertRemovableMediaRoot` has validated
+// the target, so the development root can never be reached.
 
 import { spawn, spawnSync } from 'node:child_process';
+import { mkdirSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import net from 'node:net';
 import { dirname, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
-import { buildUiArgv, createOrchestrator } from './orchestrator.mjs';
+import {
+  assertRemovableMediaRoot,
+  buildUiArgv,
+  createOrchestrator,
+  e2eMediaRoot,
+} from './orchestrator.mjs';
 import { createChildTerminator } from './processControl.mjs';
 
 const E2E_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
 const REPO_ROOT = dirname(E2E_DIR);
 const CONTROL_CENTER_DIR = join(REPO_ROOT, 'apps', 'control-center');
+const MEDIA_ROOT = e2eMediaRoot(REPO_ROOT);
 
 const requireFromControlCenter = createRequire(
   join(CONTROL_CENTER_DIR, 'package.json'),
@@ -148,6 +158,33 @@ async function pollReady(urls, timeoutMs) {
   return false;
 }
 
+// Every removal is validated against the constructed path first, so a
+// caller cannot direct this at the development media root. `maxRetries`
+// covers the Windows window where a just-terminated backend's handles are
+// not yet released (and antivirus scanners holding files briefly).
+function removeMediaRoot(path) {
+  const target = assertRemovableMediaRoot(path, REPO_ROOT);
+  rmSync(target, {
+    recursive: true,
+    force: true,
+    maxRetries: 5,
+    retryDelay: 100,
+  });
+  return Promise.resolve();
+}
+
+function resetMediaRoot(path) {
+  const target = assertRemovableMediaRoot(path, REPO_ROOT);
+  rmSync(target, {
+    recursive: true,
+    force: true,
+    maxRetries: 5,
+    retryDelay: 100,
+  });
+  mkdirSync(target, { recursive: true });
+  return Promise.resolve();
+}
+
 function runTests(extraArgs, env) {
   return new Promise((resolve, reject) => {
     const child = spawn(
@@ -176,6 +213,9 @@ const orchestrator = createOrchestrator({
   runTests,
   uiArgv: buildUiArgv(process.execPath, VITE_SCRIPT),
   uiCwd: CONTROL_CENTER_DIR,
+  mediaRoot: MEDIA_ROOT,
+  resetMediaRoot,
+  removeMediaRoot,
   log: (text) => {
     console.log(`[e2e] ${text}`);
   },

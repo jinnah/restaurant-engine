@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useApiClient } from '../api/ClientProvider';
 import { asApiFailure, unwrap } from '../api/failure';
+import { landingPath } from '../auth/landing';
 import { sanitizeNext } from '../auth/redirect';
 import { establishSession } from '../auth/session';
 import { mapFailure, type FormFailure } from '../components/formErrors';
@@ -32,8 +33,16 @@ export function LoginPage() {
   // — credentials are never resubmitted automatically.
   const establish = useMutation({
     mutationFn: () => establishSession(client, queryClient),
-    onSuccess: () => {
-      void navigate(sanitizeNext(params.get('next')), { replace: true });
+    onSuccess: (state) => {
+      // Land on the intended deep link when the user can actually reach it,
+      // otherwise on their role-appropriate home — never on Page Not Found
+      // straight after signing in (item 2). establishSession only resolves
+      // authenticated; the sanitize fallback covers the type union.
+      const destination =
+        state.kind === 'authenticated'
+          ? landingPath(params.get('next'), state.session)
+          : sanitizeNext(params.get('next'));
+      void navigate(destination, { replace: true });
     },
   });
 
@@ -87,7 +96,7 @@ export function LoginPage() {
   return (
     <section className={styles.card} aria-labelledby="login-title">
       <h1 id="login-title">Sign in</h1>
-      <p className={styles.lede}>Control center for Restaurant Engine.</p>
+      <p className={styles.lede}>Sign in to Restaurant Engine.</p>
       {failure !== null && <ErrorSummary failure={failure} />}
       <form noValidate onSubmit={onSubmit}>
         <div className={styles.field}>

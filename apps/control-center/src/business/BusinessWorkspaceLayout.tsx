@@ -10,7 +10,7 @@ function statusNote(status: string): string | null {
     case 'closed':
       return 'This business is closed. Its menu is kept for the record and can no longer be edited.';
     case 'suspended':
-      return 'This business is suspended, so its storefront is offline. You can still edit the menu.';
+      return 'This business is suspended, so it isn’t available to customers right now. You can still edit the menu.';
     case 'provisioning':
       return 'This business is not live yet. You can build the menu now and it will be ready when it opens.';
     default:
@@ -48,6 +48,7 @@ export function BusinessWorkspaceLayout() {
 
   return (
     <section aria-labelledby="workspace-title" className={styles.area}>
+      <p className={styles.eyebrow}>Restaurant Dashboard</p>
       <h1 id="workspace-title">{membership.business_name}</h1>
       <nav aria-label="Workspace sections" className={styles.nav}>
         <NavLink

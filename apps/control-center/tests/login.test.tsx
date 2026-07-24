@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { vi, expect, test } from 'vitest';
 import type { ApiResult, SessionResponse } from '@restaurant-engine/api-client';
 import {
+  adminSessionView,
   apiError,
   envelope,
   makeClient,
@@ -55,7 +56,7 @@ test('login establishes the authoritative session before navigating', async () =
   expect(loginOrder).toBeLessThan(establishOrder);
   // The protected landing rendered from the SessionView, not the login body.
   expect(
-    await screen.findByRole('heading', { name: /control center/i }),
+    await screen.findByRole('heading', { name: /restaurant dashboard/i }),
   ).toBeInTheDocument();
 });
 
@@ -76,6 +77,48 @@ test('login preserves a safe next destination', async () => {
     expect(router.state.location.pathname).toBe('/dest');
   });
   expect(router.state.location.search).toBe('?page=2');
+});
+
+test('a platform admin signing in with a stale owner deep link lands on the platform home, not Page Not Found', async () => {
+  const login = vi.fn(async () => ok(loginResponse()));
+  const getSession = vi
+    .fn()
+    .mockResolvedValueOnce(apiError(401, null)) // bootstrap: anonymous
+    .mockResolvedValue(ok(adminSessionView())); // establishes as admin
+  const { router } = renderApp(
+    '/login?next=' +
+      encodeURIComponent(
+        '/businesses/99999999-9999-4999-8999-999999999999/menu',
+      ),
+    makeClient({ auth: { login, getSession } }),
+  );
+
+  await fillAndSubmit();
+
+  // The admin holds no membership for that business, so the deep link would
+  // only reach a neutral not-found. They land on the platform home instead.
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe('/platform');
+  });
+  expect(screen.queryByRole('heading', { name: /page not found/i })).toBeNull();
+});
+
+test('an owner signing in with a platform deep link lands on their dashboard', async () => {
+  const login = vi.fn(async () => ok(loginResponse()));
+  const getSession = vi
+    .fn()
+    .mockResolvedValueOnce(apiError(401, null))
+    .mockResolvedValue(ok(sessionView())); // establishes as a non-admin owner
+  const { router } = renderApp(
+    '/login?next=' + encodeURIComponent('/platform/businesses'),
+    makeClient({ auth: { login, getSession } }),
+  );
+
+  await fillAndSubmit();
+
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe('/');
+  });
 });
 
 test('invalid credentials render the neutral summary and keep the form', async () => {

@@ -42,6 +42,40 @@
   margin: 0;
 }
 
+/* The one page-level action area (item 3): primary "Add menu item", then
+   "Add category", "Arrange categories", and the search — consistent and in
+   one place instead of competing per-card buttons. */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+
+.submitLink {
+  composes: submit from '../components/controls.module.css';
+  text-decoration: none;
+}
+
+.toolbarSearch {
+  display: flex;
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.toolbarSearch input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--target-min);
+  padding: 0 0.75rem;
+  font: inherit;
+  color: inherit;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
 .categoryActions {
   display: flex;
   gap: var(--space-1);
@@ -53,6 +87,16 @@
 .actionNote {
   color: var(--color-muted);
   font-size: 0.9rem;
+}
+
+/* A disabled action paired with the visible reason it is unavailable
+   (item 2). Wraps as a unit so the explanation never drifts away from the
+   control it belongs to on a narrow row. */
+.blockedAction {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
 }
 
 .quietLink {
@@ -77,6 +121,25 @@
   background: var(--color-warning-bg);
   border: 1px solid var(--color-warning);
   border-radius: var(--radius);
+}
+
+/* The category field plus its inline "create a new category" affordance and
+   the "Adding to:" context line (items 4/5). */
+.categoryField {
+  margin-bottom: var(--space-2);
+}
+
+.contextNote {
+  margin: 0 0 var(--space-1);
+  color: var(--color-muted);
+}
+
+/* One deliberate reading width for the item form (item 3): the primary
+   fields and the Dietary attributes share this container, so every section
+   lines up at a comfortable measure on desktop. It is a ceiling, not a fixed
+   width, so on a narrow screen the form stays fluid and single-column. */
+.formLayout {
+  max-width: 44rem;
 }
 
 .fieldset {
@@ -117,9 +180,13 @@
   margin-bottom: var(--space-2);
 }
 
-.availabilityState {
-  color: var(--color-muted);
-  font-size: 0.9rem;
+/* The single availability status word, shown only when a state to report
+   exists (sold out). Non-colour: it is the word, not the hue, that carries
+   the meaning (item 7, blueprint §12.4). */
+.soldOutStatus {
+  font-weight: 600;
+  color: var(--color-danger);
+  white-space: nowrap;
 }
 
 .actionsInline {
@@ -200,6 +267,15 @@
 .libraryMeta {
   font-size: 0.75rem;
   color: var(--color-warning);
+}
+
+/* Library-entry management, below its tile. Wraps rather than truncating:
+   at 320px the confirm pair does not fit beside a 7rem tile. */
+.libraryActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
 }
 
 /* --- Modifier groups --------------------------------------------------- */
@@ -306,7 +382,7 @@
 
 .reorderPosition {
   flex: none;
-  min-width: 2rem;
+  min-width: 5.5rem;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   color: var(--color-muted);
@@ -316,16 +392,6 @@
   flex: 1 1 8rem;
   font-weight: 600;
   overflow-wrap: anywhere;
-}
-
-.positionField input {
-  width: 4.5rem;
-  min-height: var(--target-min);
-  padding: 0 0.5rem;
-  font: inherit;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
 }
 
 /* Available to screen readers and to keyboard focus, not to sighted layout. */
@@ -356,29 +422,6 @@
   font-weight: 400;
   color: var(--color-muted);
   overflow-wrap: anywhere;
-}
-
-.filterRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-1);
-}
-
-.filterRow label {
-  font-weight: 600;
-}
-
-.filterRow input {
-  flex: 1 1 14rem;
-  min-height: var(--target-min);
-  padding: 0 0.75rem;
-  font: inherit;
-  color: inherit;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
 }
 
 .filterCount {
@@ -560,10 +603,6 @@
 
   .availability {
     margin-bottom: 0;
-  }
-
-  .reorderRow .positionField {
-    flex: 1 1 100%;
   }
 }
 

@@ -9,6 +9,7 @@
  * memory only and are never logged.
  */
 
+import { readFileSync } from 'node:fs';
 import { request, type APIRequestContext } from '@playwright/test';
 import { ADMIN, ORIGIN, type SpecNamespace } from './namespace';
 
@@ -38,15 +39,19 @@ export interface AdminApi {
   dispose: () => Promise<void>;
 }
 
-/** Authenticated platform-admin API session with its CSRF token. */
-export async function adminApi(): Promise<AdminApi> {
+/** Log in as anyone and derive the CSRF token exactly as the UI does. */
+async function loginApi(
+  email: string,
+  password: string,
+  who: string,
+): Promise<AdminApi> {
   const api = await newApiContext();
   const login = await api.post('/api/v1/auth/login', {
-    data: { email: ADMIN.email, password: ADMIN.password },
+    data: { email, password },
   });
-  await expectOk(login, 'admin login');
+  await expectOk(login, `${who} login`);
   const session = await api.get('/api/v1/auth/session');
-  await expectOk(session, 'admin session');
+  await expectOk(session, `${who} session`);
   const view = (await session.json()) as { csrf_token: string };
   return {
     api,
@@ -55,6 +60,16 @@ export async function adminApi(): Promise<AdminApi> {
       await api.dispose();
     },
   };
+}
+
+/** Authenticated platform-admin API session with its CSRF token. */
+export async function adminApi(): Promise<AdminApi> {
+  return loginApi(ADMIN.email, ADMIN.password, 'admin');
+}
+
+/** Authenticated session for a namespace's own owner. */
+export async function ownerApi(ns: SpecNamespace): Promise<AdminApi> {
+  return loginApi(ns.ownerEmail, ns.ownerPassword, `owner ${ns.slug}`);
 }
 
 export async function createBusiness(
@@ -123,6 +138,66 @@ export async function provisionBusinessWithOwner(
     return { businessId };
   } finally {
     await admin.dispose();
+  }
+}
+
+/**
+ * A visible, photographed menu item, created by the business's own owner.
+ *
+ * Used where a populated menu is the *prerequisite* rather than the
+ * subject — cross-business isolation needs something on the other side of
+ * the boundary to fail to reach. Building it through the UI is what
+ * `menu.spec.ts` does and is the journey there; here it would only make
+ * the boundary test slower. Every call is a real authorized request with
+ * the owner's own session and CSRF token; nothing bypasses authorization.
+ */
+export async function seedPhotographedItem(
+  ns: SpecNamespace,
+  businessId: string,
+  names: { category: string; item: string; altText: string },
+): Promise<void> {
+  const owner = await ownerApi(ns);
+  try {
+    const base = `/api/v1/businesses/${businessId}`;
+    const headers = { 'X-CSRF-Token': owner.csrf };
+
+    const category = await owner.api.post(`${base}/catalog/categories`, {
+      data: { name: names.category },
+      headers,
+    });
+    await expectOk(category, `create category for ${ns.slug}`);
+    const categoryId = ((await category.json()) as { id: string }).id;
+
+    const item = await owner.api.post(
+      `${base}/catalog/categories/${categoryId}/items`,
+      { data: { name: names.item, price_minor: 950 }, headers },
+    );
+    await expectOk(item, `create item for ${ns.slug}`);
+    const itemId = ((await item.json()) as { id: string }).id;
+
+    // The same committed fixture the menu journey uploads through the UI.
+    const upload = await owner.api.post(`${base}/media`, {
+      multipart: {
+        file: {
+          name: 'menu-item.png',
+          mimeType: 'image/png',
+          buffer: readFileSync('fixtures/menu-item.png'),
+        },
+      },
+      headers,
+    });
+    await expectOk(upload, `upload media for ${ns.slug}`);
+    const mediaId = ((await upload.json()) as { id: string }).id;
+
+    // Attaching is what promotes the asset from pending to active, which
+    // is what makes it eligible for public delivery at all.
+    const attach = await owner.api.post(
+      `${base}/catalog/items/${itemId}/image`,
+      { data: { media_id: mediaId, alt_text: names.altText }, headers },
+    );
+    await expectOk(attach, `attach image for ${ns.slug}`);
+  } finally {
+    await owner.dispose();
   }
 }
 

@@ -1,6 +1,12 @@
 // The media workflow (M3E, ADR-018 ruling 9/10): uploading, attaching,
 // detaching, and deleting are four different operations, and the alt-text
 // contract is followed exactly.
+//
+// Deletion moved into the library (the picker) in M3F: on the item it was
+// gated on the item still pointing at the asset, so it was offered only in
+// the state the backend must refuse, and taking its advice removed the
+// control. The tests below therefore drive deletion through the picker and
+// assert the entry actually leaves the library (ADR-019).
 
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
@@ -168,7 +174,7 @@ test('a described image sends its alt text', async () => {
   renderApp(EDITOR, client(undefined, { catalog: { setItemImage } }));
 
   fireEvent.click(await screen.findByRole('button', { name: 'Add a photo' }));
-  fireEvent.click(await screen.findByRole('button', { name: /samosa\.jpg/i }));
+  fireEvent.click(await screen.findByRole('button', { name: 'samosa.jpg' }));
   fireEvent.click(screen.getByLabelText('Describe this image'));
   fireEvent.change(screen.getByLabelText('Description'), {
     target: { value: 'Golden samosas on a banana leaf' },
@@ -190,7 +196,7 @@ test('a decorative image sends an explicit null alt text', async () => {
   renderApp(EDITOR, client(undefined, { catalog: { setItemImage } }));
 
   fireEvent.click(await screen.findByRole('button', { name: 'Add a photo' }));
-  fireEvent.click(await screen.findByRole('button', { name: /samosa\.jpg/i }));
+  fireEvent.click(await screen.findByRole('button', { name: 'samosa.jpg' }));
   fireEvent.click(screen.getByLabelText(/this image is decorative/i));
   fireEvent.click(screen.getByRole('button', { name: 'Use for this item' }));
 
@@ -209,7 +215,7 @@ test('a newly chosen image requires an explicit alt-text decision', async () => 
   renderApp(EDITOR, client());
 
   fireEvent.click(await screen.findByRole('button', { name: 'Add a photo' }));
-  fireEvent.click(await screen.findByRole('button', { name: /samosa\.jpg/i }));
+  fireEvent.click(await screen.findByRole('button', { name: 'samosa.jpg' }));
 
   // Neither branch is preselected, so omission has to be deliberate. This is
   // form-completeness guidance, not a backend rule — both branches are valid.
@@ -274,32 +280,73 @@ test('clearing an image sends media_id null and no alt-text key at all', async (
   });
 });
 
-test('removing from the item and deleting from the library are different actions', async () => {
-  const deleteAsset = vi.fn(async () => ok({ status: 'deleted' as const }));
-  const setItemImage = vi.fn(async () => ok(item({ id: 'i1' })));
+test('the item page offers no destroy action, only detach', async () => {
   renderApp(
     EDITOR,
-    client(item({ id: 'i1', category_id: 'c1', image_media_id: 'a1' }), {
-      catalog: { setItemImage },
-      media: { deleteAsset },
-    }),
+    client(item({ id: 'i1', category_id: 'c1', image_media_id: 'a1' })),
   );
 
   await screen.findByRole('button', { name: 'Remove from item' });
+  // The old control lived here and could never succeed: an asset visible on
+  // this page is by definition referenced by it. ("Delete this item" is the
+  // catalog action and is deliberately untouched.)
   expect(
-    screen.getByRole('button', { name: 'Delete from library' }),
+    screen.queryByRole('button', { name: 'Delete from library' }),
+  ).toBeNull();
+  expect(
+    screen.queryByRole('button', { name: 'Delete samosa.jpg' }),
+  ).toBeNull();
+  expect(
+    screen.getByRole('button', { name: 'Delete this item' }),
+  ).toBeInTheDocument();
+});
+
+test('an asset no longer used by any item can be deleted from the library', async () => {
+  // The state the previous design could not reach: the item has no image,
+  // so the asset is unreferenced and deletion is the operation that is
+  // finally both offered and legal.
+  let deleted = false;
+  const deleteAsset = vi.fn(async () => {
+    deleted = true;
+    return ok({ status: 'deleted' as const });
+  });
+  const listAssets = vi.fn(async () =>
+    ok({
+      items: deleted ? [] : [asset()],
+      total: deleted ? 0 : 1,
+      limit: 50,
+      offset: 0,
+    }),
+  );
+  const setItemImage = vi.fn(async () => ok(item({ id: 'i1' })));
+  renderApp(
+    EDITOR,
+    client(undefined, {
+      catalog: { setItemImage },
+      media: { deleteAsset, listAssets },
+    }),
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Add a photo' }));
+  expect(
+    await screen.findByRole('button', { name: 'samosa.jpg' }),
   ).toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole('button', { name: 'Delete from library' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Delete image' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Delete samosa.jpg' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
 
   await waitFor(() => {
     expect(deleteAsset).toHaveBeenCalledWith(SHALIK, 'a1', 'csrf-token-1');
   });
+  // The library refetches and the entry is gone from the rendered results —
+  // no local filtering, no stale-state workaround.
+  expect(await screen.findByText(/no images yet/i)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'samosa.jpg' })).toBeNull();
+  // Deleting never detaches anything on the client's initiative.
   expect(setItemImage).not.toHaveBeenCalled();
 });
 
-test('deleting a referenced asset explains the real reason', async () => {
+test('deleting a referenced asset explains the real reason and keeps it', async () => {
   const deleteAsset = vi.fn(async () =>
     apiError(409, envelope('conflict', 'the asset is referenced')),
   );
@@ -310,13 +357,62 @@ test('deleting a referenced asset explains the real reason', async () => {
     }),
   );
 
+  fireEvent.click(await screen.findByRole('button', { name: 'Replace photo' }));
   fireEvent.click(
-    await screen.findByRole('button', { name: 'Delete from library' }),
+    await screen.findByRole('button', { name: 'Delete samosa.jpg' }),
   );
-  fireEvent.click(screen.getByRole('button', { name: 'Delete image' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
 
   expect(
     await screen.findByText(/still used by a menu item/i),
+  ).toBeInTheDocument();
+  // Refused by the RESTRICT foreign key, so it is still there — and still
+  // offered, because removing it from the item makes the same action legal.
+  expect(
+    screen.getByRole('button', { name: 'samosa.jpg' }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: 'Delete samosa.jpg' }),
+  ).toBeInTheDocument();
+});
+
+test('the destructive step is separate and cancellable', async () => {
+  const deleteAsset = vi.fn(async () => ok({ status: 'deleted' as const }));
+  renderApp(EDITOR, client(undefined, { media: { deleteAsset } }));
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Add a photo' }));
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Delete samosa.jpg' }),
+  );
+  // Two deliberate actions: the first only asks.
+  expect(deleteAsset).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Keep' }));
+
+  expect(deleteAsset).not.toHaveBeenCalled();
+  expect(
+    screen.getByRole('button', { name: 'Delete samosa.jpg' }),
+  ).toBeInTheDocument();
+});
+
+test('each library entry names what it deletes, unambiguously', async () => {
+  const listAssets = vi.fn(async () =>
+    ok({
+      items: [asset(), asset({ id: 'a2', original_filename: 'chutney.jpg' })],
+      total: 2,
+      limit: 50,
+      offset: 0,
+    }),
+  );
+  renderApp(EDITOR, client(undefined, { media: { listAssets } }));
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Add a photo' }));
+  // Row actions carry their scope in the accessible name, so two entries
+  // never produce two controls with the same name (ADR-018).
+  expect(
+    await screen.findByRole('button', { name: 'Delete samosa.jpg' }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: 'Delete chutney.jpg' }),
   ).toBeInTheDocument();
 });
 
@@ -333,7 +429,7 @@ test('attaching an expired pending asset explains that it expired', async () => 
   renderApp(EDITOR, client(undefined, { catalog: { setItemImage } }));
 
   fireEvent.click(await screen.findByRole('button', { name: 'Add a photo' }));
-  fireEvent.click(await screen.findByRole('button', { name: /samosa\.jpg/i }));
+  fireEvent.click(await screen.findByRole('button', { name: 'samosa.jpg' }));
   fireEvent.click(screen.getByLabelText(/this image is decorative/i));
   fireEvent.click(screen.getByRole('button', { name: 'Use for this item' }));
 
@@ -522,7 +618,7 @@ test('the attach still blocks dismissal, unlike the upload', async () => {
   renderApp(EDITOR, client(undefined, { catalog: { setItemImage } }));
 
   fireEvent.click(await screen.findByRole('button', { name: 'Add a photo' }));
-  fireEvent.click(await screen.findByRole('button', { name: /samosa\.jpg/i }));
+  fireEvent.click(await screen.findByRole('button', { name: 'samosa.jpg' }));
   fireEvent.click(screen.getByLabelText(/this image is decorative/i));
   fireEvent.click(screen.getByRole('button', { name: 'Use for this item' }));
 
@@ -550,7 +646,13 @@ test('staff are offered no photo actions', async () => {
   await screen.findByRole('heading', { name: 'Photo' });
   expect(screen.queryByRole('button', { name: 'Replace photo' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Remove from item' })).toBeNull();
+  // Staff hold neither catalog nor media write, so the library is not
+  // reachable for them at all and no deletion affordance exists anywhere.
+  expect(screen.queryByRole('button', { name: 'Add a photo' })).toBeNull();
   expect(
     screen.queryByRole('button', { name: 'Delete from library' }),
+  ).toBeNull();
+  expect(
+    screen.queryByRole('button', { name: 'Delete samosa.jpg' }),
   ).toBeNull();
 });

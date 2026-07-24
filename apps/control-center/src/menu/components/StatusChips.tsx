@@ -6,21 +6,19 @@ import styles from '../menu.module.css';
  * An item's states, as words.
  *
  * Every chip carries its own text, so nothing depends on colour being
- * perceived (blueprint §12.4). A visible, available, unfeatured item shows
- * no chip at all: absence is the signal for "normal", which keeps a long
- * menu readable instead of turning every row into a wall of badges.
+ * perceived (blueprint §12.4). A visible, unfeatured item shows no chip at
+ * all: absence is the signal for "normal", which keeps a long menu readable
+ * instead of turning every row into a wall of badges.
  *
- * Hidden and sold out are separate states and are never merged
- * (ADR-017/docs/03) — a sold-out item is still listed publicly, a hidden one
- * is not.
+ * Sold-out is deliberately absent here: availability has one home now — the
+ * availability control (item 7) — so it is not also shown as a chip. Hidden
+ * and sold out remain separate states (ADR-017/docs/03); this component just
+ * no longer duplicates the availability one.
  */
 export function StatusChips({ item }: { item: ItemSummary }) {
   return (
     <span className={styles.chips}>
       {item.is_hidden && <span className={styles.chipHidden}>Hidden</span>}
-      {!item.is_available && (
-        <span className={styles.chipSoldOut}>Sold out</span>
-      )}
       {item.is_featured && (
         <span className={styles.chipFeatured}>Featured</span>
       )}
