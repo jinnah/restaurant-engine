@@ -1301,3 +1301,223 @@ def test_m4a_constraints_and_round_trip_with_real_rows(empty_database_url: str) 
         assert "storefront_versions" in set(inspect(engine).get_table_names())
     finally:
         engine.dispose()
+
+
+# Every publication-state combination the schema must accept or reject.
+# Each entry is (label, state, version_number, published_at, published_by,
+# expected_constraint | None). ``None`` for the constraint means "rejected,
+# but by which named CHECK is not pinned" -- see the test docstring.
+_PUB = "2026-07-26T00:00:00Z"
+
+_VALID_PUBLICATION_ROWS = (
+    ("draft carries no number and no publication", "draft", None, None, False),
+    ("published carries a positive number and both fields", "published", 1, _PUB, True),
+    ("archived carries a positive number and both fields", "archived", 2, _PUB, True),
+)
+
+_INVALID_PUBLICATION_ROWS = (
+    # state, num, pub_at, pub_by, expected constraint (None = not pinned)
+    (
+        "published with both publication fields null",
+        "published",
+        5,
+        None,
+        False,
+        "ck_storefront_versions_draft_not_published",
+    ),
+    (
+        "archived with both publication fields null",
+        "archived",
+        5,
+        None,
+        False,
+        "ck_storefront_versions_draft_not_published",
+    ),
+    (
+        "published with only published_at populated",
+        "published",
+        5,
+        _PUB,
+        False,
+        "ck_storefront_versions_publication_pairing",
+    ),
+    (
+        "archived with only published_at populated",
+        "archived",
+        5,
+        _PUB,
+        False,
+        "ck_storefront_versions_publication_pairing",
+    ),
+    # Two CHECKs are violated at once here (pairing, and draft_not_published
+    # because published_at is null on a non-draft), so the reported name is
+    # PostgreSQL's choice and is deliberately not pinned.
+    ("published with only published_by populated", "published", 5, None, True, None),
+    ("archived with only published_by populated", "archived", 5, None, True, None),
+    (
+        "published with a null version_number",
+        "published",
+        None,
+        _PUB,
+        True,
+        "ck_storefront_versions_draft_has_no_version_number",
+    ),
+    (
+        "archived with a null version_number",
+        "archived",
+        None,
+        _PUB,
+        True,
+        "ck_storefront_versions_draft_has_no_version_number",
+    ),
+    (
+        "draft with both publication fields populated",
+        "draft",
+        None,
+        _PUB,
+        True,
+        "ck_storefront_versions_draft_not_published",
+    ),
+    (
+        "draft with only published_by populated",
+        "draft",
+        None,
+        None,
+        True,
+        "ck_storefront_versions_publication_pairing",
+    ),
+    # Also two at once (draft_not_published and pairing); not pinned.
+    ("draft with only published_at populated", "draft", None, _PUB, False, None),
+    (
+        "draft carrying a version number",
+        "draft",
+        3,
+        None,
+        False,
+        "ck_storefront_versions_draft_has_no_version_number",
+    ),
+    (
+        "zero version_number",
+        "archived",
+        0,
+        _PUB,
+        True,
+        "ck_storefront_versions_version_number_positive",
+    ),
+    (
+        "negative version_number",
+        "archived",
+        -1,
+        _PUB,
+        True,
+        "ck_storefront_versions_version_number_positive",
+    ),
+)
+
+
+def test_m4a_publication_state_truth_table(empty_database_url: str) -> None:
+    """The publication-state truth table, enforced by the database (ADR-020).
+
+    | state     | version_number    | published_at | published_by_user_id |
+    | --------- | ----------------- | ------------ | -------------------- |
+    | draft     | NULL              | NULL         | NULL                 |
+    | published | positive non-null | non-null     | non-null             |
+    | archived  | positive non-null | non-null     | non-null             |
+
+    Three CHECKs carry it between them --
+    ``draft_has_no_version_number``, ``draft_not_published``, and
+    ``publication_pairing`` -- plus ``version_number_positive``. Each row of
+    the table is exercised independently rather than trusting one state to
+    stand for the others, because the constraints are written in terms of
+    ``state = 'draft'`` and would not notice a mistake that only affects
+    ``published``.
+
+    Two invalid combinations violate **two** CHECKs simultaneously (a
+    non-draft row with only ``published_by_user_id``, and a draft with only
+    ``published_at``). PostgreSQL reports whichever it detects first, so
+    those two assert rejection without pinning a constraint name; every
+    other row pins the exact named CHECK.
+
+    Model-level validation is not consulted anywhere here: rows are inserted
+    with raw SQL against the migrated schema.
+    """
+    config = _config(empty_database_url)
+    command.upgrade(config, "head")
+
+    engine = create_engine(empty_database_url, connect_args={"connect_timeout": 3})
+    try:
+        with engine.begin() as connection:
+            user_id = connection.execute(
+                text(
+                    "INSERT INTO users (id, email, email_normalized, display_name,"
+                    " password_hash, is_platform_admin, is_active, failed_login_count)"
+                    " VALUES (gen_random_uuid(), 't@x.com', 't@x.com', 'T', 'h', false,"
+                    " true, 0) RETURNING id"
+                )
+            ).scalar_one()
+            # One business per accepted row: the draft and published
+            # singletons would otherwise mask a CHECK result.
+            valid_businesses = [
+                connection.execute(
+                    text(
+                        "INSERT INTO businesses (id, name, slug, status) VALUES"
+                        " (gen_random_uuid(), :n, :s, 'active') RETURNING id"
+                    ),
+                    {"n": f"V{index}", "s": f"tt-valid-{index}"},
+                ).scalar_one()
+                for index in range(len(_VALID_PUBLICATION_ROWS))
+            ]
+            reject_business = connection.execute(
+                text(
+                    "INSERT INTO businesses (id, name, slug, status) VALUES"
+                    " (gen_random_uuid(), 'R', 'tt-reject', 'active') RETURNING id"
+                )
+            ).scalar_one()
+
+        insert = (
+            "INSERT INTO storefront_versions (id, business_id, state, version_number,"
+            " schema_version, design_variant, config, lock_version, published_at,"
+            " published_by_user_id) VALUES (gen_random_uuid(), :bid, :state, :num, 1,"
+            " 'classic', CAST(:cfg AS jsonb), 0, :pub_at, :pub_by)"
+        )
+
+        def _params(
+            business_id: object,
+            state: str,
+            num: int | None,
+            pub_at: str | None,
+            pub_by: bool,
+        ) -> dict[str, object]:
+            return {
+                "bid": business_id,
+                "state": state,
+                "num": num,
+                "cfg": _CONFIG,
+                "pub_at": pub_at,
+                "pub_by": user_id if pub_by else None,
+            }
+
+        # Every valid row is storable.
+        for business_id, (label, state, num, pub_at, pub_by) in zip(
+            valid_businesses, _VALID_PUBLICATION_ROWS, strict=True
+        ):
+            with engine.begin() as connection:
+                connection.execute(text(insert), _params(business_id, state, num, pub_at, pub_by))
+            assert True, label
+
+        # Every invalid row is refused by the database.
+        for label, state, num, pub_at, pub_by, expected in _INVALID_PUBLICATION_ROWS:
+            try:
+                with engine.begin() as connection:
+                    connection.execute(
+                        text(insert), _params(reject_business, state, num, pub_at, pub_by)
+                    )
+            except Exception as exc:
+                if expected is not None:
+                    assert expected in str(exc), (
+                        f"{label}: expected {expected!r} to be the violated constraint, got: {exc}"
+                    )
+                continue
+            raise AssertionError(f"{label}: must be rejected by the database")
+    finally:
+        engine.dispose()

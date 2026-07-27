@@ -179,10 +179,20 @@ class StorefrontVersion(Base):
         # one; drafts (NULL) are excluded rather than relying on NULL
         # distinctness, so the intent is readable in the schema.
         #
-        # This is also the owner-facing history index. A separate descending
-        # index would be redundant: PostgreSQL scans a b-tree backwards at
-        # the same cost, so ``ORDER BY version_number DESC`` for one
-        # business is already served here.
+        # This is also the owner-facing history index, and no separate
+        # descending index exists — measured, not assumed: with an ordered
+        # path available PostgreSQL answers
+        # ``WHERE business_id = ? AND version_number IS NOT NULL
+        #   ORDER BY version_number DESC``
+        # with ``Index Scan Backward`` on this index and **no Sort node**.
+        #
+        # The M4B history query must therefore carry the predicate
+        # ``version_number IS NOT NULL`` literally. A partial index is only
+        # considered when the query implies its predicate, and PostgreSQL's
+        # prover does not consult CHECK constraints: the equivalent-looking
+        # ``state <> 'draft'`` does **not** qualify, even though
+        # ``draft_has_no_version_number`` makes the two conditions identical
+        # in practice (measured: that form falls back to a sequential scan).
         Index(
             "uq_storefront_versions_business_id_version_number",
             "business_id",
