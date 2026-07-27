@@ -66,7 +66,8 @@ def test_upgrade_head_runs_on_empty_database(empty_database_url: str) -> None:
     try:
         tables = set(inspect(engine).get_table_names())
         # M2A identity/audit + M2B tenancy + M2D onboarding/recovery/
-        # entitlements + M3A catalog core + M3B modifiers + M3C media.
+        # entitlements + M3A catalog core + M3B modifiers + M3C media +
+        # M4A storefront foundation.
         assert tables == {
             "alembic_version",
             "users",
@@ -84,6 +85,7 @@ def test_upgrade_head_runs_on_empty_database(empty_database_url: str) -> None:
             "modifier_options",
             "media_assets",
             "media_asset_variants",
+            "storefront_versions",
         }
         with engine.connect() as connection:
             version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar()
@@ -212,6 +214,7 @@ def test_model_metadata_matches_migrated_schema(empty_database_url: str) -> None
     from app.domains.catalog import models as _catalog_models  # noqa: F401
     from app.domains.identity import models as _identity_models  # noqa: F401
     from app.domains.media import models as _media_models  # noqa: F401
+    from app.domains.storefront import models as _storefront_models  # noqa: F401
 
     config = _config(empty_database_url)
     command.upgrade(config, "head")
@@ -1026,5 +1029,495 @@ def test_m3c_constraints_and_round_trip_with_real_rows(empty_database_url: str) 
         assert "image_alt_text" not in item_columns
         command.upgrade(config, "head")
         assert "media_asset_variants" in set(inspect(engine).get_table_names())
+    finally:
+        engine.dispose()
+
+
+# The M3C revision (down_revision of the M4A storefront migration).
+_M3C_REVISION = "59b463781dcc"
+
+_CONFIG = '{"schema_version": 1, "theme": {"accent": "#a34b2a"}, "sections": []}'
+
+
+def test_m4a_applies_over_m3_data_without_rewriting_it(empty_database_url: str) -> None:
+    """The additive claim, proved rather than asserted (ADR-020).
+
+    Migrates to the **pre-M4A** head, writes real M3 rows, then applies
+    M4A. The M3 rows must survive byte-identical: M4A adds one table and
+    alters nothing, so no existing row may be rewritten — this is the
+    evidence behind running it against a database that already holds data.
+    """
+    config = _config(empty_database_url)
+    command.upgrade(config, _M3C_REVISION)
+
+    engine = create_engine(empty_database_url, connect_args={"connect_timeout": 3})
+    try:
+        with engine.begin() as connection:
+            business_id = connection.execute(
+                text(
+                    "INSERT INTO businesses (id, name, slug, status) VALUES"
+                    " (gen_random_uuid(), 'Preserved', 'preserved', 'active') RETURNING id"
+                )
+            ).scalar_one()
+            category_id = connection.execute(
+                text(
+                    "INSERT INTO menu_categories (id, business_id, name, position,"
+                    " is_visible) VALUES (gen_random_uuid(), :bid, 'Mains', 0, true)"
+                    " RETURNING id"
+                ),
+                {"bid": business_id},
+            ).scalar_one()
+            connection.execute(
+                text(
+                    "INSERT INTO menu_items (id, business_id, category_id, name,"
+                    " price_minor, position, is_available, is_hidden, is_featured)"
+                    " VALUES (gen_random_uuid(), :bid, :cid, 'Kacchi', 1500, 0, true,"
+                    " false, false)"
+                ),
+                {"bid": business_id, "cid": category_id},
+            )
+
+        def _snapshot() -> list[tuple[object, ...]]:
+            with engine.connect() as connection:
+                return [
+                    tuple(row)
+                    for row in connection.execute(
+                        text(
+                            "SELECT id, business_id, name, price_minor, created_at,"
+                            " updated_at FROM menu_items ORDER BY id"
+                        )
+                    )
+                ]
+
+        before = _snapshot()
+        assert len(before) == 1
+
+        command.upgrade(config, "head")
+
+        assert _snapshot() == before, "M4A must not rewrite any existing row"
+        assert "storefront_versions" in set(inspect(engine).get_table_names())
+        with engine.connect() as connection:
+            assert (
+                connection.execute(text("SELECT count(*) FROM storefront_versions")).scalar_one()
+                == 0
+            ), "M4A backfills nothing"
+    finally:
+        engine.dispose()
+
+
+def test_m4a_constraints_and_round_trip_with_real_rows(empty_database_url: str) -> None:
+    """M4A ``storefront_versions`` behaves with real data (ADR-020).
+
+    Exercises the two partial-unique singletons, the draft/version-number
+    and publication pairings, the value-domain CHECKs, the JSONB object
+    CHECK, the tenant-safe composite self-FK for provenance, and the
+    RESTRICT protections; then proves the downgrade drops the table with
+    earlier data intact and the chain re-applies. Scratch database only.
+
+    Every rejection perturbs exactly **one** field of a valid row. That
+    matters here: a non-draft row must carry publication fields, so a
+    casually built fixture violates two CHECKs at once and PostgreSQL is
+    free to report either — the test would then pass or fail depending on
+    which constraint it happened to name.
+    """
+    config = _config(empty_database_url)
+    command.upgrade(config, "head")
+
+    engine = create_engine(empty_database_url, connect_args={"connect_timeout": 3})
+    try:
+        with engine.begin() as connection:
+            user_id = connection.execute(
+                text(
+                    "INSERT INTO users (id, email, email_normalized, display_name,"
+                    " password_hash, is_platform_admin, is_active, failed_login_count)"
+                    " VALUES (gen_random_uuid(), 'o@x.com', 'o@x.com', 'O', 'h', false,"
+                    " true, 0) RETURNING id"
+                )
+            ).scalar_one()
+            business_a, business_b, business_c = (
+                connection.execute(
+                    text(
+                        "INSERT INTO businesses (id, name, slug, status) VALUES"
+                        " (gen_random_uuid(), :name, :slug, 'active') RETURNING id"
+                    ),
+                    {"name": name, "slug": slug},
+                ).scalar_one()
+                for name, slug in (("A", "sf-a"), ("B", "sf-b"), ("C", "sf-c"))
+            )
+            draft_a = connection.execute(
+                text(
+                    "INSERT INTO storefront_versions (id, business_id, state,"
+                    " schema_version, design_variant, config, lock_version) VALUES"
+                    " (gen_random_uuid(), :bid, 'draft', 1, 'classic',"
+                    " CAST(:cfg AS jsonb), 0) RETURNING id"
+                ),
+                {"bid": business_a, "cfg": _CONFIG},
+            ).scalar_one()
+
+        insert = (
+            "INSERT INTO storefront_versions (id, business_id, state, version_number,"
+            " schema_version, design_variant, config, lock_version, source_version_id,"
+            " published_at, published_by_user_id) VALUES (gen_random_uuid(), :bid,"
+            " :state, :num, :schema, :variant, CAST(:cfg AS jsonb), :lock, :src,"
+            " :pub_at, :pub_by)"
+        )
+
+        def _rejected_with(statement: str, params: dict[str, object], fragment: str) -> None:
+            try:
+                with engine.begin() as connection:
+                    connection.execute(text(statement), params)
+            except Exception as exc:
+                assert fragment in str(exc), (
+                    f"expected {fragment!r} to be the violated constraint, got: {exc}"
+                )
+                return
+            raise AssertionError(f"statement must be rejected by {fragment!r}")
+
+        def _accepted(params: dict[str, object]) -> None:
+            with engine.begin() as connection:
+                connection.execute(text(insert), params)
+
+        # A *valid* archived row for business C; every rejection below changes
+        # exactly one field of it.
+        archived: dict[str, object] = {
+            "bid": business_c,
+            "state": "archived",
+            "num": 1,
+            "schema": 1,
+            "variant": "classic",
+            "cfg": _CONFIG,
+            "lock": 0,
+            "src": None,
+            "pub_at": "2026-07-26T00:00:00Z",
+            "pub_by": user_id,
+        }
+        # The corresponding valid draft shape: no number, no publication.
+        draft: dict[str, object] = {
+            **archived,
+            "state": "draft",
+            "num": None,
+            "pub_at": None,
+            "pub_by": None,
+        }
+
+        # --- The two singletons ----------------------------------------------
+        _rejected_with(insert, {**draft, "bid": business_a}, "uq_storefront_versions_one_draft")
+        _accepted({**draft, "bid": business_b})  # another business may have its own
+        _accepted({**archived, "bid": business_a, "state": "published"})
+        _rejected_with(
+            insert,
+            {**archived, "bid": business_a, "state": "published", "num": 2},
+            "uq_storefront_versions_one_published",
+        )
+
+        # --- Draft / version-number pairing, in both directions ---------------
+        _rejected_with(
+            insert, {**draft, "num": 7}, "ck_storefront_versions_draft_has_no_version_number"
+        )
+        _rejected_with(
+            insert, {**archived, "num": None}, "ck_storefront_versions_draft_has_no_version_number"
+        )
+
+        # --- Publication fields: paired, and never on a draft ------------------
+        _rejected_with(
+            insert, {**archived, "pub_by": None}, "ck_storefront_versions_publication_pairing"
+        )
+        _rejected_with(
+            insert,
+            {**archived, "pub_at": None, "pub_by": None},
+            "ck_storefront_versions_draft_not_published",
+        )
+
+        # --- Value domains -----------------------------------------------------
+        _rejected_with(
+            insert, {**archived, "state": "retired"}, "ck_storefront_versions_state_valid"
+        )
+        _rejected_with(
+            insert, {**archived, "num": 0}, "ck_storefront_versions_version_number_positive"
+        )
+        _rejected_with(
+            insert, {**archived, "lock": -1}, "ck_storefront_versions_lock_version_nonnegative"
+        )
+        _rejected_with(
+            insert, {**archived, "schema": 0}, "ck_storefront_versions_schema_version_positive"
+        )
+        _rejected_with(
+            insert, {**archived, "variant": ""}, "ck_storefront_versions_design_variant_not_empty"
+        )
+        # ``config`` is an object — never an array, string, number, or JSON null.
+        for not_an_object in ("[]", '"text"', "42", "null"):
+            _rejected_with(
+                insert,
+                {**archived, "cfg": not_an_object},
+                "ck_storefront_versions_config_is_object",
+            )
+
+        # --- Provenance: never itself, never another tenant's version ----------
+        _rejected_with(
+            "UPDATE storefront_versions SET source_version_id = id WHERE id = :vid",
+            {"vid": draft_a},
+            "ck_storefront_versions_source_not_self",
+        )
+        _rejected_with(
+            "UPDATE storefront_versions SET source_version_id = :src WHERE business_id = :bid",
+            {"src": draft_a, "bid": business_b},
+            "fk_storefront_versions_source_version",
+        )
+        # ...but a same-business reference is exactly what publish and restore need.
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE storefront_versions SET source_version_id = :src"
+                    " WHERE business_id = :bid AND state = 'published'"
+                ),
+                {"src": draft_a, "bid": business_a},
+            )
+
+        # --- Version numbers: unique per business, independent across them -----
+        _accepted(archived)
+        _rejected_with(insert, archived, "uq_storefront_versions_business_id_version_number")
+        _accepted({**archived, "bid": business_b, "num": 1})
+
+        # --- RESTRICT in both directions ---------------------------------------
+        _rejected_with(
+            "DELETE FROM businesses WHERE id = :bid",
+            {"bid": business_a},
+            "fk_storefront_versions_business_id_businesses",
+        )
+        _rejected_with(
+            "DELETE FROM users WHERE id = :uid",
+            {"uid": user_id},
+            "fk_storefront_versions_published_by_user_id_users",
+        )
+
+        # --- Round trip ---------------------------------------------------------
+        command.downgrade(config, _M3C_REVISION)
+        tables = set(inspect(engine).get_table_names())
+        assert "storefront_versions" not in tables
+        assert {"businesses", "menu_items", "media_assets", "users"} <= tables
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT count(*) FROM businesses")).scalar_one() == 3
+        command.upgrade(config, "head")
+        assert "storefront_versions" in set(inspect(engine).get_table_names())
+    finally:
+        engine.dispose()
+
+
+# Every publication-state combination the schema must accept or reject.
+# Each entry is (label, state, version_number, published_at, published_by,
+# expected_constraint | None). ``None`` for the constraint means "rejected,
+# but by which named CHECK is not pinned" -- see the test docstring.
+_PUB = "2026-07-26T00:00:00Z"
+
+_VALID_PUBLICATION_ROWS = (
+    ("draft carries no number and no publication", "draft", None, None, False),
+    ("published carries a positive number and both fields", "published", 1, _PUB, True),
+    ("archived carries a positive number and both fields", "archived", 2, _PUB, True),
+)
+
+_INVALID_PUBLICATION_ROWS = (
+    # state, num, pub_at, pub_by, expected constraint (None = not pinned)
+    (
+        "published with both publication fields null",
+        "published",
+        5,
+        None,
+        False,
+        "ck_storefront_versions_draft_not_published",
+    ),
+    (
+        "archived with both publication fields null",
+        "archived",
+        5,
+        None,
+        False,
+        "ck_storefront_versions_draft_not_published",
+    ),
+    (
+        "published with only published_at populated",
+        "published",
+        5,
+        _PUB,
+        False,
+        "ck_storefront_versions_publication_pairing",
+    ),
+    (
+        "archived with only published_at populated",
+        "archived",
+        5,
+        _PUB,
+        False,
+        "ck_storefront_versions_publication_pairing",
+    ),
+    # Two CHECKs are violated at once here (pairing, and draft_not_published
+    # because published_at is null on a non-draft), so the reported name is
+    # PostgreSQL's choice and is deliberately not pinned.
+    ("published with only published_by populated", "published", 5, None, True, None),
+    ("archived with only published_by populated", "archived", 5, None, True, None),
+    (
+        "published with a null version_number",
+        "published",
+        None,
+        _PUB,
+        True,
+        "ck_storefront_versions_draft_has_no_version_number",
+    ),
+    (
+        "archived with a null version_number",
+        "archived",
+        None,
+        _PUB,
+        True,
+        "ck_storefront_versions_draft_has_no_version_number",
+    ),
+    (
+        "draft with both publication fields populated",
+        "draft",
+        None,
+        _PUB,
+        True,
+        "ck_storefront_versions_draft_not_published",
+    ),
+    (
+        "draft with only published_by populated",
+        "draft",
+        None,
+        None,
+        True,
+        "ck_storefront_versions_publication_pairing",
+    ),
+    # Also two at once (draft_not_published and pairing); not pinned.
+    ("draft with only published_at populated", "draft", None, _PUB, False, None),
+    (
+        "draft carrying a version number",
+        "draft",
+        3,
+        None,
+        False,
+        "ck_storefront_versions_draft_has_no_version_number",
+    ),
+    (
+        "zero version_number",
+        "archived",
+        0,
+        _PUB,
+        True,
+        "ck_storefront_versions_version_number_positive",
+    ),
+    (
+        "negative version_number",
+        "archived",
+        -1,
+        _PUB,
+        True,
+        "ck_storefront_versions_version_number_positive",
+    ),
+)
+
+
+def test_m4a_publication_state_truth_table(empty_database_url: str) -> None:
+    """The publication-state truth table, enforced by the database (ADR-020).
+
+    | state     | version_number    | published_at | published_by_user_id |
+    | --------- | ----------------- | ------------ | -------------------- |
+    | draft     | NULL              | NULL         | NULL                 |
+    | published | positive non-null | non-null     | non-null             |
+    | archived  | positive non-null | non-null     | non-null             |
+
+    Three CHECKs carry it between them --
+    ``draft_has_no_version_number``, ``draft_not_published``, and
+    ``publication_pairing`` -- plus ``version_number_positive``. Each row of
+    the table is exercised independently rather than trusting one state to
+    stand for the others, because the constraints are written in terms of
+    ``state = 'draft'`` and would not notice a mistake that only affects
+    ``published``.
+
+    Two invalid combinations violate **two** CHECKs simultaneously (a
+    non-draft row with only ``published_by_user_id``, and a draft with only
+    ``published_at``). PostgreSQL reports whichever it detects first, so
+    those two assert rejection without pinning a constraint name; every
+    other row pins the exact named CHECK.
+
+    Model-level validation is not consulted anywhere here: rows are inserted
+    with raw SQL against the migrated schema.
+    """
+    config = _config(empty_database_url)
+    command.upgrade(config, "head")
+
+    engine = create_engine(empty_database_url, connect_args={"connect_timeout": 3})
+    try:
+        with engine.begin() as connection:
+            user_id = connection.execute(
+                text(
+                    "INSERT INTO users (id, email, email_normalized, display_name,"
+                    " password_hash, is_platform_admin, is_active, failed_login_count)"
+                    " VALUES (gen_random_uuid(), 't@x.com', 't@x.com', 'T', 'h', false,"
+                    " true, 0) RETURNING id"
+                )
+            ).scalar_one()
+            # One business per accepted row: the draft and published
+            # singletons would otherwise mask a CHECK result.
+            valid_businesses = [
+                connection.execute(
+                    text(
+                        "INSERT INTO businesses (id, name, slug, status) VALUES"
+                        " (gen_random_uuid(), :n, :s, 'active') RETURNING id"
+                    ),
+                    {"n": f"V{index}", "s": f"tt-valid-{index}"},
+                ).scalar_one()
+                for index in range(len(_VALID_PUBLICATION_ROWS))
+            ]
+            reject_business = connection.execute(
+                text(
+                    "INSERT INTO businesses (id, name, slug, status) VALUES"
+                    " (gen_random_uuid(), 'R', 'tt-reject', 'active') RETURNING id"
+                )
+            ).scalar_one()
+
+        insert = (
+            "INSERT INTO storefront_versions (id, business_id, state, version_number,"
+            " schema_version, design_variant, config, lock_version, published_at,"
+            " published_by_user_id) VALUES (gen_random_uuid(), :bid, :state, :num, 1,"
+            " 'classic', CAST(:cfg AS jsonb), 0, :pub_at, :pub_by)"
+        )
+
+        def _params(
+            business_id: object,
+            state: str,
+            num: int | None,
+            pub_at: str | None,
+            pub_by: bool,
+        ) -> dict[str, object]:
+            return {
+                "bid": business_id,
+                "state": state,
+                "num": num,
+                "cfg": _CONFIG,
+                "pub_at": pub_at,
+                "pub_by": user_id if pub_by else None,
+            }
+
+        # Every valid row is storable.
+        for business_id, (label, state, num, pub_at, pub_by) in zip(
+            valid_businesses, _VALID_PUBLICATION_ROWS, strict=True
+        ):
+            with engine.begin() as connection:
+                connection.execute(text(insert), _params(business_id, state, num, pub_at, pub_by))
+            assert True, label
+
+        # Every invalid row is refused by the database.
+        for label, state, num, pub_at, pub_by, expected in _INVALID_PUBLICATION_ROWS:
+            try:
+                with engine.begin() as connection:
+                    connection.execute(
+                        text(insert), _params(reject_business, state, num, pub_at, pub_by)
+                    )
+            except Exception as exc:
+                if expected is not None:
+                    assert expected in str(exc), (
+                        f"{label}: expected {expected!r} to be the violated constraint, got: {exc}"
+                    )
+                continue
+            raise AssertionError(f"{label}: must be rejected by the database")
     finally:
         engine.dispose()

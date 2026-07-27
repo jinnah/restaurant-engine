@@ -24,7 +24,8 @@ initial architecture-contract commit.
 | M1 — Platform foundation                                       | **Complete** (2026-07-15)                        |
 | M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                        |
 | M3 — Catalog and media                                         | **Complete** (2026-07-23)                        |
-| M4 – M8 — Storefront, hours, ordering, operations, pilot       | Not started                                      |
+| M4 — Storefront composition and publication                    | **In progress** — M4A delivered (2026-07-26)     |
+| M5 – M8 — Hours, ordering, operations, pilot                   | Not started                                      |
 | M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23) |
 
 ## Milestone 3 delivery decision (2026-07-19)
@@ -77,11 +78,33 @@ Merge evidence (PR #17):
 - PR #17 also carried the owner-UAT menu/interface corrections and the
   commercial roadmap reconciliation.
 
-M4 has not started. The future commitments recorded by the reconciliation
-(customer ordering and order management, promotions and checkout-integrated
-discounts, pop-up campaigns, Facebook Page publishing, the expanded Control
-Center, and later notifications/payments/delivery/POS/reporting) remain future
-work in milestones M4—M11 and are not implemented by this close-out.
+M4 had not started at this close-out. The future commitments recorded by the
+reconciliation (customer ordering and order management, promotions and
+checkout-integrated discounts, pop-up campaigns, Facebook Page publishing,
+the expanded Control Center, and later
+notifications/payments/delivery/POS/reporting) remain future work in
+milestones M4—M11 and are not implemented by this close-out.
+
+## Milestone 4 delivery decision (2026-07-26)
+
+The approved M4 architecture (ADR-020, with binding rulings D1–D9)
+subdivides M4 into six independently reviewed sub-milestones, one PR each.
+M4A–M4C are strictly sequential; M4D and M4E may proceed in parallel once
+M4C lands; M4F depends on all of them.
+
+| Sub                                     | Scope                                                                                                                            | State                              |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| **M4A** — Storefront foundation         | storefront domain, section registry, design-variant registry, composition contract, `storefront_versions` persistence, migration | **Complete** (2026-07-26, ADR-020) |
+| **M4B** — Administrative API            | draft read/update, publication, restore, platform design assignment, capabilities, audit actions, media claiming                 | Not started                        |
+| **M4C** — Public projection and caching | public storefront endpoint, media predicate extension, bounded business-keyed caching                                            | Not started                        |
+| **M4D** — Server-rendered storefront    | `apps/storefront` rendering, section renderers, SEO basics, performance/accessibility budgets, Bengali rendering verification    | Not started                        |
+| **M4E** — Control-center workspace      | storefront workspace: edit, reorder, preview, publish, history, restore                                                          | Not started                        |
+| **M4F** — E2E and close-out             | mandatory journeys 2 and 3, verification, final documentation                                                                    | Not started                        |
+
+M4A delivers the foundation only: registries, the composition contract, and
+one additive table. It ships **no** routers, services, commands, media
+claiming, preview, public projection, caching, or UI — those are M4B–M4E.
+Milestone 4's exit criteria (blueprint §19) remain open until M4F.
 
 ## Milestone 2 delivery decision (2026-07-16)
 

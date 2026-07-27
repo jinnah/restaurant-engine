@@ -189,6 +189,34 @@ Versioned, schema-validated configuration:
 - Every persisted config validates against the schema registry; every
   published config must be renderable by the deployed storefront.
 
+**Implemented foundation (M4A, ADR-020).** Storefront owns
+`storefront_versions` — one tenant-owned table holding every draft,
+published, and archived composition. Two partial unique indexes carry the
+§9.2 singletons (at most one `draft` and at most one `published` per
+business). A draft is the single mutable working copy and carries
+`version_number IS NULL`; **version numbers are minted only at
+publication**, and a paired CHECK ties those two facts together in both
+directions. `design_variant` lives on the version row, never on
+`businesses`, so published and archived versions keep the variant they were
+rendered with. `lock_version` is the optimistic-concurrency token for the
+draft (closing the ADR-017 D5 deferral for composition; catalog keeps its
+row-lock semantics). Provenance (`source_version_id`) is a tenant-safe
+composite self FK, so a version can only ever be seeded or restored from
+its own business's versions.
+
+The section registry is a code-owned typed discriminated union — `hero`,
+`menu`, `story`, `contact`, `gallery` — with strict unknown-field
+rejection, at most one section per type (the standing guard against a
+page builder), plain text only (no rich text, HTML, CSS, or JavaScript),
+NFC normalization for Unicode-safe Bengali copy, and control characters
+rejected rather than stripped. It deliberately carries **no** hours or
+"open now" field (M5), **no** ordering section or ordering call to action
+(M6 — `hero.primary_action` is a closed enum of `none` and `view_menu`,
+ordinary navigation), and no campaign concepts (M10). The design-variant
+registry is likewise code-owned with an explicit platform default. Services,
+APIs, publication and restore commands, media claiming, preview, the public
+projection, and caching are M4B/M4C.
+
 ## Media
 
 Business domains store **media identifiers, not filesystem paths**, behind a
