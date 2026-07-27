@@ -400,7 +400,7 @@ must decide how the first is migrated or rejected.
 
 ## Delivery record
 
-### M4A — Storefront foundation: delivered (local), 2026-07-26
+### M4A — Storefront foundation: delivered, 2026-07-26 (merged 2026-07-27)
 
 One migration (`a41d9c7e5b30`, revises `59b463781dcc`) creates
 `storefront_versions` and nothing else: no `businesses` alteration, no
@@ -412,8 +412,8 @@ composition contract (`composition.py`), the design-variant registry
 and persistence (`models.py`). No routers, services, commands, media
 claiming, preview, public projection, or caching — those are M4B and M4C.
 
-Verification at delivery: backend **936** tests (895 at the Milestone 3
-head, +41 for storefront), ruff lint and format clean, mypy strict clean
+Verification at delivery: backend **937** tests (895 at the Milestone 3
+head, +42 for storefront), ruff lint and format clean, mypy strict clean
 across 166 source files. The migration is proved against disposable scratch
 databases only: upgrade from the pre-M4A head over **real M3 rows** with a
 byte-identical before/after snapshot, fresh install to head, the stepwise
@@ -421,6 +421,18 @@ walk, the ORM-metadata-versus-migrated-schema diff, single-field
 perturbation tests for every named CHECK, both partial-unique singletons,
 tenant-safe provenance rejection, RESTRICT in both directions, and
 downgrade/re-upgrade with earlier data intact.
+
+Merged to `main` via PR #19:
+
+- Reviewed feature head: `6beeffbbd183b50537cead22c99eebdc0962fef0`.
+- Merge commit: `aa30361e8b3c5ef334134996b341642b828d7aa8` — ordered
+  parents `02827903a3e886ce381beaa24889fdaef78d5147` then
+  `6beeffbbd183b50537cead22c99eebdc0962fef0`; the merge tree equals the
+  reviewed feature-head tree.
+- Branch CI run `30233128216` (pull_request) and post-merge push CI run
+  `30233615592` (on the merge SHA) both completed successfully — all five
+  jobs (repository-contract, backend, frontend, contract, e2e) green, zero
+  artifacts.
 
 **M4B remains the boundary and is not started.** Services, endpoints, the
 capability registry additions, audit-event emission, media claiming, the
