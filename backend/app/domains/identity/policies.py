@@ -58,6 +58,13 @@ class Capability(StrEnum):
     # no media mutation authority (reads use business.view). Item image
     # attachment mutates a catalog row and stays on business.catalog.write.
     BUSINESS_MEDIA_WRITE = "business.media.write"
+    # M4B (ADR-020 §7): storefront administration. Broad business.view is
+    # deliberately insufficient for any storefront read, so staff hold none
+    # of these. publish covers publication AND restoration and is owner
+    # only; platform administrators hold no membership and get 404.
+    BUSINESS_STOREFRONT_READ = "business.storefront.read"
+    BUSINESS_STOREFRONT_WRITE = "business.storefront.write"
+    BUSINESS_STOREFRONT_PUBLISH = "business.storefront.publish"
 
 
 PLATFORM_CAPABILITIES: frozenset[Capability] = frozenset(
@@ -82,6 +89,9 @@ CAPABILITIES_BY_ROLE: dict[Role, frozenset[Capability]] = {
             Capability.BUSINESS_CATALOG_WRITE,
             Capability.BUSINESS_CATALOG_AVAILABILITY,
             Capability.BUSINESS_MEDIA_WRITE,
+            Capability.BUSINESS_STOREFRONT_READ,
+            Capability.BUSINESS_STOREFRONT_WRITE,
+            Capability.BUSINESS_STOREFRONT_PUBLISH,
         }
     ),
     Role.MANAGER: frozenset(
@@ -92,6 +102,8 @@ CAPABILITIES_BY_ROLE: dict[Role, frozenset[Capability]] = {
             Capability.BUSINESS_CATALOG_WRITE,
             Capability.BUSINESS_CATALOG_AVAILABILITY,
             Capability.BUSINESS_MEDIA_WRITE,
+            Capability.BUSINESS_STOREFRONT_READ,
+            Capability.BUSINESS_STOREFRONT_WRITE,
         }
     ),
     Role.STAFF: frozenset(

@@ -107,6 +107,42 @@ class TestM3cMediaCapability:
         assert Capability.BUSINESS_MEDIA_WRITE not in PLATFORM_CAPABILITIES
 
 
+class TestM4bStorefrontCapabilities:
+    """ADR-020 §7: read/write owner+manager, publish owner-only, staff none."""
+
+    def test_owner_holds_all_three(self) -> None:
+        for capability in (
+            Capability.BUSINESS_STOREFRONT_READ,
+            Capability.BUSINESS_STOREFRONT_WRITE,
+            Capability.BUSINESS_STOREFRONT_PUBLISH,
+        ):
+            assert role_has_capability(Role.OWNER, capability)
+
+    def test_manager_holds_read_and_write_but_not_publish(self) -> None:
+        assert role_has_capability(Role.MANAGER, Capability.BUSINESS_STOREFRONT_READ)
+        assert role_has_capability(Role.MANAGER, Capability.BUSINESS_STOREFRONT_WRITE)
+        assert not role_has_capability(Role.MANAGER, Capability.BUSINESS_STOREFRONT_PUBLISH)
+
+    def test_staff_hold_no_storefront_capability(self) -> None:
+        # business.view is deliberately insufficient for storefront reads
+        # (§7): staff keep view but none of the storefront capabilities.
+        assert role_has_capability(Role.STAFF, Capability.BUSINESS_VIEW)
+        for capability in (
+            Capability.BUSINESS_STOREFRONT_READ,
+            Capability.BUSINESS_STOREFRONT_WRITE,
+            Capability.BUSINESS_STOREFRONT_PUBLISH,
+        ):
+            assert not role_has_capability(Role.STAFF, capability)
+
+    def test_none_is_a_platform_capability(self) -> None:
+        for capability in (
+            Capability.BUSINESS_STOREFRONT_READ,
+            Capability.BUSINESS_STOREFRONT_WRITE,
+            Capability.BUSINESS_STOREFRONT_PUBLISH,
+        ):
+            assert capability not in PLATFORM_CAPABILITIES
+
+
 class TestRoleRank:
     """Invitation role ceiling (ADR-014): owner > manager > staff."""
 
