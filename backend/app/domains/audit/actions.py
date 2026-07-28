@@ -56,3 +56,8 @@ class AuditAction(StrEnum):
     MEDIA_ASSET_DELETED = "media.asset_deleted"
     MEDIA_ASSET_EXPIRED = "media.asset_expired"
     CATALOG_ITEM_IMAGE_CHANGED = "catalog.item_image_changed"
+    # M4B: storefront composition (ADR-020 section 11). Deliberately no
+    # storefront.draft_updated: it would fire on every save and turn
+    # operational telemetry into administrative audit records.
+    STOREFRONT_PUBLISHED = "storefront.published"
+    STOREFRONT_VERSION_RESTORED = "storefront.version_restored"

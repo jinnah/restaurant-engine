@@ -25,11 +25,26 @@ not disclosed. An eligible pending asset is claimed through the same
 the established 409 ``invalid_state`` there.
 """
 
+import copy
 import uuid
+from datetime import UTC, datetime
+from typing import Literal, cast
 
 from sqlalchemy.orm import Session
 
-from app.core.errors import ApiError, ConflictError, ErrorCode
+from app.core.errors import (
+    ApiError,
+    ConflictError,
+    ErrorCode,
+    InvalidStateError,
+    ResourceNotFoundError,
+)
+from app.domains.audit import recorder
+from app.domains.audit.actions import AuditAction
+from app.domains.audit.details import (
+    StorefrontPublishedDetails,
+    StorefrontVersionRestoredDetails,
+)
 from app.domains.identity.actor import ActorContext
 from app.domains.identity.policies import Capability
 from app.domains.media import repository as media_repository
@@ -41,7 +56,12 @@ from app.domains.storefront.schemas import (
     DraftPut,
     DraftView,
     PublishedSummary,
+    PublishRequest,
+    RestoreRequest,
     StorefrontOverview,
+    VersionDetail,
+    VersionPage,
+    VersionSummary,
 )
 from app.domains.storefront.sections import referenced_media_ids
 from app.domains.storefront.variants import DesignVariant
@@ -204,5 +224,191 @@ def put_draft(
     draft.schema_version = payload.config.schema_version
     draft.lock_version += 1
     service_support.safe_flush(db)
+    service_support.safe_commit(db)
+    return _draft_view(draft)
+
+
+# --- History reads -----------------------------------------------------------
+
+
+def _version_summary(row: StorefrontVersion) -> VersionSummary:
+    assert row.version_number is not None  # noqa: S101 - schema invariant
+    assert row.published_at is not None  # noqa: S101 - schema invariant
+    assert row.published_by_user_id is not None  # noqa: S101 - schema invariant
+    return VersionSummary(
+        id=row.id,
+        version_number=row.version_number,
+        state=cast(Literal["published", "archived"], row.state),
+        design_variant=DesignVariant(row.design_variant),
+        schema_version=row.schema_version,
+        published_at=row.published_at,
+        published_by_user_id=row.published_by_user_id,
+        source_version_id=row.source_version_id,
+        created_at=row.created_at,
+    )
+
+
+def list_versions(
+    db: Session, actor: ActorContext, business_id: uuid.UUID, *, limit: int, offset: int
+) -> VersionPage:
+    """One owner-facing history page: published + archived, newest first."""
+    service_support.authorize_read(db, actor, business_id)
+    rows = repository.list_history(db, business_id=business_id, limit=limit, offset=offset)
+    total = repository.count_history(db, business_id=business_id)
+    return VersionPage(
+        items=[_version_summary(row) for row in rows],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+def get_version_detail(
+    db: Session, actor: ActorContext, business_id: uuid.UUID, version_id: uuid.UUID
+) -> VersionDetail:
+    """One history row with its composition.
+
+    History rows only: the singleton draft is not part of this resource
+    space, so requesting its id here is the same 404 as an unknown or
+    cross-tenant id — the overview is the draft's only read surface.
+    """
+    service_support.authorize_read(db, actor, business_id)
+    row = repository.get_version(db, business_id=business_id, version_id=version_id)
+    if row is None or row.state == VersionState.DRAFT.value:
+        raise ResourceNotFoundError("Version not found.")
+    summary = _version_summary(row)
+    return VersionDetail(**summary.model_dump(), config=parse_config(row.config))
+
+
+# --- Publication -------------------------------------------------------------
+
+
+def publish(
+    db: Session, actor: ActorContext, business_id: uuid.UUID, payload: PublishRequest
+) -> StorefrontOverview:
+    """Publish the draft: promote, archive the predecessor, seed the next.
+
+    One transaction under the Business row lock (§4). The version number is
+    minted here and only here (max + 1). Statement order matters against
+    the partial-unique singletons: the previous published row is archived
+    (and flushed) before the draft is promoted, and the promotion is
+    flushed before the seeded draft is inserted.
+    """
+    service_support.authorize_write(db, actor, business_id, Capability.BUSINESS_STOREFRONT_PUBLISH)
+    draft = repository.get_draft(db, business_id=business_id)
+    if draft is None:
+        raise InvalidStateError("no draft exists to publish")
+    if draft.lock_version != payload.expected_lock_version:
+        raise _stale_draft_conflict("the draft has changed since it was read", draft)
+    # Fail-closed re-validation before promotion (the publish-time half of
+    # "invalid config cannot save"): a stored draft that no longer parses,
+    # or carries an unregistered variant, is an integrity defect and
+    # propagates to the opaque 500 — it is never published.
+    config = parse_config(draft.config)
+    variant = DesignVariant(draft.design_variant)
+    number = repository.next_version_number(db, business_id=business_id)
+
+    previous = repository.get_published(db, business_id=business_id)
+    if previous is not None:
+        previous.state = VersionState.ARCHIVED.value
+        service_support.safe_flush(db)  # free the one-published slot first
+
+    draft.state = VersionState.PUBLISHED.value
+    draft.version_number = number
+    draft.published_at = datetime.now(UTC)
+    draft.published_by_user_id = actor.user.id
+    service_support.safe_flush(db)  # free the one-draft slot before seeding
+
+    seeded = StorefrontVersion(
+        business_id=business_id,
+        state=VersionState.DRAFT.value,
+        version_number=None,
+        schema_version=draft.schema_version,
+        design_variant=draft.design_variant,
+        config=copy.deepcopy(draft.config),
+        lock_version=0,
+        source_version_id=draft.id,
+    )
+    repository.add(db, seeded)
+    service_support.safe_flush(db)
+    recorder.record(
+        db,
+        AuditAction.STOREFRONT_PUBLISHED,
+        actor_user_id=actor.user.id,
+        business_id=business_id,
+        target_type="storefront_version",
+        target_id=str(draft.id),
+        details=StorefrontPublishedDetails(
+            version_number=number,
+            design_variant=variant.value,
+            schema_version=draft.schema_version,
+            section_count=len(config.sections),
+        ),
+    )
+    service_support.safe_commit(db)
+    return StorefrontOverview(
+        draft=_draft_view(seeded),
+        published=_published_summary(draft),
+    )
+
+
+# --- Restore -----------------------------------------------------------------
+
+
+def restore_version(
+    db: Session,
+    actor: ActorContext,
+    business_id: uuid.UUID,
+    version_id: uuid.UUID,
+    payload: RestoreRequest,
+) -> DraftView:
+    """Overwrite the current draft from an archived version (§4, D-4).
+
+    Archived sources only — restoring the current published row is
+    deliberately unsupported under the approved archived-only ruling. The
+    source is resolved tenant-scoped, so unknown and cross-tenant ids are
+    the same 404; a same-business row in the wrong state is 409
+    ``invalid_state``. Restore never publishes and never mutates the
+    source. Every successful restore is an intentional, effective
+    mutation (approved completion 2): repeated restores from the same
+    source still increment ``lock_version``, refresh provenance, and emit
+    a new audit event.
+    """
+    service_support.authorize_write(db, actor, business_id, Capability.BUSINESS_STOREFRONT_PUBLISH)
+    source = repository.get_version(db, business_id=business_id, version_id=version_id)
+    if source is None:
+        raise ResourceNotFoundError("Version not found.")
+    if source.state != VersionState.ARCHIVED.value:
+        raise InvalidStateError("only archived versions can be restored")
+    draft = repository.get_draft(db, business_id=business_id)
+    if draft is None:
+        raise InvalidStateError("no draft exists to restore into")
+    if draft.lock_version != payload.expected_lock_version:
+        raise _stale_draft_conflict("the draft has changed since it was read", draft)
+    assert source.version_number is not None  # noqa: S101 - schema invariant
+    # Fail-closed validation of the persisted source BEFORE any mutation
+    # (approved completion 1): corrupt stored data propagates to the opaque
+    # 500 and the draft — and the audit stream — stay untouched.
+    parse_config(source.config)
+    variant = DesignVariant(source.design_variant)
+
+    draft.config = copy.deepcopy(source.config)
+    draft.design_variant = source.design_variant
+    draft.schema_version = source.schema_version
+    draft.source_version_id = source.id
+    draft.lock_version += 1
+    service_support.safe_flush(db)
+    recorder.record(
+        db,
+        AuditAction.STOREFRONT_VERSION_RESTORED,
+        actor_user_id=actor.user.id,
+        business_id=business_id,
+        target_type="storefront_version",
+        target_id=str(source.id),
+        details=StorefrontVersionRestoredDetails(
+            restored_from_version_number=source.version_number,
+            design_variant=variant.value,
+        ),
+    )
     service_support.safe_commit(db)
     return _draft_view(draft)

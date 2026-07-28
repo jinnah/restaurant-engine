@@ -26,6 +26,7 @@ from app.domains.audit.actions import AuditAction
 from app.domains.audit.models import AuditEvent
 from app.domains.catalog.policies import MAX_PRICE_MINOR
 from app.domains.media.policies import MAX_ASSET_OUTPUT_BYTES
+from app.domains.storefront.variants import DesignVariant
 
 _MAX_STRING = 320  # longest legitimate detail value (emails are <= 254)
 
@@ -83,6 +84,10 @@ _STATUS_CHOICE = _choice(frozenset({"pending", "active"}))
 _TRIGGER_CHOICE = _choice(frozenset({"pending_ttl_sweep"}))
 _CHANGE_CHOICE = _choice(frozenset({"attached", "replaced", "cleared", "alt_updated"}))
 _ALT_CHANGED_CHOICE = _choice(frozenset({"changed", "unchanged"}))
+# M4B storefront: the closed-set extractor follows the live design-variant
+# registry (append-only), so a newly registered variant projects without a
+# second edit here while unregistered stored values still drop out.
+_VARIANT_CHOICE = _choice(frozenset(variant.value for variant in DesignVariant))
 
 
 def _byte_int(value: object) -> int | None:
@@ -251,6 +256,18 @@ _PROJECTIONS: dict[str, dict[str, _Extractor]] = {
         "media_id_old": _short_str,
         "media_id_new": _short_str,
         "alt_text_changed": _ALT_CHANGED_CHOICE,
+    },
+    # M4B storefront (ADR-020 §11): bounded scalars only — no config JSON,
+    # no copy, no dynamic keys.
+    AuditAction.STOREFRONT_PUBLISHED.value: {
+        "version_number": _small_int,
+        "design_variant": _VARIANT_CHOICE,
+        "schema_version": _small_int,
+        "section_count": _small_int,
+    },
+    AuditAction.STOREFRONT_VERSION_RESTORED.value: {
+        "restored_from_version_number": _small_int,
+        "design_variant": _VARIANT_CHOICE,
     },
 }
 

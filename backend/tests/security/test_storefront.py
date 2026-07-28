@@ -13,8 +13,10 @@ import time
 import uuid
 from collections.abc import Iterator
 from typing import Any
+from unittest import mock
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -27,7 +29,7 @@ from app.domains.businesses.queries import lock_business_status
 from app.domains.identity.actor import ActorContext, AuthenticatedUser
 from app.domains.storefront import service as storefront_service
 from app.domains.storefront.composition import StorefrontConfig, parse_config
-from app.domains.storefront.schemas import DraftPut
+from app.domains.storefront.schemas import DraftPut, PublishRequest, RestoreRequest
 from tests.security.conftest import CreateBusiness, CreateMembership, CreateUser
 
 OWNER = "owner@example.com"
@@ -649,3 +651,664 @@ class TestFirstDraftRace:
         rows = _version_rows(migrated_engine, business)
         assert len(rows) == 1
         assert rows[0]["state"] == "draft"
+
+
+def _audit_events(engine: Engine, business_id: uuid.UUID, action: str) -> list[dict[str, Any]]:
+    with engine.begin() as connection:
+        rows = connection.execute(
+            text(
+                "SELECT action, actor_user_id, target_type, target_id, details"
+                " FROM audit_events WHERE business_id = :bid AND action = :action"
+                " ORDER BY id"
+            ),
+            {"bid": business_id, "action": action},
+        ).mappings()
+        return [dict(row) for row in rows]
+
+
+def _draft_row_id(engine: Engine, business_id: uuid.UUID) -> uuid.UUID:
+    with engine.begin() as connection:
+        return connection.execute(  # type: ignore[no-any-return]
+            text("SELECT id FROM storefront_versions WHERE business_id = :bid AND state = 'draft'"),
+            {"bid": business_id},
+        ).scalar_one()
+
+
+def _seed_owner_with_draft(
+    db: Session,
+    create_user: CreateUser,
+    create_business: CreateBusiness,
+    create_membership: CreateMembership,
+    *,
+    sections: list[dict[str, Any]] | None = None,
+) -> tuple[uuid.UUID, ActorContext]:
+    business = create_business()
+    owner_id = create_user(OWNER)
+    create_membership(business, owner_id)
+    actor = _actor(owner_id)
+    storefront_service.put_draft(db, actor, business, DraftPut(config=_config(sections)))
+    return business, actor
+
+
+class TestPublication:
+    def test_first_publish_promotes_and_seeds(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership, sections=[_hero()]
+        )
+
+        overview = storefront_service.publish(
+            db, actor, business, PublishRequest(expected_lock_version=0)
+        )
+
+        assert overview.published is not None
+        assert overview.published.version_number == 1
+        assert overview.published.published_by_user_id == actor.user.id
+        assert overview.draft is not None
+        assert overview.draft.lock_version == 0
+        # The seeded draft is a copy of the published result (§4).
+        assert overview.draft.source_version_id == overview.published.id
+        assert overview.draft.config == _config([_hero()])
+        events = _audit_events(migrated_engine, business, "storefront.published")
+        assert len(events) == 1
+        assert events[0]["target_id"] == str(overview.published.id)
+        assert events[0]["details"] == {
+            "version_number": 1,
+            "design_variant": "classic",
+            "schema_version": 1,
+            "section_count": 1,
+        }
+
+    def test_second_publish_archives_the_previous_version(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        storefront_service.publish(db, actor, business, PublishRequest(expected_lock_version=0))
+        storefront_service.put_draft(
+            db, actor, business, DraftPut(config=_config([_hero()]), expected_lock_version=0)
+        )
+
+        overview = storefront_service.publish(
+            db, actor, business, PublishRequest(expected_lock_version=1)
+        )
+
+        assert overview.published is not None
+        assert overview.published.version_number == 2
+        states = {
+            (row["version_number"], row["state"])
+            for row in _version_rows(migrated_engine, business)
+        }
+        assert (1, "archived") in states
+        assert (2, "published") in states
+        assert (None, "draft") in states
+
+    def test_publish_requires_the_exact_lock_version(
+        self,
+        db: Session,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        storefront_service.put_draft(
+            db, actor, business, DraftPut(config=_config([_hero()]), expected_lock_version=0)
+        )
+
+        with pytest.raises(ApiError) as excinfo:
+            storefront_service.publish(db, actor, business, PublishRequest(expected_lock_version=0))
+
+        assert excinfo.value.status_code == 409
+        assert excinfo.value.code.value == "conflict"
+        assert excinfo.value.details == {"lock_version": 1}
+
+    def test_publish_without_a_draft_is_invalid_state(
+        self,
+        db: Session,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business = create_business()
+        owner_id = create_user(OWNER)
+        create_membership(business, owner_id)
+
+        with pytest.raises(ApiError) as excinfo:
+            storefront_service.publish(
+                db, _actor(owner_id), business, PublishRequest(expected_lock_version=0)
+            )
+
+        assert excinfo.value.code.value == "invalid_state"
+
+    def test_publishing_an_empty_config_is_legal(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        # The default draft has no sections; M4D must render it coherently
+        # (ADR-020 consequences) — publication must not block it.
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+
+        overview = storefront_service.publish(
+            db, actor, business, PublishRequest(expected_lock_version=0)
+        )
+
+        assert overview.published is not None
+        events = _audit_events(migrated_engine, business, "storefront.published")
+        assert events[0]["details"]["section_count"] == 0
+
+    def test_closed_business_cannot_publish(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        with migrated_engine.begin() as connection:
+            connection.execute(
+                text("UPDATE businesses SET status = 'closed' WHERE id = :bid"),
+                {"bid": business},
+            )
+
+        with pytest.raises(ApiError) as excinfo:
+            storefront_service.publish(db, actor, business, PublishRequest(expected_lock_version=0))
+
+        assert excinfo.value.code.value == "invalid_state"
+
+    def test_only_owners_publish(
+        self,
+        db: Session,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business, _ = _seed_owner_with_draft(db, create_user, create_business, create_membership)
+        manager_id = create_user(MANAGER)
+        create_membership(business, manager_id, role="manager")
+        staff_id = create_user(STAFF)
+        create_membership(business, staff_id, role="staff")
+
+        for member_id in (manager_id, staff_id):
+            with pytest.raises(PermissionDeniedError):
+                storefront_service.publish(
+                    db, _actor(member_id), business, PublishRequest(expected_lock_version=0)
+                )
+            db.rollback()
+        admin_id = create_user(PLATFORM_ADMIN, is_platform_admin=True)
+        with pytest.raises(ResourceNotFoundError):
+            storefront_service.publish(
+                db,
+                _actor(admin_id, is_platform_admin=True),
+                business,
+                PublishRequest(expected_lock_version=0),
+            )
+
+    def test_publication_and_audit_are_atomic(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        """A commit failure durably records neither the promotion nor the
+        audit event — they land together or not at all."""
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+
+        with mock.patch.object(db, "commit", side_effect=RuntimeError("boom")):
+            with pytest.raises(RuntimeError, match="boom"):
+                storefront_service.publish(
+                    db, actor, business, PublishRequest(expected_lock_version=0)
+                )
+        db.rollback()
+
+        rows = _version_rows(migrated_engine, business)
+        assert [row["state"] for row in rows] == ["draft"]
+        assert _audit_events(migrated_engine, business, "storefront.published") == []
+
+
+def _published_row_id(engine: Engine, business_id: uuid.UUID) -> uuid.UUID:
+    with engine.begin() as connection:
+        return connection.execute(  # type: ignore[no-any-return]
+            text(
+                "SELECT id FROM storefront_versions"
+                " WHERE business_id = :bid AND state = 'published'"
+            ),
+            {"bid": business_id},
+        ).scalar_one()
+
+
+def _version_row_id(engine: Engine, business_id: uuid.UUID, number: int) -> uuid.UUID:
+    with engine.begin() as connection:
+        return connection.execute(  # type: ignore[no-any-return]
+            text(
+                "SELECT id FROM storefront_versions"
+                " WHERE business_id = :bid AND version_number = :number"
+            ),
+            {"bid": business_id, "number": number},
+        ).scalar_one()
+
+
+def _publish_two_versions(
+    db: Session, business: uuid.UUID, actor: ActorContext
+) -> tuple[uuid.UUID, uuid.UUID]:
+    """v1 (empty) then v2 (hero); returns (v1_id, v2_id); v1 is archived."""
+    storefront_service.publish(db, actor, business, PublishRequest(expected_lock_version=0))
+    storefront_service.put_draft(
+        db, actor, business, DraftPut(config=_config([_hero()]), expected_lock_version=0)
+    )
+    storefront_service.publish(db, actor, business, PublishRequest(expected_lock_version=1))
+    engine = db.get_bind()
+    assert isinstance(engine, Engine)
+    return _version_row_id(engine, business, 1), _version_row_id(engine, business, 2)
+
+
+class TestRestore:
+    def test_restore_copies_config_variant_and_provenance(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        v1_id, _ = _publish_two_versions(db, business, actor)
+
+        view = storefront_service.restore_version(
+            db, actor, business, v1_id, RestoreRequest(expected_lock_version=0)
+        )
+
+        assert view.config.sections == []  # v1 was the empty config
+        assert view.source_version_id == v1_id
+        assert view.lock_version == 1
+        events = _audit_events(migrated_engine, business, "storefront.version_restored")
+        assert len(events) == 1
+        assert events[0]["target_id"] == str(v1_id)
+        assert events[0]["details"] == {
+            "restored_from_version_number": 1,
+            "design_variant": "classic",
+        }
+        # The source is history and history is never mutated.
+        rows = {row["version_number"]: row for row in _version_rows(migrated_engine, business)}
+        assert rows[1]["state"] == "archived"
+
+    def test_restore_never_publishes(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        v1_id, v2_id = _publish_two_versions(db, business, actor)
+
+        storefront_service.restore_version(
+            db, actor, business, v1_id, RestoreRequest(expected_lock_version=0)
+        )
+
+        assert _published_row_id(migrated_engine, business) == v2_id
+
+    def test_restore_accepts_archived_sources_only(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        _publish_two_versions(db, business, actor)
+        published_id = _published_row_id(migrated_engine, business)
+        draft_id = _draft_row_id(migrated_engine, business)
+
+        # The current published row and the draft itself both exist in this
+        # business but are not archived: 409 invalid_state (the ruling).
+        for source_id in (published_id, draft_id):
+            with pytest.raises(ApiError) as excinfo:
+                storefront_service.restore_version(
+                    db, actor, business, source_id, RestoreRequest(expected_lock_version=0)
+                )
+            assert excinfo.value.code.value == "invalid_state"
+            db.rollback()
+
+    def test_unknown_and_foreign_sources_are_the_same_404(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        other_business = create_business(slug="other-kitchen", name="Other Kitchen")
+        other_owner = create_user(INTRUDER)
+        create_membership(other_business, other_owner)
+        other_actor = _actor(other_owner)
+        storefront_service.put_draft(db, other_actor, other_business, DraftPut(config=_config()))
+        foreign_v1, _ = _publish_two_versions(db, other_business, other_actor)
+
+        with pytest.raises(ResourceNotFoundError) as foreign_exc:
+            storefront_service.restore_version(
+                db, actor, business, foreign_v1, RestoreRequest(expected_lock_version=0)
+            )
+        db.rollback()
+        with pytest.raises(ResourceNotFoundError) as unknown_exc:
+            storefront_service.restore_version(
+                db, actor, business, uuid.uuid4(), RestoreRequest(expected_lock_version=0)
+            )
+        db.rollback()
+
+        assert foreign_exc.value.message == unknown_exc.value.message
+
+    def test_restore_without_a_draft_is_invalid_state(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        # Unreachable through the API (publish always seeds a draft);
+        # enforced defensively against direct manipulation.
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        v1_id, _ = _publish_two_versions(db, business, actor)
+        with migrated_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "DELETE FROM storefront_versions WHERE business_id = :bid AND state = 'draft'"
+                ),
+                {"bid": business},
+            )
+
+        with pytest.raises(ApiError) as excinfo:
+            storefront_service.restore_version(
+                db, actor, business, v1_id, RestoreRequest(expected_lock_version=0)
+            )
+
+        assert excinfo.value.code.value == "invalid_state"
+
+    def test_restore_requires_the_exact_lock_version(
+        self,
+        db: Session,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        v1_id, _ = _publish_two_versions(db, business, actor)
+
+        with pytest.raises(ApiError) as excinfo:
+            storefront_service.restore_version(
+                db, actor, business, v1_id, RestoreRequest(expected_lock_version=7)
+            )
+
+        assert excinfo.value.status_code == 409
+        assert excinfo.value.code.value == "conflict"
+        assert excinfo.value.details == {"lock_version": 0}
+
+    def test_closed_lifecycle_gate_precedes_source_resolution(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        with migrated_engine.begin() as connection:
+            connection.execute(
+                text("UPDATE businesses SET status = 'closed' WHERE id = :bid"),
+                {"bid": business},
+            )
+
+        # An unknown source under a closed business: the preamble's 409
+        # comes first (addendum ordering row 4 before row 5).
+        with pytest.raises(ApiError) as excinfo:
+            storefront_service.restore_version(
+                db, actor, business, uuid.uuid4(), RestoreRequest(expected_lock_version=0)
+            )
+
+        assert excinfo.value.code.value == "invalid_state"
+
+    def test_repeated_restore_is_effective_every_time(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        # Approved completion 2: a repeated restore still increments the
+        # lock, keeps provenance, and emits a new audit event.
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        v1_id, _ = _publish_two_versions(db, business, actor)
+        storefront_service.restore_version(
+            db, actor, business, v1_id, RestoreRequest(expected_lock_version=0)
+        )
+
+        view = storefront_service.restore_version(
+            db, actor, business, v1_id, RestoreRequest(expected_lock_version=1)
+        )
+
+        assert view.lock_version == 2
+        assert view.source_version_id == v1_id
+        events = _audit_events(migrated_engine, business, "storefront.version_restored")
+        assert len(events) == 2
+
+    def test_corrupt_source_fails_closed_without_mutation(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        # Approved completion 1: stored data the registry no longer accepts
+        # propagates to the opaque internal boundary; the draft and the
+        # audit stream stay untouched.
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        v1_id, _ = _publish_two_versions(db, business, actor)
+        with migrated_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE storefront_versions SET config = '{\"weird\": true}'::jsonb"
+                    " WHERE id = :vid"
+                ),
+                {"vid": v1_id},
+            )
+        before = _draft_updated_at(migrated_engine, business)
+
+        with pytest.raises(ValidationError):
+            storefront_service.restore_version(
+                db, actor, business, v1_id, RestoreRequest(expected_lock_version=0)
+            )
+        db.rollback()
+
+        assert _draft_updated_at(migrated_engine, business) == before
+        assert _audit_events(migrated_engine, business, "storefront.version_restored") == []
+
+    def test_publish_after_restore_mints_the_next_number(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        v1_id, _ = _publish_two_versions(db, business, actor)
+        storefront_service.restore_version(
+            db, actor, business, v1_id, RestoreRequest(expected_lock_version=0)
+        )
+
+        overview = storefront_service.publish(
+            db, actor, business, PublishRequest(expected_lock_version=1)
+        )
+
+        assert overview.published is not None
+        assert overview.published.version_number == 3
+
+
+class TestHistoryReads:
+    def test_history_is_published_plus_archived_newest_first(
+        self,
+        db: Session,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        _publish_two_versions(db, business, actor)
+
+        page = storefront_service.list_versions(db, actor, business, limit=50, offset=0)
+
+        assert page.total == 2
+        assert [(item.version_number, item.state) for item in page.items] == [
+            (2, "published"),
+            (1, "archived"),
+        ]
+
+    def test_history_paginates(
+        self,
+        db: Session,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        _publish_two_versions(db, business, actor)
+
+        first = storefront_service.list_versions(db, actor, business, limit=1, offset=0)
+        second = storefront_service.list_versions(db, actor, business, limit=1, offset=1)
+
+        assert [item.version_number for item in first.items] == [2]
+        assert [item.version_number for item in second.items] == [1]
+        assert first.total == second.total == 2
+
+    def test_version_detail_returns_the_composition(
+        self,
+        db: Session,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        _, v2_id = _publish_two_versions(db, business, actor)
+
+        detail = storefront_service.get_version_detail(db, actor, business, v2_id)
+
+        assert detail.state == "published"
+        assert [section.type.value for section in detail.config.sections] == ["hero"]
+
+    def test_version_detail_never_exposes_the_draft(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        _publish_two_versions(db, business, actor)
+        draft_id = _draft_row_id(migrated_engine, business)
+
+        # The draft is not a history row: its id here is the same 404 as an
+        # unknown or foreign id. The overview is the draft's only surface.
+        for version_id in (draft_id, uuid.uuid4()):
+            with pytest.raises(ResourceNotFoundError):
+                storefront_service.get_version_detail(db, actor, business, version_id)
+            db.rollback()
+
+    def test_history_is_tenant_scoped(
+        self,
+        db: Session,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        other_business = create_business(slug="other-kitchen", name="Other Kitchen")
+        other_owner = create_user(INTRUDER)
+        create_membership(other_business, other_owner)
+        other_actor = _actor(other_owner)
+        storefront_service.put_draft(db, other_actor, other_business, DraftPut(config=_config()))
+        foreign_v1, _ = _publish_two_versions(db, other_business, other_actor)
+
+        page = storefront_service.list_versions(db, actor, business, limit=50, offset=0)
+        assert page.total == 0
+        with pytest.raises(ResourceNotFoundError):
+            storefront_service.get_version_detail(db, actor, business, foreign_v1)
+
+    def test_history_requires_the_storefront_read_capability(
+        self,
+        db: Session,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        _publish_two_versions(db, business, actor)
+        staff_id = create_user(STAFF)
+        create_membership(business, staff_id, role="staff")
+
+        with pytest.raises(PermissionDeniedError):
+            storefront_service.list_versions(db, _actor(staff_id), business, limit=50, offset=0)

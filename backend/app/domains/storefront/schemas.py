@@ -13,6 +13,7 @@ from ``extra="forbid"``, never a silently ignored value.
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -76,3 +77,57 @@ class DraftPut(BaseModel):
 
     config: StorefrontConfig
     expected_lock_version: int | None = Field(default=None, ge=0)
+
+
+class PublishRequest(BaseModel):
+    """Publish the current draft (approved ruling D-3).
+
+    ``expected_lock_version`` is required: an owner approves *content*,
+    not a row — a draft that changed since they read it is a 409 carrying
+    the current value, exactly like restore's guard, never a silent
+    publication of someone else's unreviewed edit.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    expected_lock_version: int = Field(ge=0)
+
+
+class RestoreRequest(BaseModel):
+    """Restore an archived version into the current draft (ADR-020 §4)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    expected_lock_version: int = Field(ge=0)
+
+
+class VersionSummary(BaseModel):
+    """One owner-facing history row: the current published version or an
+    archived one — never the draft (§4)."""
+
+    id: uuid.UUID
+    version_number: int
+    state: Literal["published", "archived"]
+    design_variant: DesignVariant
+    schema_version: int
+    published_at: datetime
+    published_by_user_id: uuid.UUID
+    source_version_id: uuid.UUID | None
+    created_at: datetime
+
+
+class VersionPage(BaseModel):
+    """One bounded history page (limit/offset, ``version_number DESC``)."""
+
+    items: list[VersionSummary]
+    total: int
+    limit: int
+    offset: int
+
+
+class VersionDetail(VersionSummary):
+    """One history row with its full composition (restore-confirmation
+    inspection). The draft is never readable here — its only read surface
+    is the overview."""
+
+    config: StorefrontConfig
