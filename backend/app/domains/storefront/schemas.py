@@ -131,3 +131,30 @@ class VersionDetail(VersionSummary):
     is the overview."""
 
     config: StorefrontConfig
+
+
+class DesignAssignment(BaseModel):
+    """Platform command: assign the draft's structural design variant.
+
+    The registry enum publishes the closed set in the contract, so an
+    unregistered variant is a 422 before the service runs. There is no
+    ``lock_version`` field: the command changes only the platform-owned
+    variant and is serialized by the Business row lock (ADR-020 §6).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    design_variant: DesignVariant
+
+
+class DesignAssignmentResult(BaseModel):
+    """Bounded acknowledgment for the platform design command.
+
+    Deliberately not a draft view: the §7 matrix denies platform
+    administrators every storefront config read, so the response carries
+    variant facts only. ``previous_variant: null`` marks the first-draft
+    creation path (§5.7), mirroring the audit detail.
+    """
+
+    design_variant: DesignVariant
+    previous_variant: DesignVariant | None

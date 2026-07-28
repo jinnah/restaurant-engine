@@ -42,17 +42,27 @@ from app.core.errors import (
 from app.domains.audit import recorder
 from app.domains.audit.actions import AuditAction
 from app.domains.audit.details import (
+    StorefrontDesignAssignedDetails,
     StorefrontPublishedDetails,
     StorefrontVersionRestoredDetails,
 )
+from app.domains.businesses.lifecycle import BusinessStatus
+from app.domains.businesses.queries import lock_business_status
 from app.domains.identity.actor import ActorContext
-from app.domains.identity.policies import Capability
+from app.domains.identity.policies import Capability, require_platform_capability
 from app.domains.media import repository as media_repository
 from app.domains.media import service as media_service
 from app.domains.storefront import repository, service_support, variants
-from app.domains.storefront.composition import StorefrontConfig, dump_config, parse_config
+from app.domains.storefront.composition import (
+    StorefrontConfig,
+    default_config,
+    dump_config,
+    parse_config,
+)
 from app.domains.storefront.models import StorefrontVersion, VersionState
 from app.domains.storefront.schemas import (
+    DesignAssignment,
+    DesignAssignmentResult,
     DraftPut,
     DraftView,
     PublishedSummary,
@@ -412,3 +422,95 @@ def restore_version(
     )
     service_support.safe_commit(db)
     return _draft_view(draft)
+
+
+# --- Platform design assignment ----------------------------------------------
+
+
+def assign_design(
+    db: Session, actor: ActorContext, business_id: uuid.UUID, payload: DesignAssignment
+) -> DesignAssignmentResult:
+    """Assign the draft's structural design variant (platform-only, §6).
+
+    Serialized by the Business row lock; no owner-facing ``lock_version``
+    is accepted, because the command changes only the platform-owned
+    variant — but every effective assignment still increments the draft's
+    ``lock_version``, so a concurrent owner submission based on the
+    previous value fails safely. Lifecycle validation happens **before**
+    no-op suppression: a request against a closed business is 409
+    ``invalid_state`` even for the already-selected variant. On an
+    eligible business, assigning the already-selected variant is an exact
+    no-op — no mutation, no lock increment, no audit event.
+
+    When no draft exists, the command creates the first draft from the
+    registry's initial configuration and the requested variant (§5.7).
+    That creation **does** count as an effective assignment — state came
+    into existence that did not exist before — so the audit event records
+    ``previous_variant`` as absent rather than staying silent.
+    """
+    require_platform_capability(actor, Capability.PLATFORM_BUSINESSES_MANAGE)
+    status = lock_business_status(db, business_id)
+    if status is None:
+        # Platform routes disclose existence after the capability passes
+        # (ADR-011): the capability check above already succeeded.
+        raise ResourceNotFoundError("Business not found.")
+    if status == BusinessStatus.CLOSED.value:
+        raise InvalidStateError("cannot modify the storefront of a closed business")
+
+    requested = payload.design_variant
+    draft = repository.get_draft(db, business_id=business_id)
+
+    if draft is None:
+        row = StorefrontVersion(
+            business_id=business_id,
+            state=VersionState.DRAFT.value,
+            version_number=None,
+            schema_version=default_config().schema_version,
+            design_variant=requested.value,
+            config=dump_config(default_config()),
+            lock_version=0,
+            source_version_id=None,
+        )
+        repository.add(db, row)
+        service_support.safe_flush(db)
+        recorder.record(
+            db,
+            AuditAction.STOREFRONT_DESIGN_ASSIGNED,
+            actor_user_id=actor.user.id,
+            business_id=business_id,
+            target_type="storefront_version",
+            target_id=str(row.id),
+            details=StorefrontDesignAssignedDetails(
+                previous_variant=None,
+                new_variant=requested.value,
+            ),
+        )
+        service_support.safe_commit(db)
+        return DesignAssignmentResult(design_variant=requested, previous_variant=None)
+
+    previous = DesignVariant(draft.design_variant)  # fail-closed read
+    # Compare the stored value, not enum members: with the registry at one
+    # entry a member comparison is provably constant, while the stored
+    # string is the actual platform-owned fact being replaced.
+    if draft.design_variant == requested.value:
+        # Exact no-op (§6, after the lifecycle gate): release the lock.
+        db.rollback()
+        return DesignAssignmentResult(design_variant=requested, previous_variant=previous)
+
+    draft.design_variant = requested.value
+    draft.lock_version += 1
+    service_support.safe_flush(db)
+    recorder.record(
+        db,
+        AuditAction.STOREFRONT_DESIGN_ASSIGNED,
+        actor_user_id=actor.user.id,
+        business_id=business_id,
+        target_type="storefront_version",
+        target_id=str(draft.id),
+        details=StorefrontDesignAssignedDetails(
+            previous_variant=previous.value,
+            new_variant=requested.value,
+        ),
+    )
+    service_support.safe_commit(db)
+    return DesignAssignmentResult(design_variant=requested, previous_variant=previous)

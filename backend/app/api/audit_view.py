@@ -269,6 +269,10 @@ _PROJECTIONS: dict[str, dict[str, _Extractor]] = {
         "restored_from_version_number": _small_int,
         "design_variant": _VARIANT_CHOICE,
     },
+    AuditAction.STOREFRONT_DESIGN_ASSIGNED.value: {
+        "previous_variant": _VARIANT_CHOICE,
+        "new_variant": _VARIANT_CHOICE,
+    },
 }
 
 

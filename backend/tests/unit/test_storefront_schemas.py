@@ -10,7 +10,8 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from app.domains.storefront.schemas import DraftPut
+from app.domains.storefront.schemas import DesignAssignment, DraftPut
+from app.domains.storefront.variants import DesignVariant
 
 
 def _config_payload(sections: list[dict[str, Any]] | None = None) -> dict[str, Any]:
@@ -68,3 +69,22 @@ class TestDraftPutStrictness:
     def test_config_is_required(self) -> None:
         with pytest.raises(ValidationError):
             DraftPut.model_validate({"expected_lock_version": 0})
+
+
+class TestDesignAssignmentSchema:
+    def test_registered_variant_is_accepted(self) -> None:
+        payload = DesignAssignment.model_validate({"design_variant": "classic"})
+        assert payload.design_variant is DesignVariant.CLASSIC
+
+    def test_unregistered_variant_is_rejected(self) -> None:
+        # The registry enum publishes the closed set in the contract: an
+        # unknown variant is a 422 before the service runs.
+        with pytest.raises(ValidationError):
+            DesignAssignment.model_validate({"design_variant": "brutalist"})
+
+    def test_no_lock_version_field_exists(self) -> None:
+        # §6: the platform command carries no owner-facing lock_version.
+        with pytest.raises(ValidationError):
+            DesignAssignment.model_validate(
+                {"design_variant": "classic", "expected_lock_version": 0}
+            )

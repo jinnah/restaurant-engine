@@ -12,7 +12,9 @@ import threading
 import time
 import uuid
 from collections.abc import Iterator
-from typing import Any
+from enum import StrEnum
+from types import SimpleNamespace
+from typing import Any, cast
 from unittest import mock
 
 import pytest
@@ -29,7 +31,13 @@ from app.domains.businesses.queries import lock_business_status
 from app.domains.identity.actor import ActorContext, AuthenticatedUser
 from app.domains.storefront import service as storefront_service
 from app.domains.storefront.composition import StorefrontConfig, parse_config
-from app.domains.storefront.schemas import DraftPut, PublishRequest, RestoreRequest
+from app.domains.storefront.schemas import (
+    DesignAssignment,
+    DraftPut,
+    PublishRequest,
+    RestoreRequest,
+)
+from app.domains.storefront.variants import DesignVariant
 from tests.security.conftest import CreateBusiness, CreateMembership, CreateUser
 
 OWNER = "owner@example.com"
@@ -1312,3 +1320,253 @@ class TestHistoryReads:
 
         with pytest.raises(PermissionDeniedError):
             storefront_service.list_versions(db, _actor(staff_id), business, limit=50, offset=0)
+
+
+class _FutureVariant(StrEnum):
+    """A not-yet-registered variant, standing in for the M4D+ second entry.
+
+    The design-variant registry deliberately ships exactly one member until
+    a second renderer exists, so the effective-reassignment branch cannot
+    be reached through the real enum today. These tests prove its
+    mechanics — increment, audit, the §6 interleaving — against the seam
+    the next registered variant will use, bypassing only the request
+    schema's enum validation (``model_construct``).
+    """
+
+    MODERN = "modern"
+
+
+class TestDesignAssignment:
+    def test_creates_the_first_draft_with_the_requested_variant(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business = create_business()
+        admin_id = create_user(PLATFORM_ADMIN, is_platform_admin=True)
+
+        result = storefront_service.assign_design(
+            db,
+            _actor(admin_id, is_platform_admin=True),
+            business,
+            DesignAssignment(design_variant=DesignVariant.CLASSIC),
+        )
+
+        assert result.design_variant is DesignVariant.CLASSIC
+        assert result.previous_variant is None
+        rows = _version_rows(migrated_engine, business)
+        assert len(rows) == 1
+        assert rows[0]["state"] == "draft"
+        assert rows[0]["design_variant"] == "classic"
+        assert rows[0]["lock_version"] == 0
+        assert rows[0]["config"]["sections"] == []  # the registry default
+        events = _audit_events(migrated_engine, business, "storefront.design_assigned")
+        assert len(events) == 1
+        # previous_variant is ABSENT from the stored payload on creation
+        # (the omit-None rule) — null ⇔ first-draft creation, no boolean.
+        assert events[0]["details"] == {"new_variant": "classic"}
+
+    def test_reassigning_the_current_variant_is_an_exact_noop(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business, _ = _seed_owner_with_draft(db, create_user, create_business, create_membership)
+        admin_id = create_user(PLATFORM_ADMIN, is_platform_admin=True)
+        before = _draft_updated_at(migrated_engine, business)
+
+        result = storefront_service.assign_design(
+            db,
+            _actor(admin_id, is_platform_admin=True),
+            business,
+            DesignAssignment(design_variant=DesignVariant.CLASSIC),
+        )
+
+        assert result.previous_variant is DesignVariant.CLASSIC
+        assert _draft_updated_at(migrated_engine, business) == before
+        rows = _version_rows(migrated_engine, business)
+        assert rows[0]["lock_version"] == 0
+        assert _audit_events(migrated_engine, business, "storefront.design_assigned") == []
+
+    def test_closed_lifecycle_precedes_noop_suppression(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        # §6: a design request against a closed business is 409 even when
+        # the requested variant is the already-selected (no-op) value —
+        # and the creation path is equally gated.
+        business, _ = _seed_owner_with_draft(db, create_user, create_business, create_membership)
+        closed_empty = create_business(slug="closed-empty", name="Closed Empty", status="closed")
+        with migrated_engine.begin() as connection:
+            connection.execute(
+                text("UPDATE businesses SET status = 'closed' WHERE id = :bid"),
+                {"bid": business},
+            )
+        admin_id = create_user(PLATFORM_ADMIN, is_platform_admin=True)
+        admin = _actor(admin_id, is_platform_admin=True)
+
+        for target in (business, closed_empty):
+            with pytest.raises(ApiError) as excinfo:
+                storefront_service.assign_design(
+                    db, admin, target, DesignAssignment(design_variant=DesignVariant.CLASSIC)
+                )
+            assert excinfo.value.code.value == "invalid_state"
+            db.rollback()
+        assert _audit_events(migrated_engine, business, "storefront.design_assigned") == []
+
+    def test_members_cannot_assign_and_unknown_business_is_404(
+        self,
+        db: Session,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business = create_business()
+        owner_id = create_user(OWNER)
+        create_membership(business, owner_id)
+
+        # Platform authority never comes from a membership (ADR-011): the
+        # owner is denied 403 by the pure platform-capability gate.
+        with pytest.raises(PermissionDeniedError):
+            storefront_service.assign_design(
+                db,
+                _actor(owner_id),
+                business,
+                DesignAssignment(design_variant=DesignVariant.CLASSIC),
+            )
+        db.rollback()
+        # Platform routes disclose existence only after the capability
+        # passes: an unknown business is then a 404.
+        admin_id = create_user(PLATFORM_ADMIN, is_platform_admin=True)
+        with pytest.raises(ResourceNotFoundError):
+            storefront_service.assign_design(
+                db,
+                _actor(admin_id, is_platform_admin=True),
+                uuid.uuid4(),
+                DesignAssignment(design_variant=DesignVariant.CLASSIC),
+            )
+
+    def test_future_variant_assignment_increments_and_fails_stale_owner_writes(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        # The M4D+ seam (§6): an effective assignment increments the
+        # draft's lock_version, so an owner submission based on the
+        # previous version fails safely instead of silently reverting the
+        # platform's assignment.
+        business, actor = _seed_owner_with_draft(
+            db, create_user, create_business, create_membership
+        )
+        admin_id = create_user(PLATFORM_ADMIN, is_platform_admin=True)
+        payload = DesignAssignment.model_construct(
+            design_variant=cast(DesignVariant, _FutureVariant.MODERN)
+        )
+
+        # The strict response model rightly cannot represent an
+        # unregistered variant, so the acknowledgment construction alone is
+        # stubbed; every service-side effect below is real. Rewrite this
+        # test against the real enum when the second variant registers.
+        with mock.patch.object(storefront_service, "DesignAssignmentResult", SimpleNamespace):
+            result = storefront_service.assign_design(
+                db, _actor(admin_id, is_platform_admin=True), business, payload
+            )
+
+        assert result.previous_variant is DesignVariant.CLASSIC
+        rows = _version_rows(migrated_engine, business)
+        assert rows[0]["design_variant"] == "modern"
+        assert rows[0]["lock_version"] == 1
+        events = _audit_events(migrated_engine, business, "storefront.design_assigned")
+        assert events[-1]["details"] == {
+            "previous_variant": "classic",
+            "new_variant": "modern",
+        }
+        # The owner's stale write (lock 0) now conflicts (§6).
+        with pytest.raises(ApiError) as excinfo:
+            storefront_service.put_draft(
+                db, actor, business, DraftPut(config=_config([_hero()]), expected_lock_version=0)
+            )
+        assert excinfo.value.status_code == 409
+        assert excinfo.value.details == {"lock_version": 1}
+
+    def test_creation_race_with_an_owner_serializes_on_the_business_lock(
+        self,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        """§5.8/§5.9: the platform creation path takes the same Business
+        lock, so whichever command runs second operates against the
+        now-existing draft according to its own contract — here, the
+        assignment of the already-selected variant becomes a no-op."""
+        business = create_business()
+        owner_id = create_user(OWNER)
+        create_membership(business, owner_id)
+        admin_id = create_user(PLATFORM_ADMIN, is_platform_admin=True)
+        admin = _actor(admin_id, is_platform_admin=True)
+        session_factory = sessionmaker(bind=migrated_engine)
+        session_a = session_factory()
+        outcome: dict[str, Any] = {}
+        b_started = threading.Event()
+
+        def run_b() -> None:
+            session_b = session_factory()
+            try:
+                b_started.set()
+                result = storefront_service.assign_design(
+                    session_b,
+                    admin,
+                    business,
+                    DesignAssignment(design_variant=DesignVariant.CLASSIC),
+                )
+                outcome["result"] = (
+                    result.previous_variant.value if result.previous_variant is not None else None
+                )
+            except Exception as exc:  # pragma: no cover - diagnostic only
+                outcome["result"] = ("unexpected", type(exc).__name__)
+            finally:
+                session_b.rollback()
+                session_b.close()
+
+        thread = threading.Thread(target=run_b)
+        try:
+            assert lock_business_status(session_a, business) == "provisioning"
+            session_a.execute(
+                text(
+                    "INSERT INTO storefront_versions (id, business_id, state,"
+                    " version_number, schema_version, design_variant, config,"
+                    " lock_version) VALUES (gen_random_uuid(), :bid, 'draft', NULL,"
+                    " 1, 'classic',"
+                    ' \'{"schema_version": 1, "theme": {"accent": "#a34b2a"},'
+                    ' "sections": []}\'::jsonb, 0)'
+                ),
+                {"bid": business},
+            )
+            thread.start()
+            b_started.wait(timeout=5)
+            time.sleep(0.2)  # let B reach (and block on) the Business lock
+            session_a.commit()
+        finally:
+            session_a.close()
+            thread.join(timeout=10)
+
+        # B found the owner's draft already there: a no-op against it,
+        # never a second draft and never an overwrite.
+        assert outcome["result"] == "classic"
+        rows = _version_rows(migrated_engine, business)
+        assert len(rows) == 1
+        assert _audit_events(migrated_engine, business, "storefront.design_assigned") == []

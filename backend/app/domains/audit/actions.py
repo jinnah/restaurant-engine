@@ -61,3 +61,4 @@ class AuditAction(StrEnum):
     # operational telemetry into administrative audit records.
     STOREFRONT_PUBLISHED = "storefront.published"
     STOREFRONT_VERSION_RESTORED = "storefront.version_restored"
+    STOREFRONT_DESIGN_ASSIGNED = "storefront.design_assigned"

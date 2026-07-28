@@ -306,3 +306,18 @@ class StorefrontVersionRestoredDetails(AuditDetails):
 
     restored_from_version_number: int
     design_variant: str
+
+
+class StorefrontDesignAssignedDetails(ModifierAuditDetails):
+    """A platform administrator assigned the draft's design variant.
+
+    ``previous_variant`` is present exactly when a draft already existed;
+    its absence marks the first-draft creation path (ADR-020 §5.7), where
+    state came into existence that did not exist before — no boolean is
+    needed, keeping the projection value union string/int only. The
+    omit-None base drops the inapplicable field from the stored payload
+    (the M3B D6 field-presence rule).
+    """
+
+    previous_variant: str | None = None
+    new_variant: str
