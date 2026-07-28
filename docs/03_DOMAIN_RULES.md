@@ -213,9 +213,42 @@ rejected rather than stripped. It deliberately carries **no** hours or
 "open now" field (M5), **no** ordering section or ordering call to action
 (M6 — `hero.primary_action` is a closed enum of `none` and `view_menu`,
 ordinary navigation), and no campaign concepts (M10). The design-variant
-registry is likewise code-owned with an explicit platform default. Services,
-APIs, publication and restore commands, media claiming, preview, the public
-projection, and caching are M4B/M4C.
+registry is likewise code-owned with an explicit platform default.
+Preview, the public projection, and caching are M4C.
+
+**Implemented in M4B (ADR-020).** The administrative API over the M4A
+foundation — seven operations (contract 57 → 64), no migration, no
+backfill: lazy first-draft creation is the compatibility mechanism.
+Three capabilities: `business.storefront.read`/`.write` (owner,
+manager) and `business.storefront.publish` (owner only, covering
+publication **and** restoration); broad `business.view` is deliberately
+insufficient for any storefront read, so staff receive 403. Every
+mutation runs the capability → Business `FOR UPDATE` → lifecycle
+preamble (closed businesses refuse every storefront mutation with 409
+`invalid_state` while staying readable). The overview is the draft's
+only read representation (`draft: null` = valid first-use absence); the
+history list and version detail expose published + archived rows only.
+Draft writes are full-document create-or-update at one PUT with explicit
+intent (omitted/null `expected_lock_version` = create, an integer =
+update), exact-canonical-no-op suppression, and stale writes as 409s
+carrying the current `lock_version`; owner/manager payloads structurally
+cannot carry `design_variant`. Publication requires the draft's exact
+lock version, mints the version number, archives the predecessor, and
+seeds the next draft atomically; restore accepts **archived sources
+only**, validates the persisted source fail-closed before mutating,
+overwrites the draft in place (config, variant, provenance), never
+publishes, never mutates the source, and every successful restore is an
+effective mutation. Media references are validated **before** any claim
+(unknown/cross-business/non-image → one indistinguishable 422; expired
+→ the established 409) and claimed through the same
+`claim_for_attachment` path the catalog uses. Three audit actions —
+`storefront.published`, `storefront.version_restored`,
+`storefront.design_assigned` — commit atomically with their mutations;
+draft edits are deliberately unaudited. Platform design assignment
+(`platform.businesses.manage`) may create the first draft from the
+registry default, no-ops exactly on the already-selected variant after
+the lifecycle gate, and increments the draft's `lock_version` on every
+effective assignment so a concurrent owner write fails safely.
 
 ## Media
 

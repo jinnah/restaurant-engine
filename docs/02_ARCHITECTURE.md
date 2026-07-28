@@ -144,7 +144,7 @@ because API truth stays generated from OpenAPI (ADR-004). Shared primitives
 `apps/control-center/src/components` and `src/api`; no `admin-ui` package
 exists, since the bar remains a second real _application_ consumer.
 
-**Storefront domain foundation (M4A, ADR-020):** `backend/app/domains/storefront`
+**Storefront domain (M4A–M4B, ADR-020):** `backend/app/domains/storefront`
 owns the code-owned section and design-variant registries, the versioned
 composition contract, and `storefront_versions` — the single table holding
 every draft, published, and archived composition. It references catalog
@@ -152,9 +152,16 @@ items and media assets by id and copies neither: a storefront renders the
 _current_ menu, while immutable transactional snapshots belong to Orders
 (M6). Composition uses optimistic concurrency (`lock_version`) where
 catalog uses row locks — a deliberate asymmetry, because a composition edit
-is a long-lived session and a catalog edit is not. M4A is persistence and
-validation only; services, endpoints, publication, preview, the public
-projection, and caching arrive with M4B/M4C.
+is a long-lived session and a catalog edit is not. M4B added the
+administrative surface over the M4A foundation: the tenant-scoped
+repository and service (draft create/update with §10 media claiming,
+publication, archived-only restore, history reads), the platform
+design-assignment command, three storefront capabilities
+(`business.view` is deliberately insufficient for any storefront read),
+three audited actions, and the seven-operation contract — every mutation
+behind the capability → Business-`FOR UPDATE` → lifecycle preamble, with
+stale writes as 409s carrying the current `lock_version`. Preview, the
+public projection, and caching arrive with M4C.
 
 **Frontend workspace conventions (M1B):** one root ESLint flat config and one
 root `tsconfig.base.json` own shared configuration as plain files — a shared
