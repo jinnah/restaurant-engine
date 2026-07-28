@@ -28,6 +28,10 @@ export type PasswordResetIssueResponse =
   components['schemas']['PasswordResetIssueResponse'];
 export type EntitlementSet = components['schemas']['EntitlementSet'];
 export type FeatureKey = components['schemas']['FeatureKey'];
+// M4B (ADR-020 §6): platform-governed storefront design assignment.
+export type DesignAssignment = components['schemas']['DesignAssignment'];
+export type DesignAssignmentResult =
+  components['schemas']['DesignAssignmentResult'];
 
 type PlatformAuditQuery = NonNullable<
   paths['/api/v1/platform/audit-events']['get']['parameters']['query']
@@ -129,6 +133,16 @@ export interface PlatformApi {
   listAuditEvents(
     params?: AuditListParams & { actorUserId?: string; businessId?: string },
   ): Promise<ApiResult<AuditEventPage>>;
+  /**
+   * Assign the storefront draft's design variant (M4B, ADR-020 §6).
+   * Creates the first draft when none exists; the acknowledgment carries
+   * variant facts only — no composition content.
+   */
+  setDesign(
+    businessId: string,
+    body: DesignAssignment,
+    csrfToken: string,
+  ): Promise<ApiResult<DesignAssignmentResult>>;
 }
 
 export function createPlatformApi(client: Client<paths>): PlatformApi {
@@ -317,6 +331,18 @@ export function createPlatformApi(client: Client<paths>): PlatformApi {
               },
             },
           },
+        );
+        return toResult(data, error, response);
+      } catch {
+        return { ok: false, status: null, envelope: null };
+      }
+    },
+
+    async setDesign(businessId, body, csrfToken) {
+      try {
+        const { data, error, response } = await client.PUT(
+          '/api/v1/platform/businesses/{business_id}/design',
+          { ...path(businessId), body, headers: csrf(csrfToken) },
         );
         return toResult(data, error, response);
       } catch {

@@ -178,3 +178,46 @@ describe('businesses.get', () => {
     }
   });
 });
+
+describe('platform.setDesign', () => {
+  it('PUTs the variant to the design path with the CSRF header', async () => {
+    const requests: Request[] = [];
+    const client = clientCapturing(
+      jsonResponse(200, { design_variant: 'classic', previous_variant: null }),
+      requests,
+    );
+
+    const result = await client.platform.setDesign(
+      BID,
+      { design_variant: 'classic' },
+      'csrf',
+    );
+
+    expect(requests[0]?.method).toBe('PUT');
+    expect(requests[0]?.url).toBe(
+      `${BASE_URL}/api/v1/platform/businesses/${BID}/design`,
+    );
+    expect(requests[0]?.headers.get('X-CSRF-Token')).toBe('csrf');
+    expect(await requests[0]?.json()).toEqual({ design_variant: 'classic' });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // previous_variant: null marks the first-draft creation path.
+      expect(result.data.previous_variant).toBeNull();
+    }
+  });
+
+  it('narrows invalid_state on a closed business', async () => {
+    const client = clientCapturing(
+      jsonResponse(409, envelope('invalid_state')),
+    );
+    const result = await client.platform.setDesign(
+      BID,
+      { design_variant: 'classic' },
+      'csrf',
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.envelope?.error.code).toBe('invalid_state');
+    }
+  });
+});

@@ -24,6 +24,8 @@ export type {
   BusinessCreate,
   BusinessPage,
   BusinessSummary,
+  DesignAssignment,
+  DesignAssignmentResult,
   EntitlementSet,
   FeatureKey,
   PasswordResetIssueRequest,
@@ -89,6 +91,19 @@ export type {
   MediaVariant,
   MediaVariantView,
 } from './media';
+export type {
+  DesignVariant,
+  DraftPut,
+  DraftView,
+  PublishRequest,
+  RestoreRequest,
+  StorefrontApi,
+  StorefrontConfig,
+  StorefrontOverview,
+  VersionDetail,
+  VersionPage,
+  VersionSummary,
+} from './storefront';
 export type {
   PublicApi,
   PublicMenu,

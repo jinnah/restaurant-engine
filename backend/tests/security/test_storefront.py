@@ -18,6 +18,7 @@ from typing import Any, cast
 from unittest import mock
 
 import pytest
+from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session, sessionmaker
@@ -38,7 +39,14 @@ from app.domains.storefront.schemas import (
     RestoreRequest,
 )
 from app.domains.storefront.variants import DesignVariant
-from tests.security.conftest import CreateBusiness, CreateMembership, CreateUser
+from tests.security.conftest import (
+    BROWSER_HEADERS,
+    CreateBusiness,
+    CreateMembership,
+    CreateUser,
+    csrf_headers,
+    login_as,
+)
 
 OWNER = "owner@example.com"
 MANAGER = "manager@example.com"
@@ -1570,3 +1578,466 @@ class TestDesignAssignment:
         rows = _version_rows(migrated_engine, business)
         assert len(rows) == 1
         assert _audit_events(migrated_engine, business, "storefront.design_assigned") == []
+
+
+# --- HTTP surface (the routers over the same service rules) ------------------
+
+
+CONFIG_JSON: dict[str, Any] = {
+    "schema_version": 1,
+    "theme": {"accent": "#a34b2a"},
+    "sections": [],
+}
+HERO_CONFIG_JSON: dict[str, Any] = {
+    "schema_version": 1,
+    "theme": {"accent": "#a34b2a"},
+    "sections": [{"id": "hero-main", "type": "hero", "enabled": True, "props": {"heading": "Hi"}}],
+}
+
+
+def _base(business_id: uuid.UUID) -> str:
+    return f"/api/v1/businesses/{business_id}/storefront"
+
+
+def _error(response: Any) -> dict[str, Any]:
+    return dict(response.json()["error"])
+
+
+class TestHttpSurface:
+    def test_anonymous_requests_are_rejected(
+        self, client: Any, create_business: CreateBusiness
+    ) -> None:
+        business = create_business()
+        assert client.get(_base(business)).status_code == 401
+        assert client.get(f"{_base(business)}/versions").status_code == 401
+        assert client.get(f"{_base(business)}/versions/{uuid.uuid4()}").status_code == 401
+        assert (
+            client.put(f"{_base(business)}/draft", json={"config": CONFIG_JSON}).status_code == 401
+        )
+        assert (
+            client.post(f"{_base(business)}/publish", json={"expected_lock_version": 0}).status_code
+            == 401
+        )
+        assert (
+            client.post(
+                f"{_base(business)}/versions/{uuid.uuid4()}/restore",
+                json={"expected_lock_version": 0},
+            ).status_code
+            == 401
+        )
+        assert (
+            client.put(
+                f"/api/v1/platform/businesses/{business}/design",
+                json={"design_variant": "classic"},
+            ).status_code
+            == 401
+        )
+
+    def test_unsafe_routes_require_the_csrf_token(
+        self,
+        client: Any,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business = create_business()
+        create_membership(business, create_user(OWNER))
+        login_as(client, OWNER)
+
+        # Authenticated, trusted browser context, but no synchronizer token.
+        response = client.put(
+            f"{_base(business)}/draft", json={"config": CONFIG_JSON}, headers=BROWSER_HEADERS
+        )
+        assert response.status_code == 403
+        assert _error(response)["code"] == "csrf_rejected"
+
+    def test_owner_journey_over_http(
+        self,
+        client: Any,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business = create_business()
+        create_membership(business, create_user(OWNER))
+        csrf = login_as(client, OWNER)
+        headers = csrf_headers(csrf)
+
+        # First-use absence.
+        overview = client.get(_base(business))
+        assert overview.status_code == 200
+        assert overview.json() == {"draft": None, "published": None}
+
+        # Create the draft (create intent: no expected_lock_version).
+        created = client.put(
+            f"{_base(business)}/draft", json={"config": HERO_CONFIG_JSON}, headers=headers
+        )
+        assert created.status_code == 200, created.text
+        assert created.json()["lock_version"] == 0
+        assert created.json()["design_variant"] == "classic"
+        assert created.json()["config"]["sections"][0]["type"] == "hero"
+
+        # Publish v1.
+        published = client.post(
+            f"{_base(business)}/publish", json={"expected_lock_version": 0}, headers=headers
+        )
+        assert published.status_code == 200, published.text
+        body = published.json()
+        assert body["published"]["version_number"] == 1
+        assert body["draft"]["lock_version"] == 0
+        assert body["draft"]["source_version_id"] == body["published"]["id"]
+
+        # Edit and publish v2, then restore v1.
+        updated = client.put(
+            f"{_base(business)}/draft",
+            json={"config": CONFIG_JSON, "expected_lock_version": 0},
+            headers=headers,
+        )
+        assert updated.status_code == 200, updated.text
+        second = client.post(
+            f"{_base(business)}/publish", json={"expected_lock_version": 1}, headers=headers
+        )
+        assert second.status_code == 200, second.text
+        assert second.json()["published"]["version_number"] == 2
+
+        versions = client.get(f"{_base(business)}/versions")
+        assert versions.status_code == 200
+        page = versions.json()
+        assert page["total"] == 2
+        assert [(item["version_number"], item["state"]) for item in page["items"]] == [
+            (2, "published"),
+            (1, "archived"),
+        ]
+
+        v1 = page["items"][1]
+        detail = client.get(f"{_base(business)}/versions/{v1['id']}")
+        assert detail.status_code == 200
+        assert detail.json()["config"]["sections"][0]["props"]["heading"] == "Hi"
+
+        restored = client.post(
+            f"{_base(business)}/versions/{v1['id']}/restore",
+            json={"expected_lock_version": 0},
+            headers=headers,
+        )
+        assert restored.status_code == 200, restored.text
+        assert restored.json()["lock_version"] == 1
+        assert restored.json()["source_version_id"] == v1["id"]
+
+        # Draft edits are never audited; publish and restore are.
+        with migrated_engine.begin() as connection:
+            actions = [
+                row[0]
+                for row in connection.execute(
+                    text(
+                        "SELECT action FROM audit_events"
+                        " WHERE business_id = :bid AND action LIKE 'storefront.%'"
+                        " ORDER BY id"
+                    ),
+                    {"bid": business},
+                )
+            ]
+        assert actions == [
+            "storefront.published",
+            "storefront.published",
+            "storefront.version_restored",
+        ]
+
+    def test_design_variant_in_the_draft_payload_is_422(
+        self,
+        client: Any,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business = create_business()
+        create_membership(business, create_user(OWNER))
+        csrf = login_as(client, OWNER)
+
+        response = client.put(
+            f"{_base(business)}/draft",
+            json={"config": CONFIG_JSON, "design_variant": "classic"},
+            headers=csrf_headers(csrf),
+        )
+
+        assert response.status_code == 422
+        error = _error(response)
+        assert error["code"] == "validation_error"
+        assert any(
+            field["field"].endswith("design_variant") and field["code"] == "extra_forbidden"
+            for field in error["field_errors"]
+        )
+
+    def test_stale_lock_conflict_carries_the_current_value(
+        self,
+        client: Any,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business = create_business()
+        create_membership(business, create_user(OWNER))
+        csrf = login_as(client, OWNER)
+        headers = csrf_headers(csrf)
+        client.put(f"{_base(business)}/draft", json={"config": CONFIG_JSON}, headers=headers)
+        client.put(
+            f"{_base(business)}/draft",
+            json={"config": HERO_CONFIG_JSON, "expected_lock_version": 0},
+            headers=headers,
+        )
+
+        stale = client.put(
+            f"{_base(business)}/draft",
+            json={"config": CONFIG_JSON, "expected_lock_version": 0},
+            headers=headers,
+        )
+
+        assert stale.status_code == 409
+        error = _error(stale)
+        assert error["code"] == "conflict"
+        assert error["details"] == {"lock_version": 1}
+
+    def test_unknown_media_reference_envelope(
+        self,
+        client: Any,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business = create_business()
+        create_membership(business, create_user(OWNER))
+        csrf = login_as(client, OWNER)
+        missing = str(uuid.uuid4())
+        config = {
+            "schema_version": 1,
+            "theme": {"accent": "#a34b2a"},
+            "sections": [
+                {
+                    "id": "hero-main",
+                    "type": "hero",
+                    "enabled": True,
+                    "props": {"heading": "Hi", "image": {"media_id": missing}},
+                }
+            ],
+        }
+
+        response = client.put(
+            f"{_base(business)}/draft", json={"config": config}, headers=csrf_headers(csrf)
+        )
+
+        assert response.status_code == 422
+        error = _error(response)
+        assert error["code"] == "validation_error"
+        assert error["details"] == {"media_ids": [missing]}
+
+    def test_corrupt_restore_source_is_an_opaque_500(
+        self,
+        app: Any,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        # Approved completion 1 at the HTTP boundary: the fail-closed
+        # rejection renders as the opaque internal_error envelope — no new
+        # public error code, and no stored content in the response. A
+        # non-raising client is required to observe the rendered 500.
+        business = create_business()
+        create_membership(business, create_user(OWNER))
+        client = TestClient(app, raise_server_exceptions=False)
+        csrf = login_as(client, OWNER)
+        headers = csrf_headers(csrf)
+        client.put(f"{_base(business)}/draft", json={"config": HERO_CONFIG_JSON}, headers=headers)
+        client.post(
+            f"{_base(business)}/publish", json={"expected_lock_version": 0}, headers=headers
+        )
+        client.put(
+            f"{_base(business)}/draft",
+            json={"config": CONFIG_JSON, "expected_lock_version": 0},
+            headers=headers,
+        )
+        client.post(
+            f"{_base(business)}/publish", json={"expected_lock_version": 1}, headers=headers
+        )
+        v1_id = _version_row_id(migrated_engine, business, 1)
+        with migrated_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE storefront_versions SET config = '{\"weird\": true}'::jsonb"
+                    " WHERE id = :vid"
+                ),
+                {"vid": v1_id},
+            )
+
+        response = client.post(
+            f"{_base(business)}/versions/{v1_id}/restore",
+            json={"expected_lock_version": 0},
+            headers=headers,
+        )
+
+        assert response.status_code == 500
+        error = _error(response)
+        assert error["code"] == "internal_error"
+        assert "weird" not in response.text
+
+
+class TestHttpAuthorizationMatrix:
+    def test_member_role_matrix(
+        self,
+        client: Any,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business = create_business()
+        create_membership(business, create_user(OWNER))
+        create_membership(business, create_user(MANAGER), role="manager")
+        create_membership(business, create_user(STAFF), role="staff")
+        owner_csrf = login_as(client, OWNER)
+        client.put(
+            f"{_base(business)}/draft",
+            json={"config": CONFIG_JSON},
+            headers=csrf_headers(owner_csrf),
+        )
+
+        # Staff: 403 on every storefront surface, reads included (§7).
+        staff_csrf = login_as(client, STAFF)
+        assert client.get(_base(business)).status_code == 403
+        assert client.get(f"{_base(business)}/versions").status_code == 403
+        response = client.put(
+            f"{_base(business)}/draft",
+            json={"config": CONFIG_JSON, "expected_lock_version": 0},
+            headers=csrf_headers(staff_csrf),
+        )
+        assert response.status_code == 403
+        assert _error(response)["code"] == "permission_denied"
+
+        # Manager: read and write, but never publish or restore.
+        manager_csrf = login_as(client, MANAGER)
+        assert client.get(_base(business)).status_code == 200
+        publish = client.post(
+            f"{_base(business)}/publish",
+            json={"expected_lock_version": 0},
+            headers=csrf_headers(manager_csrf),
+        )
+        assert publish.status_code == 403
+        restore = client.post(
+            f"{_base(business)}/versions/{uuid.uuid4()}/restore",
+            json={"expected_lock_version": 0},
+            headers=csrf_headers(manager_csrf),
+        )
+        assert restore.status_code == 403
+
+    def test_nonmembers_and_platform_admins_get_404(
+        self,
+        client: Any,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business = create_business()
+        create_membership(business, create_user(OWNER))
+        other_business = create_business(slug="other-kitchen", name="Other Kitchen")
+        create_membership(other_business, create_user(INTRUDER))
+        create_user(PLATFORM_ADMIN, is_platform_admin=True)
+
+        for email in (INTRUDER, PLATFORM_ADMIN):
+            csrf = login_as(client, email)
+            assert client.get(_base(business)).status_code == 404
+            assert client.get(f"{_base(business)}/versions").status_code == 404
+            response = client.put(
+                f"{_base(business)}/draft",
+                json={"config": CONFIG_JSON},
+                headers=csrf_headers(csrf),
+            )
+            assert response.status_code == 404
+            assert _error(response)["code"] == "not_found"
+
+    def test_cross_tenant_version_ids_do_not_disclose(
+        self,
+        client: Any,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business = create_business()
+        create_membership(business, create_user(OWNER))
+        other_business = create_business(slug="other-kitchen", name="Other Kitchen")
+        create_membership(other_business, create_user(INTRUDER))
+        intruder_csrf = login_as(client, INTRUDER)
+        headers = csrf_headers(intruder_csrf)
+        client.put(
+            f"/api/v1/businesses/{other_business}/storefront/draft",
+            json={"config": CONFIG_JSON},
+            headers=headers,
+        )
+        client.post(
+            f"/api/v1/businesses/{other_business}/storefront/publish",
+            json={"expected_lock_version": 0},
+            headers=headers,
+        )
+
+        # The owner of business A probes B's real version id under A: the
+        # tenant-scoped lookup renders it exactly like a nonexistent one.
+        owner_csrf = login_as(client, OWNER)
+        client.put(
+            f"{_base(business)}/draft",
+            json={"config": CONFIG_JSON},
+            headers=csrf_headers(owner_csrf),
+        )
+        foreign_id = _published_row_id(migrated_engine, other_business)
+        real_miss = client.get(f"{_base(business)}/versions/{foreign_id}")
+        fake_miss = client.get(f"{_base(business)}/versions/{uuid.uuid4()}")
+        assert real_miss.status_code == fake_miss.status_code == 404
+        assert _error(real_miss)["message"] == _error(fake_miss)["message"]
+        restore = client.post(
+            f"{_base(business)}/versions/{foreign_id}/restore",
+            json={"expected_lock_version": 0},
+            headers=csrf_headers(owner_csrf),
+        )
+        assert restore.status_code == 404
+
+    def test_platform_design_route_matrix(
+        self,
+        client: Any,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business = create_business()
+        create_membership(business, create_user(OWNER))
+        create_user(PLATFORM_ADMIN, is_platform_admin=True)
+        design_path = f"/api/v1/platform/businesses/{business}/design"
+
+        # An owner holds no platform capability: 403 from the pure gate.
+        owner_csrf = login_as(client, OWNER)
+        denied = client.put(
+            design_path,
+            json={"design_variant": "classic"},
+            headers=csrf_headers(owner_csrf),
+        )
+        assert denied.status_code == 403
+        assert _error(denied)["code"] == "permission_denied"
+
+        admin_csrf = login_as(client, PLATFORM_ADMIN)
+        headers = csrf_headers(admin_csrf)
+        created = client.put(design_path, json={"design_variant": "classic"}, headers=headers)
+        assert created.status_code == 200, created.text
+        assert created.json() == {"design_variant": "classic", "previous_variant": None}
+
+        repeated = client.put(design_path, json={"design_variant": "classic"}, headers=headers)
+        assert repeated.status_code == 200
+        assert repeated.json() == {"design_variant": "classic", "previous_variant": "classic"}
+
+        unknown_business = client.put(
+            f"/api/v1/platform/businesses/{uuid.uuid4()}/design",
+            json={"design_variant": "classic"},
+            headers=headers,
+        )
+        assert unknown_business.status_code == 404
+
+        unknown_variant = client.put(
+            design_path, json={"design_variant": "brutalist"}, headers=headers
+        )
+        assert unknown_variant.status_code == 422

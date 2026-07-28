@@ -578,6 +578,130 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/businesses/{business_id}/storefront": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Storefront Get
+         * @description The storefront overview — the draft's only read representation.
+         *
+         *     ``draft: null`` is the valid first-use absence (reads never create
+         *     state, §5.1).
+         */
+        get: operations["storefront_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/storefront/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Storefront Draft Put
+         * @description Create or replace the draft (full document, explicit intent, D-5).
+         */
+        put: operations["storefront_draft_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/storefront/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Storefront Publish
+         * @description Publish the draft (owner only): promote, archive, seed — atomically.
+         */
+        post: operations["storefront_publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/storefront/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Storefront Versions List
+         * @description Owner-facing history: the published + archived versions, newest first.
+         */
+        get: operations["storefront_versions_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/storefront/versions/{version_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Storefront Version Get
+         * @description One history row with its composition — never the draft (404 there).
+         */
+        get: operations["storefront_version_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/storefront/versions/{version_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Storefront Version Restore
+         * @description Restore an archived version into the draft (owner only, archived-only
+         *     sources); returns the updated draft representation.
+         */
+        post: operations["storefront_version_restore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/invitations/accept": {
         parameters: {
             query?: never;
@@ -759,6 +883,30 @@ export interface paths {
          * @description suspended → closed (terminal).
          */
         post: operations["platform_business_close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/businesses/{business_id}/design": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Platform Business Design Set
+         * @description Assign the draft's design variant (creates the first draft if none).
+         *
+         *     The acknowledgment carries variant facts only — platform
+         *     administrators hold no storefront read (§7 non-disclosure 404 on the
+         *     business-scoped surface), so no composition content is returned here.
+         */
+        put: operations["platform_business_design_set"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1029,7 +1177,7 @@ export interface components {
          * @description Machine-readable audit event names (append-only).
          * @enum {string}
          */
-        AuditAction: "auth.login_succeeded" | "auth.login_failed" | "auth.login_throttled" | "auth.logout" | "user.platform_admin_created" | "business.created" | "business.activated" | "business.suspended" | "business.reactivated" | "business.closed" | "business.invitation_issued" | "business.invitation_revoked" | "business.invitation_accepted" | "business.entitlement_granted" | "business.entitlement_revoked" | "auth.password_reset_issued" | "auth.password_reset_completed" | "catalog.category_created" | "catalog.category_updated" | "catalog.category_deleted" | "catalog.categories_reordered" | "catalog.item_created" | "catalog.item_updated" | "catalog.item_deleted" | "catalog.items_reordered" | "catalog.item_availability_changed" | "catalog.modifier_group_created" | "catalog.modifier_group_updated" | "catalog.modifier_group_deleted" | "catalog.modifier_groups_reordered" | "catalog.modifier_option_created" | "catalog.modifier_option_updated" | "catalog.modifier_option_deleted" | "catalog.modifier_options_reordered" | "media.asset_uploaded" | "media.asset_deleted" | "media.asset_expired" | "catalog.item_image_changed";
+        AuditAction: "auth.login_succeeded" | "auth.login_failed" | "auth.login_throttled" | "auth.logout" | "user.platform_admin_created" | "business.created" | "business.activated" | "business.suspended" | "business.reactivated" | "business.closed" | "business.invitation_issued" | "business.invitation_revoked" | "business.invitation_accepted" | "business.entitlement_granted" | "business.entitlement_revoked" | "auth.password_reset_issued" | "auth.password_reset_completed" | "catalog.category_created" | "catalog.category_updated" | "catalog.category_deleted" | "catalog.categories_reordered" | "catalog.item_created" | "catalog.item_updated" | "catalog.item_deleted" | "catalog.items_reordered" | "catalog.item_availability_changed" | "catalog.modifier_group_created" | "catalog.modifier_group_updated" | "catalog.modifier_group_deleted" | "catalog.modifier_groups_reordered" | "catalog.modifier_option_created" | "catalog.modifier_option_updated" | "catalog.modifier_option_deleted" | "catalog.modifier_options_reordered" | "media.asset_uploaded" | "media.asset_deleted" | "media.asset_expired" | "catalog.item_image_changed" | "storefront.published" | "storefront.version_restored" | "storefront.design_assigned";
         /**
          * AuditEventPage
          * @description Cursor page (``id DESC``); ``next_before_id`` feeds the next request.
@@ -1233,6 +1381,42 @@ export interface components {
             status: "up" | "down";
         };
         /**
+         * ContactProps
+         * @description Contact details as structured fields.
+         *
+         *     Deliberately no hours field of any kind — structured weekly hours,
+         *     exceptions, and "next opening" are M5's domain, and a free-text
+         *     opening-times line here would be the freeform storefront text docs/03
+         *     rules out. ``email`` is bounded plain text, not a deliverability
+         *     guarantee.
+         */
+        ContactProps: {
+            /** Address Lines */
+            address_lines?: string[];
+            /** Email */
+            email?: string | null;
+            /** Heading */
+            heading: string;
+            /** Phone */
+            phone?: string | null;
+        };
+        /** ContactSection */
+        ContactSection: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Id */
+            id: string;
+            props: components["schemas"]["ContactProps"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "contact";
+        };
+        /**
          * DeletedResponse
          * @description Explicit confirmation body for delete commands (the M2D
          *     ``InvitationRevokedResponse`` pattern — commands return a clear result,
@@ -1247,6 +1431,37 @@ export interface components {
             status: "deleted";
         };
         /**
+         * DesignAssignment
+         * @description Platform command: assign the draft's structural design variant.
+         *
+         *     The registry enum publishes the closed set in the contract, so an
+         *     unregistered variant is a 422 before the service runs. There is no
+         *     ``lock_version`` field: the command changes only the platform-owned
+         *     variant and is serialized by the Business row lock (ADR-020 §6).
+         */
+        DesignAssignment: {
+            design_variant: components["schemas"]["DesignVariant"];
+        };
+        /**
+         * DesignAssignmentResult
+         * @description Bounded acknowledgment for the platform design command.
+         *
+         *     Deliberately not a draft view: the §7 matrix denies platform
+         *     administrators every storefront config read, so the response carries
+         *     variant facts only. ``previous_variant: null`` marks the first-draft
+         *     creation path (§5.7), mirroring the audit detail.
+         */
+        DesignAssignmentResult: {
+            design_variant: components["schemas"]["DesignVariant"];
+            previous_variant: components["schemas"]["DesignVariant"] | null;
+        };
+        /**
+         * DesignVariant
+         * @description Platform-curated structural design variants (append-only).
+         * @enum {string}
+         */
+        DesignVariant: "classic";
+        /**
          * DietaryTag
          * @description Structured dietary attributes of a menu item (append-only).
          *
@@ -1256,6 +1471,50 @@ export interface components {
          * @enum {string}
          */
         DietaryTag: "halal" | "vegetarian" | "vegan";
+        /**
+         * DraftPut
+         * @description Full-document draft replacement — create or update in one route (D-5).
+         *
+         *     ``expected_lock_version`` is the explicit intent representation
+         *     (ADR-020 §5.4): omitted or ``null`` means "I believe no draft exists"
+         *     (create); an integer means "I believe the draft is at exactly this
+         *     version" (update). A guessed ``0`` is therefore an update claim and can
+         *     never silently create or overwrite.
+         */
+        DraftPut: {
+            config: components["schemas"]["StorefrontConfig"];
+            /** Expected Lock Version */
+            expected_lock_version?: number | null;
+        };
+        /**
+         * DraftView
+         * @description The singleton mutable draft.
+         *
+         *     The overview is the **only** administrative read representation of the
+         *     draft — history endpoints expose published and archived rows only.
+         *     ``lock_version`` is the optimistic-concurrency token every draft
+         *     mutation must present back (ADR-020 §6).
+         */
+        DraftView: {
+            config: components["schemas"]["StorefrontConfig"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            design_variant: components["schemas"]["DesignVariant"];
+            /** Lock Version */
+            lock_version: number;
+            /** Schema Version */
+            schema_version: number;
+            /** Source Version Id */
+            source_version_id: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /**
          * EmptyCommand
          * @description Body for no-argument lifecycle commands.
@@ -1331,10 +1590,76 @@ export interface components {
             /** Message */
             message: string;
         };
+        /**
+         * GalleryProps
+         * @description A bounded set of images, in display order.
+         */
+        GalleryProps: {
+            /** Heading */
+            heading?: string | null;
+            /** Images */
+            images?: components["schemas"]["SectionImage"][];
+        };
+        /** GallerySection */
+        GallerySection: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Id */
+            id: string;
+            props: components["schemas"]["GalleryProps"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "gallery";
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * HeroAction
+         * @description The hero's primary call to action — a closed enum, not free text.
+         *
+         *     ``view_menu`` is ordinary in-site navigation to the menu. It is **not**
+         *     an ordering call to action: no ordering exists before M6, and this enum
+         *     is the seam where an entitlement-gated ordering member will be added
+         *     when it does.
+         * @enum {string}
+         */
+        HeroAction: "none" | "view_menu";
+        /**
+         * HeroProps
+         * @description Opening section: headline, optional supporting line, optional image.
+         */
+        HeroProps: {
+            /** Heading */
+            heading: string;
+            image?: components["schemas"]["SectionImage"] | null;
+            /** @default none */
+            primary_action: components["schemas"]["HeroAction"];
+            /** Subheading */
+            subheading?: string | null;
+        };
+        /** HeroSection */
+        HeroSection: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Id */
+            id: string;
+            props: components["schemas"]["HeroProps"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "hero";
         };
         /**
          * InvitationAcceptExistingRequest
@@ -1745,6 +2070,37 @@ export interface components {
             role: string;
         };
         /**
+         * MenuProps
+         * @description Menu section: heading and optional introduction.
+         *
+         *     Carries **no** item selection. Which items appear, in what order, and
+         *     which are featured is already catalog's answer through the public menu
+         *     projection (``featured_item_ids``, the centralized featured policy).
+         *     A second selection here would be a competing source of truth.
+         */
+        MenuProps: {
+            /** Heading */
+            heading: string;
+            /** Intro */
+            intro?: string | null;
+        };
+        /** MenuSection */
+        MenuSection: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Id */
+            id: string;
+            props: components["schemas"]["MenuProps"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "menu";
+        };
+        /**
          * ModifierGroupCreate
          * @description Create a modifier group (appended at the end of the item's groups).
          *
@@ -2123,6 +2479,45 @@ export interface components {
             /** Timezone */
             timezone: string;
         };
+        /**
+         * PublishRequest
+         * @description Publish the current draft (approved ruling D-3).
+         *
+         *     ``expected_lock_version`` is required: an owner approves *content*,
+         *     not a row — a draft that changed since they read it is a 409 carrying
+         *     the current value, exactly like restore's guard, never a silent
+         *     publication of someone else's unreviewed edit.
+         */
+        PublishRequest: {
+            /** Expected Lock Version */
+            expected_lock_version: number;
+        };
+        /**
+         * PublishedSummary
+         * @description The at-most-one currently published version (metadata only).
+         */
+        PublishedSummary: {
+            design_variant: components["schemas"]["DesignVariant"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Published At
+             * Format: date-time
+             */
+            published_at: string;
+            /**
+             * Published By User Id
+             * Format: uuid
+             */
+            published_by_user_id: string;
+            /** Schema Version */
+            schema_version: number;
+            /** Version Number */
+            version_number: number;
+        };
         /** ReadinessResponse */
         ReadinessResponse: {
             /** Checks */
@@ -2136,11 +2531,37 @@ export interface components {
             status: "ready";
         };
         /**
+         * RestoreRequest
+         * @description Restore an archived version into the current draft (ADR-020 §4).
+         */
+        RestoreRequest: {
+            /** Expected Lock Version */
+            expected_lock_version: number;
+        };
+        /**
          * Role
          * @description Business membership roles (blueprint §7.1).
          * @enum {string}
          */
         Role: "owner" | "manager" | "staff";
+        /**
+         * SectionImage
+         * @description One image reference: an opaque media asset id plus contextual alt text.
+         *
+         *     ``alt_text`` belongs to *this* placement, not to the asset — the same
+         *     contextual-alt contract catalog uses for item images (ADR-017 R2).
+         *     Same-business ownership and public-delivery eligibility are database
+         *     questions answered by the M4B service, not here.
+         */
+        SectionImage: {
+            /** Alt Text */
+            alt_text?: string | null;
+            /**
+             * Media Id
+             * Format: uuid
+             */
+            media_id: string;
+        };
         /**
          * SessionResponse
          * @description Current authenticated identity plus the CSRF synchronizer token.
@@ -2163,6 +2584,79 @@ export interface components {
             /** Memberships */
             memberships: components["schemas"]["MembershipSummary"][];
             user: components["schemas"]["UserSummary"];
+        };
+        /**
+         * StorefrontConfig
+         * @description One complete, validated storefront composition.
+         *
+         *     Array order is the contract — sections render in the order given, so no
+         *     ``position`` field is exposed (the catalog projection convention).
+         */
+        StorefrontConfig: {
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            /** Sections */
+            sections?: (components["schemas"]["HeroSection"] | components["schemas"]["MenuSection"] | components["schemas"]["StorySection"] | components["schemas"]["ContactSection"] | components["schemas"]["GallerySection"])[];
+            theme?: components["schemas"]["Theme"];
+        };
+        /**
+         * StorefrontOverview
+         * @description The administrative storefront state of one business.
+         *
+         *     ``draft: null`` (with ``published: null``) is the valid first-use
+         *     absence: storefront reads never create state (ADR-020 §5.1), so a
+         *     business that has never composed anything reads as absent rather than
+         *     404 — on these routes 404 already means "not your business".
+         */
+        StorefrontOverview: {
+            draft: components["schemas"]["DraftView"] | null;
+            published: components["schemas"]["PublishedSummary"] | null;
+        };
+        /**
+         * StoryProps
+         * @description The restaurant's story: heading plus multi-paragraph plain text.
+         */
+        StoryProps: {
+            /** Body */
+            body: string;
+            /** Heading */
+            heading: string;
+        };
+        /** StorySection */
+        StorySection: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Id */
+            id: string;
+            props: components["schemas"]["StoryProps"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "story";
+        };
+        /**
+         * Theme
+         * @description The tenant-adjustable presentation tokens.
+         *
+         *     Exactly one accent colour in M4 — the whole of the tenant's styling
+         *     surface. Blueprint §12.3 permits accent tokens and forbids tenant CSS,
+         *     JavaScript, and arbitrary HTML; anything richer than a token here would
+         *     cross that line.
+         */
+        Theme: {
+            /**
+             * Accent
+             * @default #a34b2a
+             */
+            accent: string;
         };
         /** UserSummary */
         UserSummary: {
@@ -2190,6 +2684,100 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * VersionDetail
+         * @description One history row with its full composition (restore-confirmation
+         *     inspection). The draft is never readable here — its only read surface
+         *     is the overview.
+         */
+        VersionDetail: {
+            config: components["schemas"]["StorefrontConfig"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            design_variant: components["schemas"]["DesignVariant"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Published At
+             * Format: date-time
+             */
+            published_at: string;
+            /**
+             * Published By User Id
+             * Format: uuid
+             */
+            published_by_user_id: string;
+            /** Schema Version */
+            schema_version: number;
+            /** Source Version Id */
+            source_version_id: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "published" | "archived";
+            /** Version Number */
+            version_number: number;
+        };
+        /**
+         * VersionPage
+         * @description One bounded history page (limit/offset, ``version_number DESC``).
+         */
+        VersionPage: {
+            /** Items */
+            items: components["schemas"]["VersionSummary"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * VersionSummary
+         * @description One owner-facing history row: the current published version or an
+         *     archived one — never the draft (§4).
+         */
+        VersionSummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            design_variant: components["schemas"]["DesignVariant"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Published At
+             * Format: date-time
+             */
+            published_at: string;
+            /**
+             * Published By User Id
+             * Format: uuid
+             */
+            published_by_user_id: string;
+            /** Schema Version */
+            schema_version: number;
+            /** Source Version Id */
+            source_version_id: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "published" | "archived";
+            /** Version Number */
+            version_number: number;
         };
     };
     responses: never;
@@ -4427,6 +5015,398 @@ export interface operations {
             };
         };
     };
+    storefront_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorefrontOverview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    storefront_draft_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftPut"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    storefront_publish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorefrontOverview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    storefront_versions_list: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionPage"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    storefront_version_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionDetail"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    storefront_version_restore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestoreRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     invitation_accept: {
         parameters: {
             query?: never;
@@ -4947,6 +5927,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BusinessSummary"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    platform_business_design_set: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DesignAssignment"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesignAssignmentResult"];
                 };
             };
             /** @description Unauthorized */

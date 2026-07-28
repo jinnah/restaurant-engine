@@ -58,7 +58,10 @@
           "media.asset_uploaded",
           "media.asset_deleted",
           "media.asset_expired",
-          "catalog.item_image_changed"
+          "catalog.item_image_changed",
+          "storefront.published",
+          "storefront.version_restored",
+          "storefront.design_assigned"
         ],
         "title": "AuditAction",
         "type": "string"
@@ -540,6 +543,80 @@
         "title": "CheckResult",
         "type": "object"
       },
+      "ContactProps": {
+        "additionalProperties": false,
+        "description": "Contact details as structured fields.\n\nDeliberately no hours field of any kind — structured weekly hours,\nexceptions, and \"next opening\" are M5's domain, and a free-text\nopening-times line here would be the freeform storefront text docs/03\nrules out. ``email`` is bounded plain text, not a deliverability\nguarantee.",
+        "properties": {
+          "address_lines": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 4,
+            "title": "Address Lines",
+            "type": "array"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "heading": {
+            "title": "Heading",
+            "type": "string"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          }
+        },
+        "required": [
+          "heading"
+        ],
+        "title": "ContactProps",
+        "type": "object"
+      },
+      "ContactSection": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "props": {
+            "$ref": "#/components/schemas/ContactProps"
+          },
+          "type": {
+            "const": "contact",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "props"
+        ],
+        "title": "ContactSection",
+        "type": "object"
+      },
       "DeletedResponse": {
         "description": "Explicit confirmation body for delete commands (the M2D\n``InvitationRevokedResponse`` pattern — commands return a clear result,\nblueprint §10.4).",
         "properties": {
@@ -553,6 +630,52 @@
         "title": "DeletedResponse",
         "type": "object"
       },
+      "DesignAssignment": {
+        "additionalProperties": false,
+        "description": "Platform command: assign the draft's structural design variant.\n\nThe registry enum publishes the closed set in the contract, so an\nunregistered variant is a 422 before the service runs. There is no\n``lock_version`` field: the command changes only the platform-owned\nvariant and is serialized by the Business row lock (ADR-020 §6).",
+        "properties": {
+          "design_variant": {
+            "$ref": "#/components/schemas/DesignVariant"
+          }
+        },
+        "required": [
+          "design_variant"
+        ],
+        "title": "DesignAssignment",
+        "type": "object"
+      },
+      "DesignAssignmentResult": {
+        "description": "Bounded acknowledgment for the platform design command.\n\nDeliberately not a draft view: the §7 matrix denies platform\nadministrators every storefront config read, so the response carries\nvariant facts only. ``previous_variant: null`` marks the first-draft\ncreation path (§5.7), mirroring the audit detail.",
+        "properties": {
+          "design_variant": {
+            "$ref": "#/components/schemas/DesignVariant"
+          },
+          "previous_variant": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DesignVariant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "design_variant",
+          "previous_variant"
+        ],
+        "title": "DesignAssignmentResult",
+        "type": "object"
+      },
+      "DesignVariant": {
+        "description": "Platform-curated structural design variants (append-only).",
+        "enum": [
+          "classic"
+        ],
+        "title": "DesignVariant",
+        "type": "string"
+      },
       "DietaryTag": {
         "description": "Structured dietary attributes of a menu item (append-only).\n\nSeeded per ruling D6: halal (blueprint §2.1 names it as structured\nmenu data), vegetarian, and vegan. Stored canonical lowercase (the\nDB CHECK is the storage invariant).",
         "enum": [
@@ -562,6 +685,84 @@
         ],
         "title": "DietaryTag",
         "type": "string"
+      },
+      "DraftPut": {
+        "additionalProperties": false,
+        "description": "Full-document draft replacement — create or update in one route (D-5).\n\n``expected_lock_version`` is the explicit intent representation\n(ADR-020 §5.4): omitted or ``null`` means \"I believe no draft exists\"\n(create); an integer means \"I believe the draft is at exactly this\nversion\" (update). A guessed ``0`` is therefore an update claim and can\nnever silently create or overwrite.",
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/StorefrontConfig"
+          },
+          "expected_lock_version": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Lock Version"
+          }
+        },
+        "required": [
+          "config"
+        ],
+        "title": "DraftPut",
+        "type": "object"
+      },
+      "DraftView": {
+        "description": "The singleton mutable draft.\n\nThe overview is the **only** administrative read representation of the\ndraft — history endpoints expose published and archived rows only.\n``lock_version`` is the optimistic-concurrency token every draft\nmutation must present back (ADR-020 §6).",
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/StorefrontConfig"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "design_variant": {
+            "$ref": "#/components/schemas/DesignVariant"
+          },
+          "lock_version": {
+            "title": "Lock Version",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Version Id"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "config",
+          "design_variant",
+          "lock_version",
+          "schema_version",
+          "source_version_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "DraftView",
+        "type": "object"
       },
       "EmptyCommand": {
         "additionalProperties": false,
@@ -717,6 +918,62 @@
         "title": "FieldError",
         "type": "object"
       },
+      "GalleryProps": {
+        "additionalProperties": false,
+        "description": "A bounded set of images, in display order.",
+        "properties": {
+          "heading": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "images": {
+            "items": {
+              "$ref": "#/components/schemas/SectionImage"
+            },
+            "maxItems": 12,
+            "title": "Images",
+            "type": "array"
+          }
+        },
+        "title": "GalleryProps",
+        "type": "object"
+      },
+      "GallerySection": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "props": {
+            "$ref": "#/components/schemas/GalleryProps"
+          },
+          "type": {
+            "const": "gallery",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "props"
+        ],
+        "title": "GallerySection",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -728,6 +985,84 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HeroAction": {
+        "description": "The hero's primary call to action — a closed enum, not free text.\n\n``view_menu`` is ordinary in-site navigation to the menu. It is **not**\nan ordering call to action: no ordering exists before M6, and this enum\nis the seam where an entitlement-gated ordering member will be added\nwhen it does.",
+        "enum": [
+          "none",
+          "view_menu"
+        ],
+        "title": "HeroAction",
+        "type": "string"
+      },
+      "HeroProps": {
+        "additionalProperties": false,
+        "description": "Opening section: headline, optional supporting line, optional image.",
+        "properties": {
+          "heading": {
+            "title": "Heading",
+            "type": "string"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SectionImage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "primary_action": {
+            "$ref": "#/components/schemas/HeroAction",
+            "default": "none"
+          },
+          "subheading": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subheading"
+          }
+        },
+        "required": [
+          "heading"
+        ],
+        "title": "HeroProps",
+        "type": "object"
+      },
+      "HeroSection": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "props": {
+            "$ref": "#/components/schemas/HeroProps"
+          },
+          "type": {
+            "const": "hero",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "props"
+        ],
+        "title": "HeroSection",
         "type": "object"
       },
       "InvitationAcceptExistingRequest": {
@@ -1568,6 +1903,61 @@
         "title": "MembershipSummary",
         "type": "object"
       },
+      "MenuProps": {
+        "additionalProperties": false,
+        "description": "Menu section: heading and optional introduction.\n\nCarries **no** item selection. Which items appear, in what order, and\nwhich are featured is already catalog's answer through the public menu\nprojection (``featured_item_ids``, the centralized featured policy).\nA second selection here would be a competing source of truth.",
+        "properties": {
+          "heading": {
+            "title": "Heading",
+            "type": "string"
+          },
+          "intro": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intro"
+          }
+        },
+        "required": [
+          "heading"
+        ],
+        "title": "MenuProps",
+        "type": "object"
+      },
+      "MenuSection": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "props": {
+            "$ref": "#/components/schemas/MenuProps"
+          },
+          "type": {
+            "const": "menu",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "props"
+        ],
+        "title": "MenuSection",
+        "type": "object"
+      },
       "ModifierGroupCreate": {
         "additionalProperties": false,
         "description": "Create a modifier group (appended at the end of the item's groups).\n\nA group may be created with zero options: satisfiability is computed\nand report-only (D5). ``max_select`` null means unlimited.",
@@ -2310,6 +2700,63 @@
         "title": "PublicSiteSummary",
         "type": "object"
       },
+      "PublishRequest": {
+        "additionalProperties": false,
+        "description": "Publish the current draft (approved ruling D-3).\n\n``expected_lock_version`` is required: an owner approves *content*,\nnot a row — a draft that changed since they read it is a 409 carrying\nthe current value, exactly like restore's guard, never a silent\npublication of someone else's unreviewed edit.",
+        "properties": {
+          "expected_lock_version": {
+            "minimum": 0.0,
+            "title": "Expected Lock Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_lock_version"
+        ],
+        "title": "PublishRequest",
+        "type": "object"
+      },
+      "PublishedSummary": {
+        "description": "The at-most-one currently published version (metadata only).",
+        "properties": {
+          "design_variant": {
+            "$ref": "#/components/schemas/DesignVariant"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "published_at": {
+            "format": "date-time",
+            "title": "Published At",
+            "type": "string"
+          },
+          "published_by_user_id": {
+            "format": "uuid",
+            "title": "Published By User Id",
+            "type": "string"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "version_number": {
+            "title": "Version Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version_number",
+          "design_variant",
+          "schema_version",
+          "published_at",
+          "published_by_user_id"
+        ],
+        "title": "PublishedSummary",
+        "type": "object"
+      },
       "ReadinessResponse": {
         "properties": {
           "checks": {
@@ -2332,6 +2779,22 @@
         "title": "ReadinessResponse",
         "type": "object"
       },
+      "RestoreRequest": {
+        "additionalProperties": false,
+        "description": "Restore an archived version into the current draft (ADR-020 §4).",
+        "properties": {
+          "expected_lock_version": {
+            "minimum": 0.0,
+            "title": "Expected Lock Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_lock_version"
+        ],
+        "title": "RestoreRequest",
+        "type": "object"
+      },
       "Role": {
         "description": "Business membership roles (blueprint §7.1).",
         "enum": [
@@ -2341,6 +2804,33 @@
         ],
         "title": "Role",
         "type": "string"
+      },
+      "SectionImage": {
+        "additionalProperties": false,
+        "description": "One image reference: an opaque media asset id plus contextual alt text.\n\n``alt_text`` belongs to *this* placement, not to the asset — the same\ncontextual-alt contract catalog uses for item images (ADR-017 R2).\nSame-business ownership and public-delivery eligibility are database\nquestions answered by the M4B service, not here.",
+        "properties": {
+          "alt_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Text"
+          },
+          "media_id": {
+            "format": "uuid",
+            "title": "Media Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "media_id"
+        ],
+        "title": "SectionImage",
+        "type": "object"
       },
       "SessionResponse": {
         "description": "Current authenticated identity plus the CSRF synchronizer token.",
@@ -2384,6 +2874,150 @@
           "memberships"
         ],
         "title": "SessionView",
+        "type": "object"
+      },
+      "StorefrontConfig": {
+        "additionalProperties": false,
+        "description": "One complete, validated storefront composition.\n\nArray order is the contract — sections render in the order given, so no\n``position`` field is exposed (the catalog projection convention).",
+        "properties": {
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "sections": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "contact": "#/components/schemas/ContactSection",
+                  "gallery": "#/components/schemas/GallerySection",
+                  "hero": "#/components/schemas/HeroSection",
+                  "menu": "#/components/schemas/MenuSection",
+                  "story": "#/components/schemas/StorySection"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/HeroSection"
+                },
+                {
+                  "$ref": "#/components/schemas/MenuSection"
+                },
+                {
+                  "$ref": "#/components/schemas/StorySection"
+                },
+                {
+                  "$ref": "#/components/schemas/ContactSection"
+                },
+                {
+                  "$ref": "#/components/schemas/GallerySection"
+                }
+              ]
+            },
+            "maxItems": 5,
+            "title": "Sections",
+            "type": "array"
+          },
+          "theme": {
+            "$ref": "#/components/schemas/Theme"
+          }
+        },
+        "title": "StorefrontConfig",
+        "type": "object"
+      },
+      "StorefrontOverview": {
+        "description": "The administrative storefront state of one business.\n\n``draft: null`` (with ``published: null``) is the valid first-use\nabsence: storefront reads never create state (ADR-020 §5.1), so a\nbusiness that has never composed anything reads as absent rather than\n404 — on these routes 404 already means \"not your business\".",
+        "properties": {
+          "draft": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "published": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublishedSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "draft",
+          "published"
+        ],
+        "title": "StorefrontOverview",
+        "type": "object"
+      },
+      "StoryProps": {
+        "additionalProperties": false,
+        "description": "The restaurant's story: heading plus multi-paragraph plain text.",
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "heading": {
+            "title": "Heading",
+            "type": "string"
+          }
+        },
+        "required": [
+          "heading",
+          "body"
+        ],
+        "title": "StoryProps",
+        "type": "object"
+      },
+      "StorySection": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "props": {
+            "$ref": "#/components/schemas/StoryProps"
+          },
+          "type": {
+            "const": "story",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "props"
+        ],
+        "title": "StorySection",
+        "type": "object"
+      },
+      "Theme": {
+        "additionalProperties": false,
+        "description": "The tenant-adjustable presentation tokens.\n\nExactly one accent colour in M4 — the whole of the tenant's styling\nsurface. Blueprint §12.3 permits accent tokens and forbids tenant CSS,\nJavaScript, and arbitrary HTML; anything richer than a token here would\ncross that line.",
+        "properties": {
+          "accent": {
+            "default": "#a34b2a",
+            "title": "Accent",
+            "type": "string"
+          }
+        },
+        "title": "Theme",
         "type": "object"
       },
       "UserSummary": {
@@ -2453,6 +3087,180 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VersionDetail": {
+        "description": "One history row with its full composition (restore-confirmation\ninspection). The draft is never readable here — its only read surface\nis the overview.",
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/StorefrontConfig"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "design_variant": {
+            "$ref": "#/components/schemas/DesignVariant"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "published_at": {
+            "format": "date-time",
+            "title": "Published At",
+            "type": "string"
+          },
+          "published_by_user_id": {
+            "format": "uuid",
+            "title": "Published By User Id",
+            "type": "string"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Version Id"
+          },
+          "state": {
+            "enum": [
+              "published",
+              "archived"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "version_number": {
+            "title": "Version Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version_number",
+          "state",
+          "design_variant",
+          "schema_version",
+          "published_at",
+          "published_by_user_id",
+          "source_version_id",
+          "created_at",
+          "config"
+        ],
+        "title": "VersionDetail",
+        "type": "object"
+      },
+      "VersionPage": {
+        "description": "One bounded history page (limit/offset, ``version_number DESC``).",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/VersionSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "VersionPage",
+        "type": "object"
+      },
+      "VersionSummary": {
+        "description": "One owner-facing history row: the current published version or an\narchived one — never the draft (§4).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "design_variant": {
+            "$ref": "#/components/schemas/DesignVariant"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "published_at": {
+            "format": "date-time",
+            "title": "Published At",
+            "type": "string"
+          },
+          "published_by_user_id": {
+            "format": "uuid",
+            "title": "Published By User Id",
+            "type": "string"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Version Id"
+          },
+          "state": {
+            "enum": [
+              "published",
+              "archived"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "version_number": {
+            "title": "Version Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version_number",
+          "state",
+          "design_variant",
+          "schema_version",
+          "published_at",
+          "published_by_user_id",
+          "source_version_id",
+          "created_at"
+        ],
+        "title": "VersionSummary",
         "type": "object"
       }
     }
@@ -5647,6 +6455,553 @@
         ]
       }
     },
+    "/api/v1/businesses/{business_id}/storefront": {
+      "get": {
+        "description": "The storefront overview — the draft's only read representation.\n\n``draft: null`` is the valid first-use absence (reads never create\nstate, §5.1).",
+        "operationId": "storefront_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorefrontOverview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Storefront Get",
+        "tags": [
+          "storefront"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/storefront/draft": {
+      "put": {
+        "description": "Create or replace the draft (full document, explicit intent, D-5).",
+        "operationId": "storefront_draft_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftPut"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Storefront Draft Put",
+        "tags": [
+          "storefront"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/storefront/publish": {
+      "post": {
+        "description": "Publish the draft (owner only): promote, archive, seed — atomically.",
+        "operationId": "storefront_publish",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorefrontOverview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Storefront Publish",
+        "tags": [
+          "storefront"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/storefront/versions": {
+      "get": {
+        "description": "Owner-facing history: the published + archived versions, newest first.",
+        "operationId": "storefront_versions_list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Storefront Versions List",
+        "tags": [
+          "storefront"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/storefront/versions/{version_id}": {
+      "get": {
+        "description": "One history row with its composition — never the draft (404 there).",
+        "operationId": "storefront_version_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Storefront Version Get",
+        "tags": [
+          "storefront"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/storefront/versions/{version_id}/restore": {
+      "post": {
+        "description": "Restore an archived version into the draft (owner only, archived-only\nsources); returns the updated draft representation.",
+        "operationId": "storefront_version_restore",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Storefront Version Restore",
+        "tags": [
+          "storefront"
+        ]
+      }
+    },
     "/api/v1/invitations/accept": {
       "post": {
         "description": "Create the invited account + membership (no auto-login).",
@@ -6466,6 +7821,100 @@
           }
         },
         "summary": "Platform Business Close",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/platform/businesses/{business_id}/design": {
+      "put": {
+        "description": "Assign the draft's design variant (creates the first draft if none).\n\nThe acknowledgment carries variant facts only — platform\nadministrators hold no storefront read (§7 non-disclosure 404 on the\nbusiness-scoped surface), so no composition content is returned here.",
+        "operationId": "platform_business_design_set",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignAssignment"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignAssignmentResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Platform Business Design Set",
         "tags": [
           "platform"
         ]

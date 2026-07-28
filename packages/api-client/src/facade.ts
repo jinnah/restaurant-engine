@@ -16,6 +16,7 @@ import {
 } from './passwordResets';
 import { createPlatformApi, type PlatformApi } from './platform';
 import { createPublicApi, type PublicApi } from './public';
+import { createStorefrontApi, type StorefrontApi } from './storefront';
 
 export interface ApiClient extends HealthMethods {
   auth: AuthApi;
@@ -23,6 +24,7 @@ export interface ApiClient extends HealthMethods {
   businesses: BusinessesApi;
   catalog: CatalogApi;
   media: MediaApi;
+  storefront: StorefrontApi;
   public: PublicApi;
   invitations: InvitationsApi;
   passwordResets: PasswordResetsApi;
@@ -37,6 +39,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     businesses: createBusinessesApi(client),
     catalog: createCatalogApi(client),
     media: createMediaApi(client, options),
+    storefront: createStorefrontApi(client),
     public: createPublicApi(client),
     invitations: createInvitationsApi(client),
     passwordResets: createPasswordResetsApi(client),
