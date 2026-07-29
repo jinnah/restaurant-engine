@@ -47,12 +47,13 @@ from app.domains.audit.details import (
     StorefrontVersionRestoredDetails,
 )
 from app.domains.businesses.lifecycle import BusinessStatus
-from app.domains.businesses.queries import lock_business_status
+from app.domains.businesses.queries import lock_business_status, read_public_site_facts
+from app.domains.businesses.schemas import PublicSiteSummary
 from app.domains.identity.actor import ActorContext
 from app.domains.identity.policies import Capability, require_platform_capability
 from app.domains.media import repository as media_repository
 from app.domains.media import service as media_service
-from app.domains.storefront import repository, service_support, variants
+from app.domains.storefront import public_service, repository, service_support, variants
 from app.domains.storefront.composition import (
     StorefrontConfig,
     default_config,
@@ -60,6 +61,7 @@ from app.domains.storefront.composition import (
     parse_config,
 )
 from app.domains.storefront.models import StorefrontVersion, VersionState
+from app.domains.storefront.public_schemas import PublicStorefront
 from app.domains.storefront.schemas import (
     DesignAssignment,
     DesignAssignmentResult,
@@ -128,6 +130,43 @@ def get_overview(db: Session, actor: ActorContext, business_id: uuid.UUID) -> St
     return StorefrontOverview(
         draft=_draft_view(draft) if draft is not None else None,
         published=_published_summary(published) if published is not None else None,
+    )
+
+
+def get_preview(db: Session, actor: ActorContext, business_id: uuid.UUID) -> PublicStorefront:
+    """The render-equivalent projection of the current draft (ADR-020 §9).
+
+    Preview means the current draft only (ruling R-4): the published
+    version is what the public route already serves, and history rows have
+    their own authenticated full-config read. The response is the same
+    public projection contract the M4D renderer consumes, so what an owner
+    previews is exactly what publication would present — differing only in
+    the media URLs, which address the authenticated member media route
+    (the one surface that already serves pending draft assets).
+
+    Reads never create state (§5.1): a business with no draft is a 404.
+    Lifecycle is not gated — this is a read, and administrative reads stay
+    readable in every status including ``closed`` (§8).
+    """
+    service_support.authorize_read(db, actor, business_id)
+    draft = repository.get_draft(db, business_id=business_id)
+    if draft is None:
+        raise ResourceNotFoundError("Draft not found.")
+    facts = read_public_site_facts(db, business_id)
+    if facts is None:  # pragma: no cover - membership implies existence via FK
+        raise ResourceNotFoundError("Business not found.")
+    return public_service.assemble_storefront(
+        db,
+        business_id=business_id,
+        summary=PublicSiteSummary(
+            name=facts.name,
+            slug=facts.slug,
+            timezone=facts.timezone,
+            currency=facts.currency,
+        ),
+        row=draft,
+        url_builder=public_service.preview_media_url_builder(business_id),
+        include_pending_media=True,
     )
 
 

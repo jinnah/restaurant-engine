@@ -69,3 +69,40 @@ def get_business_summaries(
         row_id: BusinessSummaryView(slug=slug, name=name, status=status)
         for row_id, slug, name, status in rows
     }
+
+
+@dataclass(frozen=True)
+class PublicSiteFacts:
+    """The four public site facts of one business (the ADR-013 shape).
+
+    Exactly the fields the public ``PublicSiteSummary`` projection carries
+    — used by the authenticated storefront preview (M4C) so its response
+    matches the public projection's shape. Carries no status: the preview
+    caller has already passed a membership check, and the public surface
+    derives these facts from Host resolution instead.
+    """
+
+    slug: str
+    name: str
+    timezone: str
+    currency: str
+
+
+def read_public_site_facts(db: Session, business_id: uuid.UUID) -> PublicSiteFacts | None:
+    """The public site facts for one business id, or ``None`` if unknown.
+
+    A lookup on the tenant root by its own primary key — a "which tenant"
+    query, not a tenant-owned-data read (docs/04). Status is deliberately
+    not filtered: the caller owns its authorization (the storefront
+    preview runs behind a membership capability), and suspension must not
+    hide a business from its own members.
+    """
+    row = db.execute(
+        select(Business.slug, Business.name, Business.timezone, Business.currency).where(
+            Business.id == business_id
+        )
+    ).one_or_none()
+    if row is None:
+        return None
+    slug, name, timezone, currency = row
+    return PublicSiteFacts(slug=slug, name=name, timezone=timezone, currency=currency)

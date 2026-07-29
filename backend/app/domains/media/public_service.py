@@ -200,26 +200,38 @@ def find_public_representation(
 
 
 def list_public_representations(
-    db: Session, *, business_id: uuid.UUID, asset_ids: list[uuid.UUID]
+    db: Session,
+    *,
+    business_id: uuid.UUID,
+    asset_ids: list[uuid.UUID],
+    include_pending: bool = False,
 ) -> tuple[dict[uuid.UUID, MediaAsset], dict[uuid.UUID, list[MediaAssetVariant]]]:
-    """Active assets and their variants for a bounded set of ids.
+    """Renderable assets and their variants for a bounded set of ids.
 
-    Used by the public menu projection to describe images. Only active
-    assets are returned, so an item whose asset is pending or gone simply
-    projects without an image rather than advertising a URL that would
-    404. Variants come back width-ascending — the order a responsive
-    ``srcset`` needs — deliberately not the administrative byte-size
-    order, which is not guaranteed to be monotonic in width.
+    Used by the public menu and public storefront projections to describe
+    images. By default only active assets are returned, so an item or
+    section whose asset is pending or gone simply projects without an
+    image rather than advertising a URL that would 404. Variants come
+    back width-ascending — the order a responsive ``srcset`` needs —
+    deliberately not the administrative byte-size order, which is not
+    guaranteed to be monotonic in width.
+
+    ``include_pending=True`` exists for exactly one caller: the
+    authenticated storefront draft preview (M4C, ADR-020 §9), whose image
+    URLs address the authenticated member media route — the one surface
+    that already serves pending assets. Anonymous delivery never serves
+    pending media (ADR-017 R7), and every public caller keeps the default.
     """
     if not asset_ids:
         return {}, {}
+    statuses = ("active", "pending") if include_pending else ("active",)
     assets = {
         asset.id: asset
         for asset in db.execute(
             select(MediaAsset).where(
                 MediaAsset.business_id == business_id,
                 MediaAsset.id.in_(asset_ids),
-                MediaAsset.status == "active",
+                MediaAsset.status.in_(statuses),
                 MediaAsset.kind == "image",
             )
         ).scalars()
