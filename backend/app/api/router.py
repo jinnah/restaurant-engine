@@ -26,6 +26,7 @@ from app.domains.identity.router_recovery import (
 from app.domains.media.router_admin import media_admin_router
 from app.domains.storefront.router_admin import storefront_admin_router
 from app.domains.storefront.router_platform import storefront_platform_router
+from app.domains.storefront.router_public import storefront_public_router
 
 api_v1_router = APIRouter()
 # Identity credential operations (login/logout).
@@ -58,7 +59,10 @@ api_v1_router.include_router(media_admin_router)
 # domain imports the other.
 api_v1_router.include_router(public_media_router)
 # Storefront (M4B, ADR-020): business-scoped composition administration
-# plus the platform design-assignment command. The public projection and
-# preview are M4C.
+# (including the M4C authenticated draft preview) plus the platform
+# design-assignment command.
 api_v1_router.include_router(storefront_admin_router)
 api_v1_router.include_router(storefront_platform_router)
+# Storefront (M4C, ADR-020): the host-resolved public projection of the
+# currently published version; unauthenticated, neutral-404.
+api_v1_router.include_router(storefront_public_router)

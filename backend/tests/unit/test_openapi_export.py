@@ -84,6 +84,10 @@ EXPECTED_OPERATION_IDS = {
     "storefront_version_get",
     "storefront_version_restore",
     "platform_business_design_set",
+    # M4C (ADR-020): the public storefront projection and the
+    # authenticated draft preview.
+    "public_storefront_get",
+    "storefront_preview_get",
 }
 
 
@@ -113,11 +117,12 @@ def test_exported_operation_ids_are_expected_and_unique() -> None:
     ]
     assert len(operation_ids) == len(set(operation_ids))
     assert set(operation_ids) == EXPECTED_OPERATION_IDS
-    # M3D brought the contract to 57; M4B adds the six storefront
-    # administration operations and the platform design assignment: the
-    # contract is exactly 64 operations. The two schema-hidden HEAD
-    # companions add none (see below).
-    assert len(EXPECTED_OPERATION_IDS) == 64
+    # M3D brought the contract to 57; M4B added the six storefront
+    # administration operations and the platform design assignment (64);
+    # M4C adds the public storefront projection and the authenticated
+    # draft preview: the contract is exactly 66 operations. The three
+    # schema-hidden HEAD companions add none (see below).
+    assert len(EXPECTED_OPERATION_IDS) == 66
 
 
 def test_public_media_documents_no_validation_error() -> None:
