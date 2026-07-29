@@ -13,7 +13,7 @@ client contracts (ADR-009).
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_session
@@ -21,6 +21,7 @@ from app.core.errors import ErrorEnvelope
 from app.domains.identity.actor import ActorContext
 from app.domains.identity.dependencies import csrf_protected_actor, current_actor
 from app.domains.storefront import service
+from app.domains.storefront.public_schemas import PublicStorefront
 from app.domains.storefront.schemas import (
     DraftPut,
     DraftView,
@@ -64,6 +65,32 @@ def storefront_get(
     state, §5.1).
     """
     return service.get_overview(db, actor, business_id)
+
+
+@storefront_admin_router.get(
+    "/preview",
+    operation_id="storefront_preview_get",
+    responses=_READ_ENVELOPES,
+)
+def storefront_preview_get(
+    business_id: uuid.UUID,
+    response: Response,
+    db: Annotated[Session, Depends(get_session)],
+    actor: Annotated[ActorContext, Depends(current_actor)],
+) -> PublicStorefront:
+    """Preview the current draft as its render-equivalent projection (M4C).
+
+    The same contract the public storefront serves, assembled from the
+    draft with authenticated media URLs. Never public, never tokenized:
+    session plus ``business.storefront.read`` only (ADR-020 §9). The
+    response is non-indexable and — like every authenticated route —
+    ``no-store``.
+    """
+    # Belt-and-braces against indexing (§9): the response is already
+    # authenticated and no-store, but a preview must also never be indexed
+    # if a crawler somehow acquires one.
+    response.headers["X-Robots-Tag"] = "noindex"
+    return service.get_preview(db, actor, business_id)
 
 
 @storefront_admin_router.put(

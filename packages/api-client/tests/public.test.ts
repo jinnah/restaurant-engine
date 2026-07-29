@@ -192,3 +192,87 @@ describe('public.getMenu', () => {
     }
   });
 });
+
+const STOREFRONT = {
+  business: SITE,
+  design_variant: 'classic' as const,
+  theme: { accent: '#146b5c' },
+  sections: [
+    {
+      id: 'hero-main',
+      type: 'hero' as const,
+      props: {
+        heading: 'Shalik Kitchen',
+        subheading: null,
+        image: {
+          alt_text: 'The dining room',
+          width: 1200,
+          height: 800,
+          url: '/api/v1/public/media/33333333-3333-3333-3333-333333333333/canonical',
+          variants: [
+            {
+              variant: 'w320' as const,
+              width: 320,
+              height: 213,
+              url: '/api/v1/public/media/33333333-3333-3333-3333-333333333333/w320',
+            },
+          ],
+        },
+        primary_action: 'view_menu' as const,
+      },
+    },
+    {
+      id: 'story-main',
+      type: 'story' as const,
+      props: { heading: 'Our story', body: 'A family kitchen.' },
+    },
+  ],
+};
+
+describe('public.getStorefront', () => {
+  it('GETs the public storefront with no tenant-selection input', async () => {
+    const requests: Request[] = [];
+    const client = clientCapturing(jsonResponse(200, STOREFRONT), requests);
+
+    const result = await client.public.getStorefront();
+
+    const url = new URL(requests[0]!.url);
+    expect(url.pathname).toBe('/api/v1/public/storefront');
+    // Same invariant as getSite/getMenu: nothing the caller supplies can
+    // select a tenant — the Host does, server-side.
+    expect([...url.searchParams.keys()]).toEqual([]);
+    expect(requests[0]?.method).toBe('GET');
+    expect(requests[0]?.headers.get('X-Business-Slug')).toBeNull();
+    expect(requests[0]?.headers.get('X-CSRF-Token')).toBeNull();
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toEqual(STOREFRONT);
+      // Typed through the discriminated section union.
+      const hero = result.data.sections[0];
+      expect(hero?.type).toBe('hero');
+      if (hero?.type === 'hero') {
+        expect(hero.props.primary_action).toBe('view_menu');
+        expect(hero.props.image?.url).toMatch(/^\/api\/v1\/public\/media\//);
+      }
+    }
+  });
+
+  it('narrows the neutral not_found on 404 (unpublished or unknown)', async () => {
+    const client = clientCapturing(jsonResponse(404, notFound()));
+    const result = await client.public.getStorefront();
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(404);
+      expect(result.envelope?.error.code).toBe('not_found');
+    }
+  });
+
+  it('reports a network failure without throwing', async () => {
+    const client = createApiClient({
+      baseUrl: BASE_URL,
+      fetch: () => Promise.reject(new Error('offline')),
+    });
+    const result = await client.public.getStorefront();
+    expect(result).toEqual({ ok: false, status: null, envelope: null });
+  });
+});

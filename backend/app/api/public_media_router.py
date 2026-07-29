@@ -1,26 +1,32 @@
-"""Public media delivery (M3D, ADR-017) — application composition.
+"""Public media delivery (M3D, ADR-017; extended M4C, ADR-020 §10) —
+application composition.
 
-Serving one image publicly needs two domains: **catalog** knows whether a
-menu item currently shows the asset, **media** knows the asset inventory
-and owns storage. Composing them here follows the M2D audit-list
-precedent (authorization at the application layer, the domain stays pure)
-and keeps the recorded dependency direction intact — media never imports
-catalog.
+Serving one image publicly needs the media inventory plus an authorizing
+*display* fact from another domain: **catalog** knows whether a menu item
+currently shows the asset, **storefront** knows whether an enabled section
+of the currently published version references it, and **media** knows the
+asset inventory and owns storage. Composing them here follows the M2D
+audit-list precedent (authorization at the application layer, the domains
+stay pure) and keeps the recorded dependency direction intact — media
+never imports catalog or storefront.
 
-Delivery requires every one of the approved conditions to be true *now*:
-an active host-resolved Business, a same-Business asset, ``status =
-'active'``, the requested representation present in the database
-inventory, and at least one non-hidden menu item in a visible category
-referencing it. Sold-out and non-orderable items still authorize their
-image — those are ordering states, not visibility states. An asset that
-is unknown, foreign, pending, expired, detached, or attached only through
-hidden content is the **same** neutral 404, so no probe distinguishes
-them.
+Delivery requires an active host-resolved Business, a same-Business asset,
+``status = 'active'``, the requested representation present in the
+database inventory, and at least one authorizing display reference *now*:
+a non-hidden menu item in a visible category, **or** (M4C) an enabled
+section of the currently published storefront version. The catalog
+predicate is evaluated first and short-circuits the storefront lookup —
+the hot menu-image path costs exactly what it did in M3D. Sold-out and
+non-orderable items still authorize their image — those are ordering
+states, not visibility states. An asset that is unknown, foreign, pending,
+expired, detached, referenced only by a draft, an archived version, or a
+disabled published section, or attached only through hidden content is the
+**same** neutral 404, so no probe distinguishes them.
 
 ``status = 'active'`` alone is deliberately not enough. Promotion is
-one-way, so without the attachment check an asset detached (or hidden)
-after promotion would remain publicly retrievable forever by anyone who
-kept its URL.
+one-way, so without a display check an asset detached (or hidden, or
+removed by a newer publication) after promotion would remain publicly
+retrievable forever by anyone who kept its URL.
 """
 
 import uuid
@@ -39,6 +45,7 @@ from app.domains.catalog import public_service as catalog_public
 from app.domains.media import public_service as media_public
 from app.domains.media.public_service import PublicRepresentation
 from app.domains.media.storage import MediaStorage
+from app.domains.storefront import public_service as storefront_public
 
 public_media_router = APIRouter(prefix="/public", tags=["public"])
 
@@ -169,9 +176,17 @@ def public_media_file_get(
     if representation is None:
         raise ResourceNotFoundError()
 
-    # Catalog: is it currently on public display?
-    if not catalog_public.media_is_publicly_visible(
-        db, business_id=business_id, media_id=parsed_asset_id
+    # Display authorization: a public catalog attachment, or (M4C) an
+    # enabled section of the currently published storefront version.
+    # ``or`` short-circuits, so the storefront row is read only when the
+    # catalog predicate fails — the M3D menu-image path is unchanged.
+    if not (
+        catalog_public.media_is_publicly_visible(
+            db, business_id=business_id, media_id=parsed_asset_id
+        )
+        or storefront_public.media_is_publicly_referenced(
+            db, business_id=business_id, media_id=parsed_asset_id
+        )
     ):
         raise ResourceNotFoundError()
 

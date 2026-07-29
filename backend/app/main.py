@@ -13,7 +13,11 @@ from fastapi import FastAPI
 from app.api.health import health_router
 from app.api.public_media_router import public_media_file_get
 from app.api.router import api_v1_router
-from app.core.cache_control import NoStoreApiMiddleware
+from app.core.cache_control import (
+    PUBLIC_MEDIA_POLICY,
+    PUBLIC_STOREFRONT_POLICY,
+    NoStoreApiMiddleware,
+)
 from app.core.correlation import CorrelationIdMiddleware
 from app.core.database import create_database_engine, create_session_factory
 from app.core.errors import register_error_handlers
@@ -22,6 +26,7 @@ from app.core.logging import RequestLoggingMiddleware, configure_logging
 from app.core.openapi import assert_contract_operation_ids
 from app.core.settings import Settings, load_settings
 from app.domains.media.storage import LocalFilesystemStorage
+from app.domains.storefront.router_public import public_storefront_get
 
 
 @asynccontextmanager
@@ -83,10 +88,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(CorrelationIdMiddleware)
     # API responses carry session/CSRF/account data: never cached (ADR-010).
-    # The one exception — successful public media delivery (M3D) — is granted
-    # by route identity, so the composition root names the exact handler
-    # rather than the middleware matching a URL shape.
-    app.add_middleware(NoStoreApiMiddleware, cacheable_endpoint=public_media_file_get)
+    # The two exceptions — successful public media delivery (M3D) and the
+    # successful public storefront projection (M4C, ADR-020 §12) — are
+    # granted by route identity, so the composition root names the exact
+    # handlers rather than the middleware matching URL shapes.
+    app.add_middleware(
+        NoStoreApiMiddleware,
+        cacheable_endpoints={
+            public_media_file_get: PUBLIC_MEDIA_POLICY,
+            public_storefront_get: PUBLIC_STOREFRONT_POLICY,
+        },
+    )
 
     register_error_handlers(app)
 

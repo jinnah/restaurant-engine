@@ -621,6 +621,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/businesses/{business_id}/storefront/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Storefront Preview Get
+         * @description Preview the current draft as its render-equivalent projection (M4C).
+         *
+         *     The same contract the public storefront serves, assembled from the
+         *     draft with authenticated media URLs. Never public, never tokenized:
+         *     session plus ``business.storefront.read`` only (ADR-020 §9). The
+         *     response is non-indexable and — like every authenticated route —
+         *     ``no-store``.
+         */
+        get: operations["storefront_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/businesses/{business_id}/storefront/publish": {
         parameters: {
             query?: never;
@@ -1101,6 +1127,30 @@ export interface paths {
          * @description Minimal public summary of the Business resolved from the Host.
          */
         get: operations["public_site_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/storefront": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public Storefront Get
+         * @description The published storefront of the Business resolved from the Host.
+         *
+         *     Enabled sections of the currently published version, in display
+         *     order, with media resolved to public URL descriptors. A business
+         *     without a published version is the neutral not-found response.
+         */
+        get: operations["public_storefront_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2315,6 +2365,79 @@ export interface components {
             status: "password_reset";
         };
         /**
+         * PublicContactProps
+         * @description Contact details as structured fields (no hours — M5).
+         */
+        PublicContactProps: {
+            /** Address Lines */
+            address_lines: string[];
+            /** Email */
+            email: string | null;
+            /** Heading */
+            heading: string;
+            /** Phone */
+            phone: string | null;
+        };
+        /** PublicContactSection */
+        PublicContactSection: {
+            /** Id */
+            id: string;
+            props: components["schemas"]["PublicContactProps"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "contact";
+        };
+        /**
+         * PublicGalleryProps
+         * @description A bounded set of resolved images, in display order.
+         *
+         *     Only images whose assets are currently renderable are present — a
+         *     reference whose asset is gone degrades by omission rather than
+         *     advertising a URL that would answer 404.
+         */
+        PublicGalleryProps: {
+            /** Heading */
+            heading: string | null;
+            /** Images */
+            images: components["schemas"]["PublicStorefrontImage"][];
+        };
+        /** PublicGallerySection */
+        PublicGallerySection: {
+            /** Id */
+            id: string;
+            props: components["schemas"]["PublicGalleryProps"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "gallery";
+        };
+        /**
+         * PublicHeroProps
+         * @description Opening section: headline, optional supporting line, optional image.
+         */
+        PublicHeroProps: {
+            /** Heading */
+            heading: string;
+            image: components["schemas"]["PublicStorefrontImage"] | null;
+            primary_action: components["schemas"]["HeroAction"];
+            /** Subheading */
+            subheading: string | null;
+        };
+        /** PublicHeroSection */
+        PublicHeroSection: {
+            /** Id */
+            id: string;
+            props: components["schemas"]["PublicHeroProps"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "hero";
+        };
+        /**
          * PublicMenu
          * @description The complete public menu of the host-resolved Business.
          *
@@ -2418,6 +2541,31 @@ export interface components {
             /** Price Minor */
             price_minor: number;
         };
+        /** PublicMenuSection */
+        PublicMenuSection: {
+            /** Id */
+            id: string;
+            props: components["schemas"]["PublicMenuSectionProps"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "menu";
+        };
+        /**
+         * PublicMenuSectionProps
+         * @description Menu section: heading and optional introduction.
+         *
+         *     Carries **no** menu content — the renderer composes this section with
+         *     the existing public menu projection (`public_menu_get`), which remains
+         *     the single source of items, ordering, and featured status.
+         */
+        PublicMenuSectionProps: {
+            /** Heading */
+            heading: string;
+            /** Intro */
+            intro: string | null;
+        };
         /**
          * PublicModifierGroup
          * @description One customization group a guest can currently complete.
@@ -2478,6 +2626,94 @@ export interface components {
             slug: string;
             /** Timezone */
             timezone: string;
+        };
+        /**
+         * PublicStorefront
+         * @description The published storefront of the host-resolved Business.
+         *
+         *     `business` is the sole source of name, slug, timezone, and currency
+         *     (the public menu convention). `sections` contains the **enabled**
+         *     sections of the currently published version, in display order — array
+         *     order is the contract. No version number, state, publisher, timestamp,
+         *     lock, or provenance fact is exposed: a 200 already proves a published
+         *     storefront exists, and everything else is administrative.
+         */
+        PublicStorefront: {
+            business: components["schemas"]["PublicSiteSummary"];
+            design_variant: components["schemas"]["DesignVariant"];
+            /** Sections */
+            sections: (components["schemas"]["PublicHeroSection"] | components["schemas"]["PublicMenuSection"] | components["schemas"]["PublicStorySection"] | components["schemas"]["PublicContactSection"] | components["schemas"]["PublicGallerySection"])[];
+            theme: components["schemas"]["PublicTheme"];
+        };
+        /**
+         * PublicStorefrontImage
+         * @description A section's image: canonical dimensions plus responsive renditions.
+         *
+         *     Carries no asset id, storage key, path, or checksum — the URL is the
+         *     resource identity (ADR-017 R3). `alt_text` is the contextual alt text
+         *     of this placement, not a property of the asset, and may be null.
+         */
+        PublicStorefrontImage: {
+            /** Alt Text */
+            alt_text: string | null;
+            /** Height */
+            height: number;
+            /** Url */
+            url: string;
+            /** Variants */
+            variants: components["schemas"]["PublicStorefrontImageVariant"][];
+            /** Width */
+            width: number;
+        };
+        /**
+         * PublicStorefrontImageVariant
+         * @description One responsive rendition, with its true pixel dimensions.
+         *
+         *     The client selects a rendition (``srcset``); the API publishes every
+         *     one it has. `url` is relative — the storefront is served same-origin
+         *     with the tenant host (ADR-013).
+         */
+        PublicStorefrontImageVariant: {
+            /** Height */
+            height: number;
+            /** Url */
+            url: string;
+            /**
+             * Variant
+             * @enum {string}
+             */
+            variant: "w320" | "w640" | "w1280";
+            /** Width */
+            width: number;
+        };
+        /**
+         * PublicStoryProps
+         * @description The business's story: heading plus multi-paragraph plain text.
+         */
+        PublicStoryProps: {
+            /** Body */
+            body: string;
+            /** Heading */
+            heading: string;
+        };
+        /** PublicStorySection */
+        PublicStorySection: {
+            /** Id */
+            id: string;
+            props: components["schemas"]["PublicStoryProps"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "story";
+        };
+        /**
+         * PublicTheme
+         * @description The tenant-adjustable presentation tokens (one accent in M4).
+         */
+        PublicTheme: {
+            /** Accent */
+            accent: string;
         };
         /**
          * PublishRequest
@@ -5144,6 +5380,64 @@ export interface operations {
             };
         };
     };
+    storefront_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicStorefront"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     storefront_publish: {
         parameters: {
             query?: never;
@@ -6608,6 +6902,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicSiteSummary"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    public_storefront_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicStorefront"];
                 };
             };
             /** @description Not Found */

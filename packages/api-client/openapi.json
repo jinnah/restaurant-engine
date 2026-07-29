@@ -2379,6 +2379,191 @@
         "title": "PasswordResetRedeemResponse",
         "type": "object"
       },
+      "PublicContactProps": {
+        "description": "Contact details as structured fields (no hours — M5).",
+        "properties": {
+          "address_lines": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Address Lines",
+            "type": "array"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "heading": {
+            "title": "Heading",
+            "type": "string"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          }
+        },
+        "required": [
+          "heading",
+          "address_lines",
+          "phone",
+          "email"
+        ],
+        "title": "PublicContactProps",
+        "type": "object"
+      },
+      "PublicContactSection": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "props": {
+            "$ref": "#/components/schemas/PublicContactProps"
+          },
+          "type": {
+            "const": "contact",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "props"
+        ],
+        "title": "PublicContactSection",
+        "type": "object"
+      },
+      "PublicGalleryProps": {
+        "description": "A bounded set of resolved images, in display order.\n\nOnly images whose assets are currently renderable are present — a\nreference whose asset is gone degrades by omission rather than\nadvertising a URL that would answer 404.",
+        "properties": {
+          "heading": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "images": {
+            "items": {
+              "$ref": "#/components/schemas/PublicStorefrontImage"
+            },
+            "title": "Images",
+            "type": "array"
+          }
+        },
+        "required": [
+          "heading",
+          "images"
+        ],
+        "title": "PublicGalleryProps",
+        "type": "object"
+      },
+      "PublicGallerySection": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "props": {
+            "$ref": "#/components/schemas/PublicGalleryProps"
+          },
+          "type": {
+            "const": "gallery",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "props"
+        ],
+        "title": "PublicGallerySection",
+        "type": "object"
+      },
+      "PublicHeroProps": {
+        "description": "Opening section: headline, optional supporting line, optional image.",
+        "properties": {
+          "heading": {
+            "title": "Heading",
+            "type": "string"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicStorefrontImage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "primary_action": {
+            "$ref": "#/components/schemas/HeroAction"
+          },
+          "subheading": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subheading"
+          }
+        },
+        "required": [
+          "heading",
+          "subheading",
+          "image",
+          "primary_action"
+        ],
+        "title": "PublicHeroProps",
+        "type": "object"
+      },
+      "PublicHeroSection": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "props": {
+            "$ref": "#/components/schemas/PublicHeroProps"
+          },
+          "type": {
+            "const": "hero",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "props"
+        ],
+        "title": "PublicHeroSection",
+        "type": "object"
+      },
       "PublicMenu": {
         "description": "The complete public menu of the host-resolved Business.\n\n`business` is the sole source of name, slug, timezone, and currency.\n`featured_item_ids` lists at most the featured-policy maximum and\nrefers only to items present in `categories`.",
         "properties": {
@@ -2601,6 +2786,55 @@
         "title": "PublicMenuItem",
         "type": "object"
       },
+      "PublicMenuSection": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "props": {
+            "$ref": "#/components/schemas/PublicMenuSectionProps"
+          },
+          "type": {
+            "const": "menu",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "props"
+        ],
+        "title": "PublicMenuSection",
+        "type": "object"
+      },
+      "PublicMenuSectionProps": {
+        "description": "Menu section: heading and optional introduction.\n\nCarries **no** menu content — the renderer composes this section with\nthe existing public menu projection (`public_menu_get`), which remains\nthe single source of items, ordering, and featured status.",
+        "properties": {
+          "heading": {
+            "title": "Heading",
+            "type": "string"
+          },
+          "intro": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intro"
+          }
+        },
+        "required": [
+          "heading",
+          "intro"
+        ],
+        "title": "PublicMenuSectionProps",
+        "type": "object"
+      },
       "PublicModifierGroup": {
         "description": "One customization group a guest can currently complete.\n\nOnly satisfiable groups are projected, so `is_satisfiable` and\n`active_option_count` (administrative diagnostics) are absent —\n`options` is exactly the selectable set. `max_select` null means\nunlimited by configuration.",
         "properties": {
@@ -2698,6 +2932,195 @@
           "currency"
         ],
         "title": "PublicSiteSummary",
+        "type": "object"
+      },
+      "PublicStorefront": {
+        "description": "The published storefront of the host-resolved Business.\n\n`business` is the sole source of name, slug, timezone, and currency\n(the public menu convention). `sections` contains the **enabled**\nsections of the currently published version, in display order — array\norder is the contract. No version number, state, publisher, timestamp,\nlock, or provenance fact is exposed: a 200 already proves a published\nstorefront exists, and everything else is administrative.",
+        "properties": {
+          "business": {
+            "$ref": "#/components/schemas/PublicSiteSummary"
+          },
+          "design_variant": {
+            "$ref": "#/components/schemas/DesignVariant"
+          },
+          "sections": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "contact": "#/components/schemas/PublicContactSection",
+                  "gallery": "#/components/schemas/PublicGallerySection",
+                  "hero": "#/components/schemas/PublicHeroSection",
+                  "menu": "#/components/schemas/PublicMenuSection",
+                  "story": "#/components/schemas/PublicStorySection"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/PublicHeroSection"
+                },
+                {
+                  "$ref": "#/components/schemas/PublicMenuSection"
+                },
+                {
+                  "$ref": "#/components/schemas/PublicStorySection"
+                },
+                {
+                  "$ref": "#/components/schemas/PublicContactSection"
+                },
+                {
+                  "$ref": "#/components/schemas/PublicGallerySection"
+                }
+              ]
+            },
+            "title": "Sections",
+            "type": "array"
+          },
+          "theme": {
+            "$ref": "#/components/schemas/PublicTheme"
+          }
+        },
+        "required": [
+          "business",
+          "design_variant",
+          "theme",
+          "sections"
+        ],
+        "title": "PublicStorefront",
+        "type": "object"
+      },
+      "PublicStorefrontImage": {
+        "description": "A section's image: canonical dimensions plus responsive renditions.\n\nCarries no asset id, storage key, path, or checksum — the URL is the\nresource identity (ADR-017 R3). `alt_text` is the contextual alt text\nof this placement, not a property of the asset, and may be null.",
+        "properties": {
+          "alt_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Text"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/PublicStorefrontImageVariant"
+            },
+            "title": "Variants",
+            "type": "array"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "alt_text",
+          "width",
+          "height",
+          "url",
+          "variants"
+        ],
+        "title": "PublicStorefrontImage",
+        "type": "object"
+      },
+      "PublicStorefrontImageVariant": {
+        "description": "One responsive rendition, with its true pixel dimensions.\n\nThe client selects a rendition (``srcset``); the API publishes every\none it has. `url` is relative — the storefront is served same-origin\nwith the tenant host (ADR-013).",
+        "properties": {
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "variant": {
+            "enum": [
+              "w320",
+              "w640",
+              "w1280"
+            ],
+            "title": "Variant",
+            "type": "string"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "variant",
+          "width",
+          "height",
+          "url"
+        ],
+        "title": "PublicStorefrontImageVariant",
+        "type": "object"
+      },
+      "PublicStoryProps": {
+        "description": "The business's story: heading plus multi-paragraph plain text.",
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "heading": {
+            "title": "Heading",
+            "type": "string"
+          }
+        },
+        "required": [
+          "heading",
+          "body"
+        ],
+        "title": "PublicStoryProps",
+        "type": "object"
+      },
+      "PublicStorySection": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "props": {
+            "$ref": "#/components/schemas/PublicStoryProps"
+          },
+          "type": {
+            "const": "story",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "props"
+        ],
+        "title": "PublicStorySection",
+        "type": "object"
+      },
+      "PublicTheme": {
+        "description": "The tenant-adjustable presentation tokens (one accent in M4).",
+        "properties": {
+          "accent": {
+            "title": "Accent",
+            "type": "string"
+          }
+        },
+        "required": [
+          "accent"
+        ],
+        "title": "PublicTheme",
         "type": "object"
       },
       "PublishRequest": {
@@ -6623,6 +7046,80 @@
         ]
       }
     },
+    "/api/v1/businesses/{business_id}/storefront/preview": {
+      "get": {
+        "description": "Preview the current draft as its render-equivalent projection (M4C).\n\nThe same contract the public storefront serves, assembled from the\ndraft with authenticated media URLs. Never public, never tokenized:\nsession plus ``business.storefront.read`` only (ADR-020 §9). The\nresponse is non-indexable and — like every authenticated route —\n``no-store``.",
+        "operationId": "storefront_preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicStorefront"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Storefront Preview Get",
+        "tags": [
+          "storefront"
+        ]
+      }
+    },
     "/api/v1/businesses/{business_id}/storefront/publish": {
       "post": {
         "description": "Publish the draft (owner only): promote, archive, seed — atomically.",
@@ -8684,6 +9181,38 @@
           }
         },
         "summary": "Public Site Get",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/api/v1/public/storefront": {
+      "get": {
+        "description": "The published storefront of the Business resolved from the Host.\n\nEnabled sections of the currently published version, in display\norder, with media resolved to public URL descriptors. A business\nwithout a published version is the neutral not-found response.",
+        "operationId": "public_storefront_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicStorefront"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "summary": "Public Storefront Get",
         "tags": [
           "public"
         ]
