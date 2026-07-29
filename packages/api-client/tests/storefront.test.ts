@@ -280,3 +280,89 @@ describe('storefront facade', () => {
     expect(result).toEqual({ ok: false, status: null, envelope: null });
   });
 });
+
+const PREVIEW = {
+  business: {
+    name: 'Shalik',
+    slug: 'shalik',
+    timezone: 'America/New_York',
+    currency: 'USD',
+  },
+  design_variant: 'classic' as const,
+  theme: { accent: '#a34b2a' },
+  sections: [
+    {
+      id: 'hero-main',
+      type: 'hero' as const,
+      props: {
+        heading: 'Draft hero',
+        subheading: null,
+        image: {
+          alt_text: null,
+          width: 1200,
+          height: 800,
+          url: `/api/v1/businesses/${BID}/media/33333333-3333-3333-3333-333333333333/file/canonical`,
+          variants: [],
+        },
+        primary_action: 'none' as const,
+      },
+    },
+  ],
+};
+
+describe('storefront.preview', () => {
+  it('GETs the preview path without a CSRF header (a read)', async () => {
+    const requests: Request[] = [];
+    const client = clientCapturing(jsonResponse(200, PREVIEW), requests);
+
+    const result = await client.storefront.preview(BID);
+
+    const url = new URL(requests[0]!.url);
+    expect(url.pathname).toBe(`/api/v1/businesses/${BID}/storefront/preview`);
+    expect(requests[0]?.method).toBe('GET');
+    expect(requests[0]?.headers.get('X-CSRF-Token')).toBeNull();
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toEqual(PREVIEW);
+      // Preview media addresses the authenticated member route, never the
+      // anonymous public delivery path.
+      const hero = result.data.sections[0];
+      if (hero?.type === 'hero') {
+        expect(hero.props.image?.url).toMatch(
+          new RegExp(`^/api/v1/businesses/${BID}/media/`),
+        );
+      }
+    }
+  });
+
+  it('narrows the 404 for a business with no draft', async () => {
+    const client = clientCapturing(jsonResponse(404, envelope('not_found')));
+    const result = await client.storefront.preview(BID);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(404);
+      expect(result.envelope?.error.code).toBe('not_found');
+    }
+  });
+
+  it('narrows the staff 403 envelope', async () => {
+    const client = clientCapturing(
+      jsonResponse(403, envelope('permission_denied')),
+    );
+    const result = await client.storefront.preview(BID);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(403);
+      expect(result.envelope?.error.code).toBe('permission_denied');
+    }
+  });
+
+  it('surfaces a network failure as a null-status result', async () => {
+    const client = createApiClient({
+      baseUrl: BASE_URL,
+      fetch: () => Promise.reject(new Error('offline')),
+    });
+    const result = await client.storefront.preview(BID);
+    expect(result).toEqual({ ok: false, status: null, envelope: null });
+  });
+});
