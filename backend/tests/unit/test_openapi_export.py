@@ -75,6 +75,15 @@ EXPECTED_OPERATION_IDS = {
     # M3D (ADR-017): the host-resolved public surface.
     "public_menu_get",
     "public_media_file_get",
+    # M4B (ADR-020): storefront composition administration + platform
+    # design assignment.
+    "storefront_get",
+    "storefront_draft_put",
+    "storefront_publish",
+    "storefront_versions_list",
+    "storefront_version_get",
+    "storefront_version_restore",
+    "platform_business_design_set",
 }
 
 
@@ -104,10 +113,11 @@ def test_exported_operation_ids_are_expected_and_unique() -> None:
     ]
     assert len(operation_ids) == len(set(operation_ids))
     assert set(operation_ids) == EXPECTED_OPERATION_IDS
-    # M3C brought the contract to 55; M3D adds the public menu and public
-    # media delivery: the contract is exactly 57 operations. The two
-    # schema-hidden HEAD companions add none (see below).
-    assert len(EXPECTED_OPERATION_IDS) == 57
+    # M3D brought the contract to 57; M4B adds the six storefront
+    # administration operations and the platform design assignment: the
+    # contract is exactly 64 operations. The two schema-hidden HEAD
+    # companions add none (see below).
+    assert len(EXPECTED_OPERATION_IDS) == 64
 
 
 def test_public_media_documents_no_validation_error() -> None:

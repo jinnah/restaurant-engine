@@ -1,7 +1,7 @@
 # ADR-020: Storefront Composition, Versioning, and Publication (Milestone 4)
 
 - **Status:** Accepted (architecture); delivery records filled per
-  sub-milestone — **M4A delivered**, M4B and M4C not started
+  sub-milestone — **M4A and M4B delivered**, M4C not started
 - **Date:** 2026-07-26
 - **Deciders:** Product owner, principal architect
 
@@ -439,9 +439,106 @@ capability registry additions, audit-event emission, media claiming, the
 public predicate extension, preview, caching, and all UI are outside this
 sub-milestone.
 
-### M4B — Administrative API, publication, restore, design assignment
+### M4B — Administrative API, publication, restore, design assignment: delivered, 2026-07-28
 
-Not started.
+Approved architecture (the M4B discovery report and its restore
+correction addendum: rulings D-1–D-8 plus two recorded completions),
+fixed before implementation:
+
+- **D-1 — Preview belongs to M4C**, beside the public projection
+  assembler it shares. No preview endpoint exists in M4B.
+- **D-2 — Administrative read surface.** The overview is the draft's
+  **only** read representation, with `draft: null` as the valid
+  first-use absence (reads never create state, §5.1); the version
+  history is the current published row plus archived rows, newest
+  first, limit/offset paged; the version detail exposes published and
+  archived rows only — the draft's id there is the same 404 as an
+  unknown or cross-tenant one.
+- **D-3 — Publication requires `expected_lock_version`.** An owner
+  approves content, not a row id: a draft that changed since it was
+  read is a 409 carrying the current value, exactly like restore's
+  guard.
+- **D-4 — Restore accepts archived sources only.** Restoring the
+  current published row is deliberately unsupported; a same-business
+  source in any other state is 409 `invalid_state`, an unknown or
+  cross-tenant id the indistinguishable 404, a missing draft 409
+  `invalid_state` (defensive — unreachable through the API), and the
+  ordering is fixed: capability → Business lock → lifecycle gate →
+  source resolution → source state → draft existence → lock match →
+  fail-closed source validation → mutation + audit.
+- **D-5 — Draft writes** are full-document create-or-update at one PUT
+  with the §5.4 intent representation (omitted/null
+  `expected_lock_version` = create; an integer = update), canonical-dump
+  no-op comparison, and exact-no-op suppression (no write, no claim, no
+  increment, no `updated_at`, no audit).
+- **D-6 — Media-reference failures.** Unknown, cross-business, and
+  non-image references are one indistinguishable 422 raised **before**
+  any claim; an expired same-business pending asset is the established
+  409 `invalid_state` from the shared `claim_for_attachment` path.
+- **D-7 — Seven operations, 57 → 64:** `storefront_get`,
+  `storefront_draft_put`, `storefront_publish`,
+  `storefront_versions_list`, `storefront_version_get`,
+  `storefront_version_restore`, `platform_business_design_set`.
+- **D-8 — Bounded scalar audit details:** `storefront.published`
+  {version_number, design_variant, schema_version, section_count};
+  `storefront.version_restored` {restored_from_version_number,
+  design_variant}; `storefront.design_assigned` {previous_variant?,
+  new_variant} with `previous_variant` **absent** exactly on the
+  first-draft creation path (§5.7) — creation is encoded without a
+  boolean, keeping the projection value union string/int.
+- **Completion 1:** a persisted config or variant that fails fail-closed
+  re-validation (publish, restore, or any read projection) propagates to
+  the existing opaque `500 internal_error` boundary — no new public
+  error code, no mutation, no audit event.
+- **Completion 2:** every successful restore is an intentional,
+  effective mutation — a repeated restore from the same archived source
+  still increments `lock_version`, refreshes provenance, and emits a
+  new audit event.
+
+**Delivered, 2026-07-28.** No migration: the Alembic head stays
+`a41d9c7e5b30` and no backfill runs — lazy first-draft creation (§5) is
+the compatibility mechanism. The storefront domain gained
+`service_support.py` (the capability → Business-lock → lifecycle
+preamble), `repository.py` (tenant-scoped throughout; the history query
+carries `version_number IS NOT NULL` literally, the form the partial
+index declares), `schemas.py`, `service.py` (draft, publish, restore,
+history, design assignment), and the two routers. Three capabilities
+appended per §7 (`business.storefront.read`/`.write` owner+manager,
+`.publish` owner only; `business.view` remains insufficient for any
+storefront read, so staff receive 403 on reads). Three audit actions
+appended per §11 with typed read-time projections whose design-variant
+extractor follows the live append-only registry; publication statement
+order is fixed against the partial-unique singletons (archive → flush →
+promote → flush → seed). Media claiming implements the §10 ordering
+under the Business lock, which media mutations also take first, so
+validate-then-claim cannot race a delete. The api-client gained the
+`storefront` facade group and `platform.setDesign`; both committed
+contract artifacts were regenerated through the pinned toolchain.
+
+One deliberate implementation note: the design-assignment no-op check
+compares the stored variant string rather than enum members, because
+with the registry at exactly one entry a member comparison is provably
+constant; the effective-reassignment branch is the seam the second
+registered variant (M4D+) will use, and its mechanics — increment,
+audit, the §6 stale-owner conflict — are proven with an explicit
+stand-in that bypasses only the request schema's enum and the strict
+acknowledgment construction, never the service.
+
+Verification at delivery: backend **1014** tests (937 at the M4A head,
++77 for M4B), ruff lint and format clean, mypy strict clean; workspace
+TypeScript strict, ESLint, and Prettier clean; api-client Vitest **88**
+(76 + 12); `contract:check` byte-current at exactly 64 operations.
+Coverage spans the first-draft and owner-versus-platform creation races
+(two sessions on the Business lock), the complete draft/publish/restore
+failure matrices including commit-failure audit atomicity and
+corrupt-source fail-closed behavior, the claim-ordering story, and the
+full HTTP authorization/isolation matrix (anonymous, CSRF, staff 403 on
+reads, manager 403 on publish/restore, nonmember and platform-admin
+404, cross-tenant version-id indistinguishability, the opaque 500).
+
+**M4C remains the boundary and is not started.** The public projection,
+the media delivery-predicate extension, preview, and caching are outside
+this sub-milestone.
 
 ### M4C — Public projection, media predicate extension, and caching
 

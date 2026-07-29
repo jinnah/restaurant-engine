@@ -281,3 +281,43 @@ class CatalogItemImageChangedDetails(ModifierAuditDetails):
     media_id_old: str | None = None
     media_id_new: str | None = None
     alt_text_changed: Literal["changed", "unchanged"]
+
+
+# --- Storefront (M4B, ADR-020) ------------------------------------------------
+#
+# Bounded scalar fields only (§11, approved ruling D-8): a section
+# type → count map would introduce dynamic keys and break the closed-key-
+# set guarantee this file exists to give. Configuration JSON, restaurant
+# copy, and tokens never enter an audit payload; draft edits are not
+# audited at all.
+
+
+class StorefrontPublishedDetails(AuditDetails):
+    """A draft was published as a numbered version."""
+
+    version_number: int
+    design_variant: str
+    schema_version: int
+    section_count: int
+
+
+class StorefrontVersionRestoredDetails(AuditDetails):
+    """An archived version was restored into the current draft."""
+
+    restored_from_version_number: int
+    design_variant: str
+
+
+class StorefrontDesignAssignedDetails(ModifierAuditDetails):
+    """A platform administrator assigned the draft's design variant.
+
+    ``previous_variant`` is present exactly when a draft already existed;
+    its absence marks the first-draft creation path (ADR-020 §5.7), where
+    state came into existence that did not exist before — no boolean is
+    needed, keeping the projection value union string/int only. The
+    omit-None base drops the inapplicable field from the stored payload
+    (the M3B D6 field-presence rule).
+    """
+
+    previous_variant: str | None = None
+    new_variant: str
