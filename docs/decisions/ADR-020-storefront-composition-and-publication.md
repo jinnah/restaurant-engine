@@ -439,7 +439,7 @@ capability registry additions, audit-event emission, media claiming, the
 public predicate extension, preview, caching, and all UI are outside this
 sub-milestone.
 
-### M4B — Administrative API, publication, restore, design assignment: delivered, 2026-07-28
+### M4B — Administrative API, publication, restore, design assignment: delivered, 2026-07-28 (merged 2026-07-29)
 
 Approved architecture (the M4B discovery report and its restore
 correction addendum: rulings D-1–D-8 plus two recorded completions),
@@ -535,6 +535,21 @@ corrupt-source fail-closed behavior, the claim-ordering story, and the
 full HTTP authorization/isolation matrix (anonymous, CSRF, staff 403 on
 reads, manager 403 on publish/restore, nonmember and platform-admin
 404, cross-tenant version-id indistinguishability, the opaque 500).
+
+Merged to `main` via PR #21:
+
+- Reviewed feature head: `a3728296fa069a1d5dc332e20c2d5291b490a06c`.
+- Merge commit: `4359df2aad94a8cb67241bc849aee72adfb79e6d` — ordered
+  parents `b1215e0f5a8dda674255b470616de954cd5652ea` then
+  `a3728296fa069a1d5dc332e20c2d5291b490a06c`; the merge tree equals the
+  reviewed feature-head tree.
+- Branch CI run `30414469507` (pull_request, on the reviewed head) and
+  post-merge push CI run `30414948826` (on the merge SHA) both completed
+  successfully — all five jobs (repository-contract, backend, frontend,
+  contract, e2e) green, zero artifacts. The e2e job in each run executed
+  the full nine-test Playwright suite against its disposable database;
+  the preserved development and UAT environments were untouched
+  throughout.
 
 **M4C remains the boundary and is not started.** The public projection,
 the media delivery-predicate extension, preview, and caching are outside
