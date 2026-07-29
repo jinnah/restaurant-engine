@@ -24,7 +24,7 @@ initial architecture-contract commit.
 | M1 — Platform foundation                                       | **Complete** (2026-07-15)                        |
 | M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                        |
 | M3 — Catalog and media                                         | **Complete** (2026-07-23)                        |
-| M4 — Storefront composition and publication                    | **In progress** — M4A–M4B delivered (2026-07-28) |
+| M4 — Storefront composition and publication                    | **In progress** — M4A–M4C delivered (2026-07-29) |
 | M5 – M8 — Hours, ordering, operations, pilot                   | Not started                                      |
 | M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23) |
 
@@ -96,7 +96,7 @@ M4C lands; M4F depends on all of them.
 | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 | **M4A** — Storefront foundation         | storefront domain, section registry, design-variant registry, composition contract, `storefront_versions` persistence, migration | **Complete** (2026-07-26, ADR-020) |
 | **M4B** — Administrative API            | draft read/update, publication, restore, platform design assignment, capabilities, audit actions, media claiming                 | **Complete** (2026-07-28, ADR-020) |
-| **M4C** — Public projection and caching | public storefront endpoint, media predicate extension, bounded business-keyed caching                                            | Not started                        |
+| **M4C** — Public projection and caching | public storefront endpoint, media predicate extension, bounded business-keyed caching                                            | **Complete** (2026-07-29, ADR-020) |
 | **M4D** — Server-rendered storefront    | `apps/storefront` rendering, section renderers, SEO basics, performance/accessibility budgets, Bengali rendering verification    | Not started                        |
 | **M4E** — Control-center workspace      | storefront workspace: edit, reorder, preview, publish, history, restore                                                          | Not started                        |
 | **M4F** — E2E and close-out             | mandatory journeys 2 and 3, verification, final documentation                                                                    | Not started                        |
@@ -107,8 +107,16 @@ the seven-operation contract (57 → 64), the three storefront
 capabilities, publication/restore/history, platform design assignment,
 media claiming, and the three audit actions — with **no** migration, no
 preview (assigned to M4C with the projection assembler it shares), no
-public projection, no caching, and no UI. Those are M4C–M4E.
-Milestone 4's exit criteria (blueprint §19) remain open until M4F.
+public projection, no caching, and no UI. M4C delivered the public read
+path — the host-resolved public storefront projection of the current
+published version with its schema-hidden `HEAD` companion, the
+authenticated draft preview (contract 64 → 66), the §10 media
+delivery-predicate extension, and bounded route-identity caching
+(`public, max-age=60` on successful public responses only) — computed
+per request, with no renderer, no SEO, no migration, no new dependency,
+and no UI. Rendering and the storefront workspace are M4D–M4E, which may
+now proceed in parallel; Milestone 4's exit criteria (blueprint §19)
+remain open until M4F.
 
 ## Milestone 2 delivery decision (2026-07-16)
 

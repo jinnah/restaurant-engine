@@ -1,7 +1,7 @@
 # ADR-020: Storefront Composition, Versioning, and Publication (Milestone 4)
 
 - **Status:** Accepted (architecture); delivery records filled per
-  sub-milestone — **M4A and M4B delivered**, M4C not started
+  sub-milestone — **M4A–M4C delivered**, M4D not started
 - **Date:** 2026-07-26
 - **Deciders:** Product owner, principal architect
 
@@ -555,6 +555,70 @@ Merged to `main` via PR #21:
 the media delivery-predicate extension, preview, and caching are outside
 this sub-milestone.
 
-### M4C — Public projection, media predicate extension, and caching
+### M4C — Public projection, media predicate extension, and caching: delivered, 2026-07-29 (merged 2026-07-29)
 
-Not started.
+Approved architecture (the M4C discovery report and its binding rulings
+R-1–R-10), fixed before implementation. The permanent decisions:
+
+- **The public source of truth is the current published version.** The
+  public projection reads exactly the immutable `published` row of the
+  business resolved through the normalized host — never a draft, never
+  an archived or superseded version, and never a caller-supplied
+  business id, slug, or path fallback.
+- **The projection is computed per request.** No persisted read model,
+  projection table, media index, application cache, Redis, migration,
+  or backfill was introduced; the Alembic head stays `a41d9c7e5b30`.
+- **One public operation:** `GET /api/v1/public/storefront`, operation
+  id `public_storefront_get`, with a schema-hidden `HEAD` companion.
+- **Preview is authenticated, per §9:**
+  `GET /api/v1/businesses/{business_id}/storefront/preview`, operation
+  id `storefront_preview_get` — the current draft only, membership- and
+  host-guarded, `no-store` and non-indexable, with authenticated media
+  URLs (including pending assets). No public or tokenized draft access
+  exists.
+- **The §10 media predicate, as ruled (R-5).** Public media eligibility
+  is limited to active same-business inventory referenced by either the
+  public catalog or an **enabled** section of the current published
+  storefront version. Disabled-section-only, draft-only,
+  archived/superseded-only, removed, and cross-business references
+  authorize nothing.
+- **The failure split (R-6).** A corrupt persisted public projection is
+  the established opaque `500`; corrupt media-authorization state fails
+  closed to the neutral `404`. Both log bounded internal anomalies.
+- **Caching per §12.** Successful public storefront responses carry
+  `Cache-Control: public, max-age=60`; every error and preview response
+  is `no-store`. Public cache policy is assigned centrally by route
+  identity, and public media caching is unchanged.
+- **Contract 64 → 66**, and the api-client facade gained
+  `public.getStorefront()` and `storefront.preview()`.
+
+M4C added no storefront HTML renderer, section components, SEO, new
+Playwright journey, migration, dependency, or M4D work.
+
+Verification at delivery: backend **1070** tests (1014 at the M4B head,
++56 for M4C), ruff lint and format clean, mypy strict clean; workspace
+TypeScript strict, ESLint, and Prettier clean; api-client Vitest **95**
+(88 + 7); `contract:check` byte-current at exactly 66 operations; the
+nine-test Playwright suite passed substantively against its disposable
+database.
+
+Merged to `main` via PR #23:
+
+- Reviewed feature head: `99d720824144550f2686db05ebae613c9f2674fc`.
+- Merge commit: `3d840c84eba70feab6819a8476ddae7a80b2f9c7` — ordered
+  parents `671cbfc7814b710bfbb9ae112e7c1a79387f57f1` then
+  `99d720824144550f2686db05ebae613c9f2674fc`; the merge tree equals the
+  reviewed feature-head tree.
+- Branch CI run `30420668471` (pull_request, on the reviewed head) and
+  post-merge push CI run `30489168167` (on the merge SHA) both completed
+  successfully — all five jobs (repository-contract, backend, frontend,
+  contract, e2e) green, zero artifacts. The e2e job in each run executed
+  the full nine-test Playwright suite against its disposable database;
+  the preserved development and UAT environments were untouched
+  throughout.
+
+**M4D and M4E remain the boundary and are not started.** The
+server-rendered storefront, section renderers, SEO, the
+performance/accessibility budgets, and Bengali rendering verification
+(M4D), the control-center storefront workspace (M4E), and the M4F
+close-out are outside this sub-milestone.

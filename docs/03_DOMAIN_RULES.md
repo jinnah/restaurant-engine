@@ -214,7 +214,7 @@ rejected rather than stripped. It deliberately carries **no** hours or
 (M6 — `hero.primary_action` is a closed enum of `none` and `view_menu`,
 ordinary navigation), and no campaign concepts (M10). The design-variant
 registry is likewise code-owned with an explicit platform default.
-Preview, the public projection, and caching are M4C.
+Preview, the public projection, and caching arrived with M4C (below).
 
 **Implemented in M4B (ADR-020).** The administrative API over the M4A
 foundation — seven operations (contract 57 → 64), no migration, no
@@ -249,6 +249,32 @@ draft edits are deliberately unaudited. Platform design assignment
 registry default, no-ops exactly on the already-selected variant after
 the lifecycle gate, and increments the draft's `lock_version` on every
 effective assignment so a concurrent owner write fails safely.
+
+**Implemented in M4C (ADR-020).** The public read path over the
+published version — two operations (contract 64 → 66), no migration, no
+backfill, no persisted read model or cache store: the projection is
+computed per request. `GET /api/v1/public/storefront`
+(`public_storefront_get`, plus a schema-hidden `HEAD` companion)
+projects exactly the current immutable **published** version of the
+business resolved through the normalized host — never a draft, an
+archived or superseded version, or a caller-supplied business id, slug,
+or path fallback. A successful public response carries
+`Cache-Control: public, max-age=60`, assigned centrally by route
+identity; errors are `no-store`, and public media caching is unchanged.
+The authenticated preview (`storefront_preview_get`) shares the same
+assembler, reads the current draft only, is membership- and
+host-guarded, returns `no-store`/non-indexable responses with
+authenticated media URLs (including pending assets), and has no public
+or tokenized form. Public media eligibility extends per §10 of ADR-020
+as ruled: an active same-business asset is publicly deliverable only
+when the public catalog references it **or** an **enabled** section of
+the current published storefront version does — disabled-section-only,
+draft-only, archived/superseded-only, removed, and cross-business
+references authorize nothing. A corrupt persisted public projection is
+the established opaque `500`; corrupt media-authorization state fails
+closed to the neutral `404` — both with bounded internal logging. No
+storefront HTML renderer, SEO, or UI shipped: rendering is M4D, the
+storefront workspace is M4E.
 
 ## Media
 
