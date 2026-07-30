@@ -99,6 +99,21 @@ describe('forwardDevApiRequest', () => {
     expect(server.requests).toHaveLength(0);
   });
 
+  test('a path that normalizes outside /api/ forwards nothing', async () => {
+    const server = await withStub({ body: 'never' });
+    // URL construction normalizes dot segments before the boundary
+    // check: /api/../health becomes /health, which is outside the
+    // backend API namespace this forwarder exists for.
+    const escaping = new Request(`http://${HOST}/api/../health/ready`, {
+      headers: { host: HOST },
+    });
+    expect(new URL(escaping.url).pathname).toBe('/health/ready');
+    const response = await forwardDevApiRequest(escaping);
+    expect(response.status).toBe(404);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(server.requests).toHaveLength(0);
+  });
+
   test('a request without a Host forwards nothing', async () => {
     const server = await withStub({ body: 'never' });
     const bare = new Request('http://127.0.0.1:3000/api/v1/public/menu');

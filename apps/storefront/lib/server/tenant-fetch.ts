@@ -42,8 +42,12 @@ const STRIPPED_REQUEST_HEADERS = new Set([
 ]);
 const STRIPPED_REQUEST_PREFIX = 'x-forwarded-';
 
-// Hop-by-hop headers that describe the upstream connection, not the
-// representation; they must not be copied onto a buffered Response.
+// Response headers that must not be copied onto a buffered Response:
+// hop-by-hop connection headers; `content-length`, which is recomputed
+// from the identity-buffered body so an upstream mismatch can never
+// desynchronize the connection; and `set-cookie` — the anonymous public
+// surface sets no cookies, and this transport never forwards state in
+// either direction.
 const STRIPPED_RESPONSE_HEADERS = new Set([
   'connection',
   'keep-alive',
@@ -53,6 +57,8 @@ const STRIPPED_RESPONSE_HEADERS = new Set([
   'upgrade',
   'proxy-authenticate',
   'proxy-authorization',
+  'content-length',
+  'set-cookie',
 ]);
 
 function isStrippedRequestHeader(name: string): boolean {

@@ -122,6 +122,26 @@ describe('createTenantFetch (live wire behavior)', () => {
     ).rejects.toThrow(/read-only/);
   });
 
+  test('response forwarding is bounded: no cookies, no copied length', async () => {
+    stub = await startHttpStub({
+      headers: {
+        'set-cookie': 'session=leaked; Path=/',
+        etag: '"v1"',
+      },
+      body: '{"ok":true}',
+    });
+    const tenantFetch = createTenantFetch(HOST);
+    const response = await tenantFetch(`${stub.origin}/api/v1/public/menu`);
+    expect(response.status).toBe(200);
+    // State never crosses this transport in either direction.
+    expect(response.headers.get('set-cookie')).toBeNull();
+    // Length is recomputed from the identity-buffered body, never copied,
+    // so an upstream mismatch cannot desynchronize the connection.
+    expect(response.headers.get('content-length')).toBeNull();
+    expect(response.headers.get('etag')).toBe('"v1"');
+    expect(await response.text()).toBe('{"ok":true}');
+  });
+
   test('a stalled backend rejects at the deadline', async () => {
     stub = await startHttpStub({ delayMs: 5_000 });
     const tenantFetch = createTenantFetch(HOST, { timeoutMs: 100 });
