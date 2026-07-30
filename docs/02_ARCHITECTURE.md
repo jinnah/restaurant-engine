@@ -215,8 +215,23 @@ denial), and a closed business stays fully readable with every mutation
 withheld while provisioning/suspended businesses keep service-authorized
 mutations. The 66-operation backend contract, database schema, OpenAPI
 document, and generated client are unchanged; the api-client change is
-facade-only (the index re-exports the M4C projection types). The formal
-browser journeys and the Milestone 4 close-out remain M4F.
+facade-only (the index re-exports the M4C projection types).
+
+**End-to-end verification and Milestone 4 close-out (M4F, ADR-023 —
+delivered 2026-07-30):** the E2E lifecycle owner starts the storefront
+dev server as its third tracked child (backend → storefront → control
+center, port 3100 on loopback, answering 200-or-404 readiness for the
+storefront only), and the Playwright suite carries the complete
+storefront journeys: mandatory journeys 2 and 3, the cross-host
+published-versus-draft contract with archived-only restoration and
+suspension/reactivation, responsive acceptance for `classic` across six
+viewports on both public routes, and blocking browser accessibility
+verification (zero axe violations across eight page/states in the WCAG
+2.0/2.1 A/AA rule boundary — engineering evidence, not certification).
+M4F changed no production runtime or CI workflow file; with it,
+**Milestone 4 is complete** (docs/08). M4G (curated storefront design
+and motion) is a proposed future slice recorded in ADR-023, subject to
+its own roadmap reconciliation and authorization.
 
 **Frontend workspace conventions (M1B):** one root ESLint flat config and one
 root `tsconfig.base.json` own shared configuration as plain files — a shared

@@ -1,8 +1,8 @@
 # ADR-023: M4F End-to-End Storefront Journeys and Milestone 4 Verification
 
-- **Status:** Accepted (architecture); M4F implementation in review —
-  **Milestone 4 is not complete** and may be marked complete only after
-  the separately authorized close-out
+- **Status:** Accepted; **M4F delivered 2026-07-30** (delivery record
+  below) — every blueprint §19 Milestone 4 exit criterion is verified,
+  and the roadmap records **Milestone 4 complete**
 - **Date:** 2026-07-30
 - **Deciders:** Product owner, principal architect
 
@@ -353,3 +353,63 @@ boundary must grow to cover); the M8 reverse proxy and staging suite
 deliberate pin bump revalidating the zero-violation gate); a WCAG 2.2
 rule-boundary decision; per-tenant document language (unlocks
 screen-reader verification the current boundary excludes).
+
+## Delivery record
+
+### M4F — End-to-end storefront journeys and Milestone 4 verification: delivered, 2026-07-30
+
+**Delivered behavior.** The orchestrated storefront server exactly as
+decided in §1: `next dev` on port 3100 bound to `127.0.0.1`, started
+between the backend and the control center, `STOREFRONT_API_ORIGIN`
+constructed to the E2E backend, answering (200-or-404) readiness for the
+storefront only, and the inherited tracked-process cleanup — with the
+orchestrator regression suite grown from 24 to 29 cases and no CI
+workflow change. The §2 functional journey, completing mandatory
+journeys 2 and 3: composition of all five section types through the
+workspace dialogs, explicit save with media claiming, saved-draft
+preview with structurally inert links, publication of version 1,
+rendered public verification under the tenant host (home and `/menu`,
+delivered media proven by loaded image bytes), the draft never public
+before or after later edits, publication of version 2 archiving
+version 1, archived-only restoration through the Control Center (the
+structurally mandatory second publication), republication returning
+version 1's content, suspension hiding and reactivation restoring the
+same published output, and cross-host isolation against a second
+never-published business. The §3 responsive acceptance for `classic` on
+`/` and `/menu` across all six approved viewports, with the four
+manual-acceptance viewports captured as disposable evidence and
+inspected. The §4 accessibility boundary: blocking scans with **zero
+axe violations across all eight required page/states**, no exclusions
+of any kind, plus the real-browser dialog-focus, landmark, and keyboard
+checks — an engineering pass within the WCAG 2.0/2.1 A/AA rule
+boundary, **not WCAG certification, not complete accessibility
+compliance, and not proof that no accessibility defects exist**.
+
+**Delivery evidence.** Implementation PR #29; reviewed feature head
+`11b884485209ce7e5675efc670767fe5b099cde3`; merged to `main` as
+`09bccffae59191118c5432a9e788ec30297efcf5` with ordered parents
+`9f74071b285da299cee298a5a957bd2775b18997` then
+`11b884485209ce7e5675efc670767fe5b099cde3`; the merge tree equals the
+reviewed feature-head tree. Exact-head PR CI run `30577609020` and
+exact-merge-SHA push CI run `30578356793` both completed successfully
+with all five jobs (repository-contract, backend, frontend, contract,
+e2e) green and zero artifacts. Substantive results: backend **1070
+passed**; the full browser E2E suite **13 passed** on Linux through the
+three-server orchestration with the disposable database and media root
+created and cleaned per run; the storefront budget under its unchanged
+ceiling; the built-server verification and contract check current at
+exactly 66 operations. The diff was confined to `e2e/**`, this ADR, and
+the lockfile: **no production runtime or CI workflow file changed**, and
+the only dependency change was the exact-pinned development-only
+`@axe-core/playwright` 4.12.1 (with its single transitive
+`axe-core` 4.12.1).
+
+**Limitations and boundaries, preserved.** M4F delivered verification
+infrastructure and coverage — not a new storefront design variant, not
+an animation system, and not any video capability. The §7 M4G boundary
+(curated variants, scroll-linked motion, the optional hero loop) remains
+proposed future work requiring its own roadmap reconciliation,
+discovery, and authorization; M5 has not begun. With this delivery,
+every blueprint §19 Milestone 4 exit criterion is verified and the
+roadmap records **Milestone 4 complete**
+(`docs/08_ROADMAP.md`, Milestone 4 close-out).
