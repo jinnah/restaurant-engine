@@ -1,7 +1,8 @@
 # ADR-020: Storefront Composition, Versioning, and Publication (Milestone 4)
 
 - **Status:** Accepted (architecture); delivery records filled per
-  sub-milestone — **M4A–M4E delivered**, M4F not started
+  sub-milestone — **M4A–M4F delivered; Milestone 4 complete
+  (2026-07-30)**
 - **Date:** 2026-07-26
 - **Deciders:** Product owner, principal architect
 
@@ -661,3 +662,27 @@ flash a stale preview. The 66-operation contract, database schema,
 OpenAPI document, and generated client are unchanged. **M4F remains
 pending and Milestone 4 remains incomplete** — its exit criteria
 (blueprint §19) stay open until M4F.
+
+### M4F — End-to-end journeys and Milestone 4 verification: delivered, 2026-07-30
+
+Delivered through PR #29 (reviewed feature head
+`11b884485209ce7e5675efc670767fe5b099cde3`, merged to `main` as
+`09bccffae59191118c5432a9e788ec30297efcf5`); exact-head PR CI run
+`30577609020` and exact-merge-SHA push CI run `30578356793` both
+completed successfully with all five jobs green and zero artifacts.
+**`docs/decisions/ADR-023-m4f-end-to-end-storefront-journeys-and-milestone-4-verification.md`
+is the authoritative M4F architecture and delivery record**; this ledger
+entry records only what Milestone 4 needs: the E2E orchestrator now
+starts the storefront dev server as its third tracked child, mandatory
+journeys 2 and 3 are complete through one cohesive browser journey (the
+full cross-host published-versus-draft contract, archived-only
+restoration, and suspension/reactivation included), the `classic`
+storefront passed responsive acceptance across six viewports on both
+public routes, and blocking browser accessibility verification reported
+zero axe violations across eight page/states within the WCAG 2.0/2.1
+A/AA rule boundary with no exclusions (engineering evidence, not WCAG
+certification). No production runtime or CI workflow file changed; the
+only dependency change was the exact-pinned development-only
+`@axe-core/playwright`. **With M4F delivered, every §19 exit criterion
+is verified and Milestone 4 is complete** (`docs/08_ROADMAP.md`,
+Milestone 4 close-out).

@@ -329,6 +329,19 @@ last-saved and published version/time, provenance from
 differs from the published version. No backend, database, OpenAPI, or
 generated-client change was made.
 
+**Verified end to end in M4F (ADR-023; delivered 2026-07-30).** The
+composition and publication rules above are now proven through a real
+browser against the orchestrated three-server stack: a draft carrying
+all five section types is composed, saved (claiming its media),
+previewed, and published through the product UI; the draft is never
+publicly visible before publication or after later edits; publication
+archives its predecessor; restoration accepts archived sources only and
+publishes nothing; republication reproduces the restored content; and
+suspension hides — and reactivation restores — the same published output
+under the tenant host, with cross-host isolation proven against a
+second business. No domain rule changed in M4F; Milestone 4's exit
+criteria are verified and the milestone is complete (docs/08).
+
 ## Media
 
 Business domains store **media identifiers, not filesystem paths**, behind a

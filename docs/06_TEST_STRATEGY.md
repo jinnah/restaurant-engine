@@ -2,7 +2,59 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M4E — delivered 2026-07-30)
+## Current state (M4F — delivered 2026-07-30)
+
+M4F closes Milestone 4's verification deferrals (ADR-023). `pnpm e2e`
+grows from nine tests to **thirteen**, and its orchestrator now owns a
+third server: the storefront dev server (port 3100, loopback-bound,
+`STOREFRONT_API_ORIGIN` constructed to the E2E backend, answering
+200-or-404 readiness for the storefront only — the backend and control
+center keep strict-ok readiness), started between the backend and the
+control center and covered by five new orchestrator regression cases
+(24 → 29).
+
+- **The storefront journey (mandatory journeys 2 and 3, complete).**
+  One cohesive browser journey: an owner composes a draft with all five
+  section types through the workspace dialogs, saves it (media claimed
+  at save), previews the saved draft through the shared renderer with
+  structurally inert links, and publishes; a fresh anonymous visitor
+  sees the published version rendered under the tenant host — home and
+  `/menu`, with delivered media proven by loaded image bytes. The
+  published-versus-draft contract is proven cross-host: the draft is
+  never public before publication or after later edits; publishing
+  version 2 archives version 1; restoring archived version 1 through
+  the Control Center replaces only the draft (the second publication is
+  structurally mandatory — restore accepts archived sources only);
+  republication brings version 1's content back; suspension hides the
+  published site and reactivation restores the same output; and a
+  second never-published business proves the rendered surface separates
+  hosts.
+- **Responsive acceptance for `classic`.** Both public routes at
+  320×900, 375×812, 390×844, 430×932, 768×1024, and 1280×900 —
+  document-overflow, clipping, stacking, image-containment and
+  -proportion, operability, section order/visibility, and a 14 px
+  readability floor, all semantic and geometric (no screenshot
+  baselines, no pixel gates), over a published five-section fixture
+  with deliberately long name and copy. Four viewports are additionally
+  captured as disposable manual-inspection evidence per run.
+- **Browser accessibility verification.** Blocking axe scans within the
+  WCAG 2.0/2.1 A/AA rule tags across eight page/states (public `/` and
+  `/menu`, the workspace overview/composer, the composer with a
+  section-edit dialog open, the saved-draft preview, history, and
+  version detail) — **zero violations, no exclusions** — plus
+  real-browser dialog focus (enter on open; Escape closes and returns
+  focus), landmarks, single-h1 structure, and keyboard reachability.
+  This is engineering evidence within the stated boundary, **not** WCAG
+  certification, complete accessibility compliance, or proof that no
+  accessibility defects exist.
+
+M4F changed no production runtime or CI workflow file; the only new
+dependency is the exact-pinned, development-only `@axe-core/playwright`.
+The mandatory journeys 2 and 3 below are therefore **complete**, and
+Milestone 4's exit criteria are verified (docs/08, Milestone 4
+close-out).
+
+## Earlier state (M4E — delivered 2026-07-30)
 
 M4E adds the control-center storefront workspace's coverage (ADR-022)
 and the shared-renderer regression net, at the component/integration

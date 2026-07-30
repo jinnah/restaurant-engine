@@ -24,7 +24,7 @@ initial architecture-contract commit.
 | M1 — Platform foundation                                       | **Complete** (2026-07-15)                        |
 | M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                        |
 | M3 — Catalog and media                                         | **Complete** (2026-07-23)                        |
-| M4 — Storefront composition and publication                    | **In progress** — M4A–M4E delivered (2026-07-30) |
+| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                        |
 | M5 – M8 — Hours, ordering, operations, pilot                   | Not started                                      |
 | M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23) |
 
@@ -99,7 +99,7 @@ M4C lands; M4F depends on all of them.
 | **M4C** — Public projection and caching | public storefront endpoint, media predicate extension, bounded business-keyed caching                                                                                                  | **Complete** (2026-07-29, ADR-020) |
 | **M4D** — Server-rendered storefront    | `apps/storefront` rendering, section renderers, SEO basics, performance/accessibility budgets, Unicode/complex-script rendering verification (Bengali as the required initial fixture) | **Complete** (2026-07-29, ADR-021) |
 | **M4E** — Control-center workspace      | storefront workspace: edit, reorder, preview, publish, history, restore                                                                                                                | **Complete** (2026-07-30, ADR-022) |
-| **M4F** — E2E and close-out             | mandatory journeys 2 and 3, verification, final documentation                                                                                                                          | Not started                        |
+| **M4F** — E2E and close-out             | mandatory journeys 2 and 3, verification, final documentation                                                                                                                          | **Complete** (2026-07-30, ADR-023) |
 
 M4A delivered the foundation only: registries, the composition contract,
 and one additive table. M4B delivered the administrative API over it —
@@ -141,11 +141,57 @@ framework-neutral shared renderer (`packages/storefront-renderer`)
 consumed by both applications, keeping public links active while
 preview navigation is structurally inert — with no backend, schema,
 OpenAPI, or generated-client change and the public rendering proven
-pixel-identical to the M4D baseline. **M4F is now the sole remaining
-Milestone 4 slice** (mandatory journeys 2 and 3, browser-level
-accessibility verification, and the close-out): Milestone 4's exit
-criteria (blueprint §19) remain open until M4F, so M4E completion does
-not complete Milestone 4.
+pixel-identical to the M4D baseline. M4F delivered the end-to-end
+verification close-out (ADR-023, PR #29): the E2E orchestrator now
+starts the storefront dev server as its third tracked child (backend →
+storefront → control center), the mandatory journeys 2 and 3 are
+complete for the first time — one cohesive browser journey covering
+composition of all five section types, saved-draft preview, publication,
+the cross-host published-versus-draft contract, archived-only
+restoration (which structurally requires a second publication), and
+suspension/reactivation of the same published output — plus responsive
+acceptance for the `classic` storefront across six viewports on both
+public routes and blocking browser accessibility verification (zero axe
+violations across eight page/states within the WCAG 2.0/2.1 A/AA rule
+boundary, with no exclusions; engineering evidence, not WCAG
+certification). M4F changed no production runtime or CI workflow file
+and added one development-only dependency (`@axe-core/playwright`,
+exact-pinned). **With M4F delivered, Milestone 4 is complete** — see the
+close-out section below.
+
+## Milestone 4 close-out (2026-07-30)
+
+Milestone 4 is **complete**. M4F (the end-to-end storefront journeys,
+responsive and accessibility verification, and this close-out) is
+delivered, completing the M4A—M4F progression. The blueprint §19 exit
+criteria are verified: invalid configurations cannot save (backend
+validation and workspace 422-mapping suites), a published configuration
+always renders (renderer exhaustiveness and fail-closed suites, the
+built-server verification, and the rendered public journey), a draft is
+never public (projection/preview suites plus the journey's
+pre-publication, post-edit, and post-restore public assertions), and the
+performance/accessibility budgets pass (the enforced first-load
+JavaScript budget, the built-server checks, the six-viewport responsive
+matrix, and the zero-violation accessibility boundary — engineering
+evidence, not a WCAG certification).
+
+Merge evidence (PR #29):
+
+- Reviewed feature head `11b884485209ce7e5675efc670767fe5b099cde3`,
+  merged to `main` as `09bccffae59191118c5432a9e788ec30297efcf5`
+  (ordered parents `9f74071b285da299cee298a5a957bd2775b18997` then
+  `11b884485209ce7e5675efc670767fe5b099cde3`; the merge tree equals the
+  reviewed feature-head tree).
+- Exact-head PR CI run `30577609020` and exact-merge-SHA push CI run
+  `30578356793` both completed successfully — all five jobs
+  (repository-contract, backend, frontend, contract, e2e) green, zero
+  artifacts; the e2e job ran the full thirteen-test browser suite on
+  Linux through the three-server orchestration with proven cleanup.
+
+M4G (curated storefront design and motion) is recorded in ADR-023 as
+the proposed next slice before M5; it requires its own roadmap
+reconciliation, discovery, and authorization and is **not** part of this
+completed milestone. M5 has not begun.
 
 ## Milestone 2 delivery decision (2026-07-16)
 
