@@ -20,7 +20,7 @@ import { CreateCategoryInlineDialog } from './components/CreateCategoryInlineDia
 import { ItemFields } from './components/ItemFields';
 import { ItemImageSection } from './components/ItemImageSection';
 import { ModifierGroupsSection } from './components/ModifierGroupsSection';
-import { UnsavedChangesPrompt } from './components/UnsavedChangesPrompt';
+import { UnsavedChangesPrompt } from '../components/UnsavedChangesPrompt';
 import {
   emptyItemValues,
   itemFieldsSchema,

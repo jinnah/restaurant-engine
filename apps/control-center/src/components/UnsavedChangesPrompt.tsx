@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useBeforeUnload, useBlocker } from 'react-router';
-import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { ConfirmDialog } from './ConfirmDialog';
 
 /**
  * Guard an in-progress edit against navigation.

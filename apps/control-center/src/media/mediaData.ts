@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { MediaAssetView } from '@restaurant-engine/api-client';
 import { useApiClient } from '../api/ClientProvider';
 import { requireCsrf, unwrapPrivileged } from '../api/failures';
-import { menuKeys } from './keys';
+import { mediaKeys } from './keys';
 
 /**
  * The formats the backend accepts (static JPEG, PNG, WebP — ADR-017 M3C).
@@ -40,7 +40,7 @@ export function useMediaPage(
   const client = useApiClient();
   const queryClient = useQueryClient();
   return useQuery({
-    queryKey: menuKeys.media(businessId, params),
+    queryKey: mediaKeys.page(businessId, params),
     enabled,
     queryFn: async () =>
       unwrapPrivileged(
@@ -95,7 +95,7 @@ export function useUploadAsset(businessId: string) {
       ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: menuKeys.allMedia(businessId),
+        queryKey: mediaKeys.all(businessId),
       });
     },
   });
@@ -123,7 +123,7 @@ export function useDeleteAsset(businessId: string) {
       ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: menuKeys.allMedia(businessId),
+        queryKey: mediaKeys.all(businessId),
       });
     },
   });

@@ -4,6 +4,7 @@ import {
   findMembership,
   useCurrentBusinessId,
 } from '../business/useCurrentBusinessId';
+import { DraftComposer } from './components/DraftComposer';
 import { formatDateTime } from './format';
 import { storefrontPermissions } from './permissions';
 import { useStorefrontOverview, useVersionDetail } from './storefrontData';
@@ -160,6 +161,10 @@ export function StorefrontOverviewPage() {
           </details>
         )}
       </div>
+
+      {permissions !== null && (
+        <DraftComposer businessId={businessId} permissions={permissions} />
+      )}
     </section>
   );
 }

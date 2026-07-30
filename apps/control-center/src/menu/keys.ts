@@ -1,5 +1,3 @@
-import type { MediaListParams } from '@restaurant-engine/api-client';
-
 /**
  * Business-workspace query keys.
  *
@@ -19,9 +17,6 @@ export const menuKeys = {
     ['business', businessId, 'menu', 'tree'] as const,
   modifiers: (businessId: string, itemId: string) =>
     ['business', businessId, 'menu', 'modifiers', itemId] as const,
-  allMedia: (businessId: string) => ['business', businessId, 'media'] as const,
-  media: (businessId: string, params: MediaListParams) =>
-    ['business', businessId, 'media', 'page', params] as const,
 };
 
 export const businessKeys = {
