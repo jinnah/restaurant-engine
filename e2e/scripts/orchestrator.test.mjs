@@ -13,13 +13,16 @@ import {
   E2E_DATABASE_URL,
   E2E_MEDIA_DIR_NAME,
   SIGNAL_EXIT,
+  STOREFRONT_PORT,
   UI_PORT,
   assertRemovableMediaRoot,
+  buildStorefrontArgv,
   createOrchestrator,
   e2eMediaRoot,
 } from './orchestrator.mjs';
 
 const UI_ARGV = ['node', '/resolved/vite.js', '--port', '5273', '--strictPort'];
+const STOREFRONT_ARGV = buildStorefrontArgv('node', '/resolved/next.js');
 // A fake repository root: the guard's comparisons are pure string work,
 // so no directory needs to exist for these tests.
 const REPO_ROOT = join('/repo', 'root');
@@ -46,6 +49,8 @@ function fakeWorld(overrides = {}) {
     testRuns: [],
     mediaResets: [],
     mediaRemovals: [],
+    strictPolls: [],
+    answeringPolls: [],
     logs: [],
     errors: [],
   };
@@ -89,6 +94,7 @@ function fakeWorld(overrides = {}) {
       }
     },
     pollReady: async (urls) => {
+      calls.strictPolls.push(urls);
       const isBackend = urls.some((url) => url.includes(String(BACKEND_PORT)));
       const target = isBackend ? 'backend' : 'control-center';
       if (overrides.spawnFails === target) {
@@ -100,6 +106,16 @@ function fakeWorld(overrides = {}) {
         return overrides.backendReady ?? true;
       }
       return overrides.uiReady ?? true;
+    },
+    // The answering (200-or-404) readiness poll is used by exactly one
+    // child: the storefront. Recording it separately is what lets tests
+    // prove the backend and control center kept strict-ok readiness.
+    pollAnswering: async (urls) => {
+      calls.answeringPolls.push(urls);
+      if (overrides.spawnFails === 'storefront') {
+        return new Promise(() => {});
+      }
+      return overrides.storefrontReady ?? true;
     },
     runTests: async (extraArgs, env) => {
       calls.testRuns.push({ extraArgs, env });
@@ -119,6 +135,8 @@ function fakeWorld(overrides = {}) {
     },
     uiArgv: UI_ARGV,
     uiCwd: '/resolved/control-center',
+    storefrontArgv: STOREFRONT_ARGV,
+    storefrontCwd: '/resolved/storefront',
     mediaRoot: MEDIA_ROOT,
     log: (text) => calls.logs.push(text),
     logError: (text) => calls.errors.push(text),
@@ -171,6 +189,12 @@ test('4. a backend readiness timeout stops the backend and drops the database', 
   const exit = await createOrchestrator(deps).run();
 
   assert.notEqual(exit, 0);
+  // The backend gates everything after it: neither the storefront nor
+  // the control center was ever spawned.
+  assert.deepEqual(
+    calls.spawns.map((handle) => handle.name),
+    ['backend'],
+  );
   assert.deepEqual(
     calls.kills.map((handle) => handle.name),
     ['backend'],
@@ -182,7 +206,7 @@ test('4. a backend readiness timeout stops the backend and drops the database', 
   assert.equal(calls.testRuns.length, 0);
 });
 
-test('5. a frontend readiness timeout stops both children and drops the database', async () => {
+test('5. a frontend readiness timeout stops all children and drops the database', async () => {
   const { deps, calls } = fakeWorld({ uiReady: false });
   const exit = await createOrchestrator(deps).run();
 
@@ -190,7 +214,7 @@ test('5. a frontend readiness timeout stops both children and drops the database
   // Reverse order: the most recently started child stops first.
   assert.deepEqual(
     calls.kills.map((handle) => handle.name),
-    ['control-center', 'backend'],
+    ['control-center', 'storefront', 'backend'],
   );
   assert.equal(
     calls.commands.filter(({ argv }) => isReset(argv, '--drop')).length,
@@ -249,7 +273,7 @@ test('9. a signal initiates cleanup exactly once with the signal status', async 
   // Cleanup ran once: each child killed once, one drop.
   assert.deepEqual(
     calls.kills.map((handle) => handle.name),
-    ['control-center', 'backend'],
+    ['control-center', 'storefront', 'backend'],
   );
   assert.equal(
     calls.commands.filter(({ argv }) => isReset(argv, '--drop')).length,
@@ -291,6 +315,18 @@ test('10. commands and children target only the approved ports and database', as
     ui.options.env.CC_API_PROXY_TARGET,
     `http://127.0.0.1:${BACKEND_PORT}`,
   );
+
+  // The storefront targets its own approved port and only the E2E
+  // backend origin; the preflight covers all three ports.
+  const storefront = calls.spawns.find(
+    (handle) => handle.name === 'storefront',
+  );
+  assert.ok(storefront.argv.includes(String(STOREFRONT_PORT)));
+  assert.equal(
+    storefront.options.env.STOREFRONT_API_ORIGIN,
+    `http://127.0.0.1:${BACKEND_PORT}`,
+  );
+  assert.deepEqual(calls.portChecks, [BACKEND_PORT, STOREFRONT_PORT, UI_PORT]);
 });
 
 test('11. Playwright selection arguments are forwarded unchanged', async () => {
@@ -344,7 +380,7 @@ test('14. a backend spawn failure becomes a controlled failure with cleanup', as
   );
 });
 
-test('15. a frontend spawn failure stops both children and cleans up', async () => {
+test('15. a frontend spawn failure stops all children and cleans up', async () => {
   const { deps, calls } = fakeWorld({ spawnFails: 'control-center' });
   const exit = await createOrchestrator(deps).run();
 
@@ -356,7 +392,7 @@ test('15. a frontend spawn failure stops both children and cleans up', async () 
   );
   assert.deepEqual(
     calls.kills.map((handle) => handle.name),
-    ['control-center', 'backend'],
+    ['control-center', 'storefront', 'backend'],
   );
   assert.equal(
     calls.commands.filter(({ argv }) => isReset(argv, '--drop')).length,
@@ -378,7 +414,7 @@ test('16. a Playwright spawn failure is a controlled failure with cleanup', asyn
   );
   assert.deepEqual(
     calls.kills.map((handle) => handle.name),
-    ['control-center', 'backend'],
+    ['control-center', 'storefront', 'backend'],
   );
   assert.equal(
     calls.commands.filter(({ argv }) => isReset(argv, '--drop')).length,
@@ -544,4 +580,112 @@ test('24. only the constructed media root may ever be removed', () => {
     assertRemovableMediaRoot(MEDIA_ROOT, REPO_ROOT),
     assertRemovableMediaRoot(MEDIA_ROOT, REPO_ROOT),
   );
+});
+
+// --- Orchestrated storefront server (M4F, ADR-023) ---------------------
+// A third managed child joins the stack: the storefront dev server on
+// its own approved port, started after the backend and before the
+// control center, with ANSWERING readiness (200 or neutral 404) that
+// must never leak into the other children's strict-ok readiness.
+
+test('25. the storefront command binds the approved host, port, and API origin', async () => {
+  const { deps, calls } = fakeWorld();
+  await createOrchestrator(deps).run();
+
+  const storefront = calls.spawns.find(
+    (handle) => handle.name === 'storefront',
+  );
+  // `next dev` with an explicit port and explicit loopback binding —
+  // never `next build`/`next start`, never an implicit interface.
+  assert.deepEqual(storefront.argv, [
+    'node',
+    '/resolved/next.js',
+    'dev',
+    '-p',
+    String(STOREFRONT_PORT),
+    '-H',
+    '127.0.0.1',
+  ]);
+  assert.equal(storefront.options.cwd, '/resolved/storefront');
+  // The API origin is constructed to the E2E backend; the development
+  // default (:8000) must be unreachable from an orchestrated run.
+  assert.equal(
+    storefront.options.env.STOREFRONT_API_ORIGIN,
+    `http://127.0.0.1:${BACKEND_PORT}`,
+  );
+  // Playwright learns the storefront port the same way it learns the
+  // backend port: constructed env, never ambient configuration.
+  assert.equal(
+    calls.testRuns[0].env.E2E_STOREFRONT_PORT,
+    String(STOREFRONT_PORT),
+  );
+});
+
+test('26. startup order is backend, then storefront, then control center', async () => {
+  const { deps, calls } = fakeWorld();
+  await createOrchestrator(deps).run();
+
+  assert.deepEqual(
+    calls.spawns.map((handle) => handle.name),
+    ['backend', 'storefront', 'control-center'],
+  );
+});
+
+test('27. only the storefront uses answering readiness; the others keep strict ok', async () => {
+  const { deps, calls } = fakeWorld();
+  await createOrchestrator(deps).run();
+
+  // The answering poll saw exactly the storefront's URLs.
+  assert.equal(calls.answeringPolls.length, 1);
+  assert.ok(
+    calls.answeringPolls[0].every((url) =>
+      url.includes(String(STOREFRONT_PORT)),
+    ),
+  );
+  // The strict poll saw the backend and control center — and never a
+  // storefront URL, so their readiness rules are provably unchanged.
+  assert.equal(calls.strictPolls.length, 2);
+  for (const urls of calls.strictPolls) {
+    assert.ok(urls.every((url) => !url.includes(String(STOREFRONT_PORT))));
+  }
+});
+
+test('28. a storefront readiness timeout stops started children and cleans up', async () => {
+  const { deps, calls } = fakeWorld({ storefrontReady: false });
+  const exit = await createOrchestrator(deps).run();
+
+  assert.notEqual(exit, 0);
+  // The control center was never spawned: storefront readiness gates it.
+  assert.deepEqual(
+    calls.spawns.map((handle) => handle.name),
+    ['backend', 'storefront'],
+  );
+  assert.deepEqual(
+    calls.kills.map((handle) => handle.name),
+    ['storefront', 'backend'],
+  );
+  assert.equal(
+    calls.commands.filter(({ argv }) => isReset(argv, '--drop')).length,
+    1,
+  );
+  assert.equal(calls.testRuns.length, 0);
+});
+
+test('29. a storefront spawn failure is a controlled failure with cleanup', async () => {
+  const { deps, calls } = fakeWorld({ spawnFails: 'storefront' });
+  const exit = await createOrchestrator(deps).run();
+
+  assert.notEqual(exit, 0);
+  assert.ok(
+    calls.errors.some((text) => text.includes('storefront failed to start')),
+  );
+  assert.deepEqual(
+    calls.kills.map((handle) => handle.name),
+    ['storefront', 'backend'],
+  );
+  assert.equal(
+    calls.commands.filter(({ argv }) => isReset(argv, '--drop')).length,
+    1,
+  );
+  assert.equal(calls.testRuns.length, 0);
 });

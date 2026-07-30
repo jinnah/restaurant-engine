@@ -67,11 +67,19 @@ export function assertRemovableMediaRoot(candidate, repoRoot) {
 }
 
 export const BACKEND_PORT = 8100;
+export const STOREFRONT_PORT = 3100;
 export const UI_PORT = 5273;
 export const UI_ORIGIN = `http://localhost:${UI_PORT}`;
 export const BACKEND_READY_URLS = [
   `http://127.0.0.1:${BACKEND_PORT}/health/ready`,
 ];
+// The storefront is bound explicitly to 127.0.0.1 (M4F, ADR-023), so one
+// literal suffices. A bare-host probe legitimately answers the neutral
+// 404 — `127.0.0.1` resolves no tenant by design (ADR-013) — so the
+// storefront uses ANSWERING readiness (200 or 404), a deliberately
+// separate poll from the strict-ok readiness the backend and control
+// center keep. The probe also warms the dev compile of `/`.
+export const STOREFRONT_READY_URLS = [`http://127.0.0.1:${STOREFRONT_PORT}/`];
 // Vite binds whichever loopback family `localhost` resolves to (the
 // M1C ::1 gotcha), and Node's fetch may try the other one — poll both
 // literals; the browser resolves localhost across families itself.
@@ -144,6 +152,28 @@ export function buildUiArgv(nodeExecPath, viteScriptPath) {
   ];
 }
 
+/**
+ * Storefront argv: the repository's `next dev` invocation (ADR-023).
+ *
+ * `next dev`, never `next build`/`next start`: the e2e stack runs dev
+ * servers (the Vite precedent), production wire behavior stays owned by
+ * `pnpm storefront:verify`, and dev mode keeps the development `/api`
+ * forwarder active so relative media URLs resolve on the tenant origin
+ * without a proxy. `-H 127.0.0.1` binds explicitly; `-p` is a fixed
+ * port so the preflight can refuse honestly.
+ */
+export function buildStorefrontArgv(nodeExecPath, nextScriptPath) {
+  return [
+    nodeExecPath,
+    nextScriptPath,
+    'dev',
+    '-p',
+    String(STOREFRONT_PORT),
+    '-H',
+    '127.0.0.1',
+  ];
+}
+
 function messageOf(error) {
   return error instanceof Error ? error.message : String(error);
 }
@@ -156,10 +186,17 @@ function messageOf(error) {
  *     handle.spawnFailed is a promise that RESOLVES with an Error if the
  *     process could not be started, and stays pending otherwise)
  *   killChild(handle) -> Promise<void>                      (bounded stop)
- *   pollReady(urls, timeoutMs) -> Promise<boolean>  (any-of readiness)
+ *   pollReady(urls, timeoutMs) -> Promise<boolean>  (any-of readiness,
+ *     strict ok — the backend and control center)
+ *   pollAnswering(urls, timeoutMs) -> Promise<boolean>  (any-of
+ *     readiness accepting an answering 200 or neutral 404 — the
+ *     storefront only; see STOREFRONT_READY_URLS)
  *   runTests(extraArgs, env) -> Promise<exit code>
  *   uiArgv -> string[]  (entry-resolved: node + vite script + port args)
  *   uiCwd -> string     (the control-center app directory)
+ *   storefrontArgv -> string[]  (entry-resolved: node + next script +
+ *     dev + port + host args)
+ *   storefrontCwd -> string     (the storefront app directory)
  *   mediaRoot -> string (entry-resolved disposable media root)
  *   resetMediaRoot(path) -> Promise<void>   (remove, then create empty)
  *   removeMediaRoot(path) -> Promise<void>  (remove; both validate first)
@@ -172,6 +209,7 @@ export function createOrchestrator(deps) {
     spawnChild,
     killChild,
     pollReady,
+    pollAnswering,
     runTests,
     resetMediaRoot,
     removeMediaRoot,
@@ -249,10 +287,11 @@ export function createOrchestrator(deps) {
   // could not start becomes a controlled primary failure immediately —
   // never an uncaught EventEmitter error, never a full readiness
   // timeout. Resolve-style racing keeps abandoned branches from ever
-  // turning into unhandled rejections.
-  async function awaitReady(handle, urls) {
+  // turning into unhandled rejections. `poll` defaults to the strict-ok
+  // readiness; the storefront passes the answering poll explicitly.
+  async function awaitReady(handle, urls, poll = pollReady) {
     const outcome = await Promise.race([
-      pollReady(urls, READY_TIMEOUT_MS).then((ready) => ({ ready })),
+      poll(urls, READY_TIMEOUT_MS).then((ready) => ({ ready })),
       handle.spawnFailed.then((error) => ({ failed: error })),
     ]);
     if ('failed' in outcome) {
@@ -270,7 +309,7 @@ export function createOrchestrator(deps) {
     try {
       // 1. Preflight: refuse occupied ports before any mutation; this
       // run never attaches to (or kills) servers it did not start.
-      for (const port of [BACKEND_PORT, UI_PORT]) {
+      for (const port of [BACKEND_PORT, STOREFRONT_PORT, UI_PORT]) {
         if (!(await checkPortFree(port))) {
           throw new Error(
             `preflight: port ${port} is already in use; stop whatever is ` +
@@ -311,6 +350,23 @@ export function createOrchestrator(deps) {
       children.push(backend);
       await awaitReady(backend, BACKEND_READY_URLS);
 
+      // 6b. Storefront, after the backend (it reads the backend per
+      // request) and before the control center — a fixed, deterministic
+      // order (ADR-023). `STOREFRONT_API_ORIGIN` is constructed, never
+      // inherited: the dev default (:8000) is the preserved development
+      // backend and must be unreachable from an E2E run. Readiness is
+      // the ANSWERING poll: a bare-loopback probe answers the neutral
+      // 404 by design, which proves the server is up without weakening
+      // the strict-ok readiness the other children keep.
+      const storefront = spawnChild('storefront', deps.storefrontArgv, {
+        env: {
+          STOREFRONT_API_ORIGIN: `http://127.0.0.1:${BACKEND_PORT}`,
+        },
+        cwd: deps.storefrontCwd,
+      });
+      children.push(storefront);
+      await awaitReady(storefront, STOREFRONT_READY_URLS, pollAnswering);
+
       // 7–8. Control center through the same-origin proxy. Vite must
       // run from the app directory so it serves the app and loads its
       // config (index.html, proxy) — not the repository root.
@@ -334,6 +390,9 @@ export function createOrchestrator(deps) {
         // `Host: localhost:5273`, which resolves to no tenant. Only the
         // port travels; support/namespace.ts composes the origin (M3F).
         E2E_PUBLIC_PORT: String(BACKEND_PORT),
+        // The rendered storefront is reached the same way, one port
+        // over: `{slug}.localhost:<storefront>` (M4F, ADR-023).
+        E2E_STOREFRONT_PORT: String(STOREFRONT_PORT),
       });
     } catch (error) {
       logError(messageOf(error));

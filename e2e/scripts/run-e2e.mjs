@@ -22,6 +22,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import {
   assertRemovableMediaRoot,
+  buildStorefrontArgv,
   buildUiArgv,
   createOrchestrator,
   e2eMediaRoot,
@@ -31,10 +32,14 @@ import { createChildTerminator } from './processControl.mjs';
 const E2E_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
 const REPO_ROOT = dirname(E2E_DIR);
 const CONTROL_CENTER_DIR = join(REPO_ROOT, 'apps', 'control-center');
+const STOREFRONT_DIR = join(REPO_ROOT, 'apps', 'storefront');
 const MEDIA_ROOT = e2eMediaRoot(REPO_ROOT);
 
 const requireFromControlCenter = createRequire(
   join(CONTROL_CENTER_DIR, 'package.json'),
+);
+const requireFromStorefront = createRequire(
+  join(STOREFRONT_DIR, 'package.json'),
 );
 const requireFromE2e = createRequire(join(E2E_DIR, 'package.json'));
 
@@ -49,6 +54,7 @@ function resolveBinScript(resolver, packageName, binName) {
 }
 
 const VITE_SCRIPT = resolveBinScript(requireFromControlCenter, 'vite', 'vite');
+const NEXT_SCRIPT = resolveBinScript(requireFromStorefront, 'next', 'next');
 const PLAYWRIGHT_CLI = resolveBinScript(
   requireFromE2e,
   '@playwright/test',
@@ -138,7 +144,8 @@ const killChild = createChildTerminator({
   wait: sleep,
 });
 
-async function pollReady(urls, timeoutMs) {
+// The shared polling loop; `accept` decides what counts as ready.
+async function pollWith(urls, timeoutMs, accept) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     for (const url of urls) {
@@ -146,7 +153,7 @@ async function pollReady(urls, timeoutMs) {
         const response = await fetch(url, {
           signal: AbortSignal.timeout(2000),
         });
-        if (response.ok) {
+        if (accept(response)) {
           return true;
         }
       } catch {
@@ -156,6 +163,22 @@ async function pollReady(urls, timeoutMs) {
     await sleep(500);
   }
   return false;
+}
+
+// Strict-ok readiness: the backend and control center (unchanged).
+function pollReady(urls, timeoutMs) {
+  return pollWith(urls, timeoutMs, (response) => response.ok);
+}
+
+// Answering readiness (M4F): the storefront's bare-loopback probe
+// legitimately answers the neutral 404 (no tenant resolves), so an
+// answering 200 or 404 proves the server is up. Storefront only.
+function pollAnswering(urls, timeoutMs) {
+  return pollWith(
+    urls,
+    timeoutMs,
+    (response) => response.ok || response.status === 404,
+  );
 }
 
 // Every removal is validated against the constructed path first, so a
@@ -210,9 +233,12 @@ const orchestrator = createOrchestrator({
   spawnChild,
   killChild,
   pollReady,
+  pollAnswering,
   runTests,
   uiArgv: buildUiArgv(process.execPath, VITE_SCRIPT),
   uiCwd: CONTROL_CENTER_DIR,
+  storefrontArgv: buildStorefrontArgv(process.execPath, NEXT_SCRIPT),
+  storefrontCwd: STOREFRONT_DIR,
   mediaRoot: MEDIA_ROOT,
   resetMediaRoot,
   removeMediaRoot,
