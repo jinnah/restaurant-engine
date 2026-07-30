@@ -155,7 +155,7 @@ export async function seedPhotographedItem(
   ns: SpecNamespace,
   businessId: string,
   names: { category: string; item: string; altText: string },
-): Promise<void> {
+): Promise<{ itemId: string; mediaId: string }> {
   const owner = await ownerApi(ns);
   try {
     const base = `/api/v1/businesses/${businessId}`;
@@ -196,6 +196,141 @@ export async function seedPhotographedItem(
       { data: { media_id: mediaId, alt_text: names.altText }, headers },
     );
     await expectOk(attach, `attach image for ${ns.slug}`);
+    return { itemId, mediaId };
+  } finally {
+    await owner.dispose();
+  }
+}
+
+/**
+ * The storefront composition seeded for the responsive and accessibility
+ * specs (M4F, ADR-023): all five registered section types, realistic
+ * tenant copy, and the library image referenced from the hero and the
+ * gallery. Content is a *prerequisite* for those specs — composing it
+ * through the UI is the functional journey's subject, not theirs — so it
+ * travels the documented administrative HTTP contract with the owner's
+ * own session and CSRF token, exactly like the menu fixtures above.
+ */
+export function storefrontConfigFixture(content: {
+  heroHeading: string;
+  heroSubheading: string;
+  storyBody: string;
+  mediaId: string;
+  imageAlt: string;
+}): Record<string, unknown> {
+  return {
+    schema_version: 1,
+    theme: { accent: '#7a1f2b' },
+    sections: [
+      {
+        id: 'hero',
+        type: 'hero',
+        enabled: true,
+        props: {
+          heading: content.heroHeading,
+          subheading: content.heroSubheading,
+          image: { media_id: content.mediaId, alt_text: content.imageAlt },
+          primary_action: 'view_menu',
+        },
+      },
+      {
+        id: 'menu',
+        type: 'menu',
+        enabled: true,
+        props: {
+          heading: 'From our kitchen',
+          intro:
+            'Every dish is cooked to order with ingredients we would serve our own family.',
+        },
+      },
+      {
+        id: 'story',
+        type: 'story',
+        enabled: true,
+        props: { heading: 'Our story', body: content.storyBody },
+      },
+      {
+        id: 'contact',
+        type: 'contact',
+        enabled: true,
+        props: {
+          heading: 'Visit us',
+          address_lines: ['12 Riverside Avenue', 'Buffalo, NY 14201'],
+          phone: '(716) 555-0142',
+          email: 'hello@example-restaurant.example',
+        },
+      },
+      {
+        id: 'gallery',
+        type: 'gallery',
+        enabled: true,
+        props: {
+          heading: 'The dining room',
+          images: [{ media_id: content.mediaId, alt_text: content.imageAlt }],
+        },
+      },
+    ],
+  };
+}
+
+/**
+ * An ACTIVE business with a populated menu, a featured photographed item,
+ * and a PUBLISHED five-section storefront. Draft save claims the media
+ * reference (ADR-020 §10); publication is what makes anything public.
+ */
+export async function seedPublishedStorefront(
+  ns: SpecNamespace,
+  content: {
+    category: string;
+    item: string;
+    imageAlt: string;
+    heroHeading: string;
+    heroSubheading: string;
+    storyBody: string;
+  },
+): Promise<{ businessId: string; mediaId: string }> {
+  const { businessId } = await provisionActiveBusinessWithOwner(ns);
+  const { itemId, mediaId } = await seedPhotographedItem(ns, businessId, {
+    category: content.category,
+    item: content.item,
+    altText: content.imageAlt,
+  });
+
+  const owner = await ownerApi(ns);
+  try {
+    const base = `/api/v1/businesses/${businessId}`;
+    const headers = { 'X-CSRF-Token': owner.csrf };
+
+    // Featured items are the menu section's home-page composition.
+    const feature = await owner.api.patch(`${base}/catalog/items/${itemId}`, {
+      data: { is_featured: true },
+      headers,
+    });
+    await expectOk(feature, `feature item for ${ns.slug}`);
+
+    // Create-intent draft save (omitted expected_lock_version), then
+    // publish with the saved draft's exact lock version (D-3/D-5).
+    const draft = await owner.api.put(`${base}/storefront/draft`, {
+      data: {
+        config: storefrontConfigFixture({
+          heroHeading: content.heroHeading,
+          heroSubheading: content.heroSubheading,
+          storyBody: content.storyBody,
+          mediaId,
+          imageAlt: content.imageAlt,
+        }),
+      },
+      headers,
+    });
+    await expectOk(draft, `save storefront draft for ${ns.slug}`);
+    const draftBody = (await draft.json()) as { lock_version: number };
+
+    const publish = await owner.api.post(`${base}/storefront/publish`, {
+      data: { expected_lock_version: draftBody.lock_version },
+      headers,
+    });
+    await expectOk(publish, `publish storefront for ${ns.slug}`);
+    return { businessId, mediaId };
   } finally {
     await owner.dispose();
   }
