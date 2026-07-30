@@ -1,0 +1,182 @@
+.loading {
+  composes: loading from '../components/controls.module.css';
+}
+
+.empty {
+  composes: empty from '../components/controls.module.css';
+}
+
+.errorPanel {
+  composes: errorPanel from '../components/controls.module.css';
+}
+
+.secondary {
+  composes: secondary from '../components/controls.module.css';
+}
+
+.submit {
+  composes: submit from '../components/controls.module.css';
+}
+
+.danger {
+  composes: danger from '../components/controls.module.css';
+}
+
+.quiet {
+  composes: quiet from '../components/controls.module.css';
+}
+
+.actions {
+  composes: actions from '../components/controls.module.css';
+}
+
+.pageHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.pageHead h2 {
+  margin: 0;
+}
+
+/* Status facts and page panels: one surface card vocabulary. */
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.statusList {
+  margin: 0;
+  display: grid;
+  gap: 0.25rem var(--space-2);
+  grid-template-columns: max-content 1fr;
+}
+
+.statusList dt {
+  font-weight: 600;
+}
+
+.statusList dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  color: var(--color-muted);
+  margin: var(--space-1) 0 0;
+}
+
+.diagnostics {
+  margin-top: var(--space-1);
+  color: var(--color-muted);
+}
+
+.diagnostics summary {
+  cursor: pointer;
+  min-height: var(--target-min);
+  display: flex;
+  align-items: center;
+}
+
+/* The saved-draft preview surface: a framed region carrying the shared
+   renderer's tenant-page baseline class, so the preview inherits the same
+   typography, palette, and wrapping the public page has. */
+.previewSurface {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-top: var(--space-2);
+}
+
+/* History rows: mobile-first stacked list. */
+.historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.historyRow {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-1) var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.historyMeta {
+  color: var(--color-muted);
+}
+
+.stateBadge {
+  display: inline-block;
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  font-size: 0.85em;
+}
+
+.statePublished {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.sectionRows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.sectionRow {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-1) var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.sectionRowBody {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.sectionSummaryText {
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+
+.disabledBadge {
+  display: inline-block;
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-warning);
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  font-size: 0.85em;
+}

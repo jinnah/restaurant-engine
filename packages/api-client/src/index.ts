@@ -105,15 +105,26 @@ export type {
   VersionSummary,
 } from './storefront';
 export type {
+  HeroAction,
   PublicApi,
+  PublicContactSection,
+  PublicGallerySection,
+  PublicHeroSection,
   PublicMenu,
   PublicMenuCategory,
   PublicMenuImage,
   PublicMenuImageVariant,
   PublicMenuItem,
+  PublicMenuSection,
   PublicModifierGroup,
   PublicModifierOption,
+  PublicSection,
   PublicSiteSummary,
+  PublicStorefront,
+  PublicStorefrontImage,
+  PublicStorefrontImageVariant,
+  PublicStorySection,
+  PublicTheme,
 } from './public';
 export { isErrorEnvelope } from './errors';
 export type {

@@ -7,6 +7,10 @@ import { ItemCreatePage } from './menu/ItemCreatePage';
 import { ItemEditorPage } from './menu/ItemEditorPage';
 import { MenuOverviewPage } from './menu/MenuOverviewPage';
 import { AuditPage } from './platform/AuditPage';
+import { StorefrontHistoryPage } from './storefront/StorefrontHistoryPage';
+import { StorefrontOverviewPage } from './storefront/StorefrontOverviewPage';
+import { StorefrontPreviewPage } from './storefront/StorefrontPreviewPage';
+import { StorefrontVersionDetailPage } from './storefront/StorefrontVersionDetailPage';
 import { BusinessDetailPage } from './platform/BusinessDetailPage';
 import { BusinessesListPage } from './platform/BusinessesListPage';
 import { PlatformLayout } from './platform/PlatformLayout';
@@ -56,6 +60,24 @@ export const routes: RouteObject[] = [
                       {
                         path: 'menu/items/:itemId',
                         element: <ItemEditorPage />,
+                      },
+                      // The storefront workspace (ADR-022 §1): four
+                      // deep-linkable full pages.
+                      {
+                        path: 'storefront',
+                        element: <StorefrontOverviewPage />,
+                      },
+                      {
+                        path: 'storefront/preview',
+                        element: <StorefrontPreviewPage />,
+                      },
+                      {
+                        path: 'storefront/history',
+                        element: <StorefrontHistoryPage />,
+                      },
+                      {
+                        path: 'storefront/history/:versionId',
+                        element: <StorefrontVersionDetailPage />,
                       },
                       // Unknown workspace children fall through to the root
                       // catch-all not-found route.

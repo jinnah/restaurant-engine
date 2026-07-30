@@ -38,6 +38,14 @@ export type PublicContactSection =
   components['schemas']['PublicContactSection'];
 export type PublicGallerySection =
   components['schemas']['PublicGallerySection'];
+/**
+ * One enabled section of the published projection (the members carry the
+ * `type` discriminant). Named here because the OpenAPI document publishes
+ * the union inline on `PublicStorefront.sections` rather than as a
+ * component (ADR-022 §2).
+ */
+export type PublicSection = PublicStorefront['sections'][number];
+export type HeroAction = components['schemas']['HeroAction'];
 
 export interface PublicApi {
   getSite(): Promise<ApiResult<PublicSiteSummary>>;

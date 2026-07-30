@@ -47,6 +47,9 @@ importers:
       '@restaurant-engine/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@restaurant-engine/storefront-renderer':
+        specifier: workspace:*
+        version: link:../../packages/storefront-renderer
       '@tanstack/react-query':
         specifier: 5.101.2
         version: 5.101.2(react@19.2.7)

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router';
 import { useSession } from '../auth/useSession';
+import { storefrontPermissions } from '../storefront/permissions';
 import { findMembership, useCurrentBusinessId } from './useCurrentBusinessId';
 import styles from './workspace.module.css';
 
@@ -59,6 +60,19 @@ export function BusinessWorkspaceLayout() {
         >
           Menu
         </NavLink>
+        {/* Staff hold no storefront read capability at all (ADR-020 §7),
+            so the section is not offered to them — unlike Menu, which
+            every role can at least read. */}
+        {storefrontPermissions(membership).canRead && (
+          <NavLink
+            to={`/businesses/${membership.business_id}/storefront`}
+            className={({ isActive }) =>
+              isActive ? styles.linkActive : styles.link
+            }
+          >
+            Storefront
+          </NavLink>
+        )}
       </nav>
       {note !== null && (
         <p className={styles.note}>

@@ -8,10 +8,17 @@ import type {
   ApiResult,
   BusinessSummary,
   CategoryWithItems,
+  DraftView,
   ErrorEnvelope,
   ItemSummary,
   MembershipSummary,
+  PublicStorefront,
   SessionView,
+  StorefrontConfig,
+  StorefrontOverview,
+  VersionDetail,
+  VersionPage,
+  VersionSummary,
 } from '@restaurant-engine/api-client';
 
 export const INVALID_INVITATION = 'Invitation is not valid or has expired.';
@@ -110,6 +117,101 @@ export interface ClientOverrides {
   businesses?: Partial<ApiClient['businesses']>;
   catalog?: Partial<ApiClient['catalog']>;
   media?: Partial<ApiClient['media']>;
+  storefront?: Partial<ApiClient['storefront']>;
+}
+
+// --- Storefront fixtures (M4E, ADR-022) ---------------------------------
+
+export function storefrontConfig(
+  overrides: Partial<StorefrontConfig> = {},
+): StorefrontConfig {
+  return {
+    schema_version: 1,
+    theme: { accent: '#a34b2a' },
+    sections: [],
+    ...overrides,
+  };
+}
+
+export function draftView(overrides: Partial<DraftView> = {}): DraftView {
+  return {
+    config: storefrontConfig(),
+    design_variant: 'classic',
+    schema_version: 1,
+    lock_version: 0,
+    source_version_id: null,
+    created_at: '2026-07-30T10:00:00Z',
+    updated_at: '2026-07-30T10:00:00Z',
+    ...overrides,
+  };
+}
+
+export function storefrontOverview(
+  overrides: Partial<StorefrontOverview> = {},
+): StorefrontOverview {
+  return {
+    draft: null,
+    published: null,
+    ...overrides,
+  };
+}
+
+export function versionSummary(
+  overrides: Partial<VersionSummary> = {},
+): VersionSummary {
+  return {
+    id: '33333333-3333-4333-8333-333333333331',
+    version_number: 1,
+    state: 'published',
+    design_variant: 'classic',
+    schema_version: 1,
+    source_version_id: null,
+    published_at: '2026-07-30T09:00:00Z',
+    published_by_user_id: '2f6b8d4e-1a3c-4f5b-8e9d-0c1a2b3c4d5e',
+    created_at: '2026-07-30T08:00:00Z',
+    ...overrides,
+  };
+}
+
+export function versionPage(
+  items: VersionSummary[],
+  overrides: Partial<VersionPage> = {},
+): VersionPage {
+  return {
+    items,
+    total: items.length,
+    limit: 20,
+    offset: 0,
+    ...overrides,
+  };
+}
+
+export function versionDetail(
+  overrides: Partial<VersionDetail> = {},
+): VersionDetail {
+  return {
+    ...versionSummary(),
+    config: storefrontConfig(),
+    ...overrides,
+  };
+}
+
+/** The M4C preview projection of a saved draft (enabled sections only). */
+export function previewProjection(
+  overrides: Partial<PublicStorefront> = {},
+): PublicStorefront {
+  return {
+    business: {
+      name: 'Shalik',
+      slug: 'shalik',
+      timezone: 'America/New_York',
+      currency: 'USD',
+    },
+    design_variant: 'classic',
+    theme: { accent: '#a34b2a' },
+    sections: [],
+    ...overrides,
+  };
 }
 
 /** An empty administrative menu — the starting point for most menu tests. */
@@ -247,6 +349,16 @@ export function makeClient(overrides: ClientOverrides = {}): ApiClient {
       fileUrl: (businessId: string, assetId: string, variant: string) =>
         `/api/v1/businesses/${businessId}/media/${assetId}/file/${variant}`,
       ...overrides.media,
+    },
+    storefront: {
+      get: vi.fn(async () => neutralNotFound()),
+      preview: vi.fn(async () => neutralNotFound()),
+      putDraft: vi.fn(async () => neutralNotFound()),
+      publish: vi.fn(async () => neutralNotFound()),
+      listVersions: vi.fn(async () => neutralNotFound()),
+      getVersion: vi.fn(async () => neutralNotFound()),
+      restoreVersion: vi.fn(async () => neutralNotFound()),
+      ...overrides.storefront,
     },
     // A surface the control center never touches; present so accidental use
     // fails loudly rather than silently returning undefined.
