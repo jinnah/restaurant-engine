@@ -2,7 +2,47 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (Milestone 3F — complete)
+## Current state (M4D implementation — under review)
+
+M4D adds the storefront renderer's coverage (ADR-021), in three layers:
+
+- **Component and unit (Vitest, jsdom/node).** Section renderers
+  (dispatch exhaustiveness, projection order, optional-value omission,
+  escaping, empty states), the classic layout (landmarks, fixed heading
+  hierarchy, accent custom properties), exact minor-unit money by
+  identity (`1250` must render as exactly `$12.50`), safe contact-link
+  derivation, canonical-origin policy, the JSON-LD serializer's
+  breakout-proof escaping with a permanent scan pinning
+  `dangerouslySetInnerHTML` to the one audited component, metadata
+  derivation, robots/sitemap handlers, and the
+  Unicode/complex-script suite — Bengali conjunct/matra/ZWNJ/ZWJ fixtures
+  (engineering data only) proved NFC-intact through sections, chrome, and
+  metadata. Stylesheet floors (wrapping, line height, reduced motion,
+  focus, 44 px targets) are pinned as policy-presence tests, because
+  jsdom computes no layout — no WCAG conformance is claimed from jsdom.
+- **Permanent tenant-isolation contracts (live loopback stubs).** The
+  tenant transport is tested on the wire: the incoming Host forwarded
+  verbatim, every alternative selection channel stripped
+  (cookies/authorization/forwarded/`X-Business-ID`), `cache: "no-store"`
+  stamped on every request, the five-second deadline, and the
+  development `/api` forwarder's Host preservation and production gate.
+- **Built-server verification (`pnpm storefront:verify`).** The
+  production build boots against a disposable stub API and the wire
+  contract is asserted end to end: page HTML `no-store` with hashed
+  assets immutable, the neutral 404 (noindex) for unresolved hosts, the
+  neutral non-indexable 500 document on backend outage, per-host
+  robots/sitemap, the production-disabled forwarder, Host forwarding on
+  every backend request, and the measured two-request render cost.
+  `pnpm storefront:budget` enforces the first-load JS ceiling
+  (ADR-021) from the same build; both checks were proven to fail on
+  seeded violations.
+
+Deliberate limits: no new Playwright journey ships with M4D — mandatory
+journeys 2 and 3, the e2e-orchestrated storefront server, and
+browser-level accessibility verification (axe, focus order, target
+geometry, real rendering) are M4F. The suite below is unchanged.
+
+## Earlier state (Milestone 3F — complete)
 
 M3F adds the end-to-end coverage for Milestone 3 (ADR-019). It is
 implemented, verified, and — with owner UAT accepted — **closed**, so

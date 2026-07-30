@@ -168,7 +168,26 @@ the §10 public-media predicate extension (public-catalog **or**
 enabled-published-section reference); and centrally assigned
 route-identity caching (`public, max-age=60` on successful public
 storefront responses only — errors and preview stay `no-store`).
-Rendering (M4D) and the storefront workspace UI (M4E) remain.
+
+**Server-rendered storefront (M4D, ADR-021):** `apps/storefront` renders
+the published composition at `/` and the complete public menu at `/menu`
+— fully dynamic request-time SSR, server components only, both routes
+gated on the published version and answering the one neutral 404 for
+every ineligible host. The server reads the backend through the
+api-client facade over a `node:http` tenant transport that forwards the
+incoming Host verbatim and is structurally outside Next's URL-keyed data
+cache (tenant-cache isolation, ADR-013); `STOREFRONT_API_ORIGIN` is read
+at request time with a development default and production fail-closed.
+Section renderers and the `classic` design-variant layout dispatch
+exhaustively over the generated contract; media renders as native
+responsive `<img>` from the delivered renditions; metadata, canonical
+origins (deterministic scheme policy), per-host robots/sitemap, and the
+audited JSON-LD boundary derive from published data only; storefront HTML
+is `no-store` while hashed build assets stay immutable. First-load
+JavaScript is budget-enforced in CI (`pnpm storefront:budget`), and
+`pnpm storefront:verify` asserts the built server's wire behavior against
+a disposable stub API. The storefront workspace UI (M4E) and the
+end-to-end journeys (M4F) remain.
 
 **Frontend workspace conventions (M1B):** one root ESLint flat config and one
 root `tsconfig.base.json` own shared configuration as plain files — a shared
