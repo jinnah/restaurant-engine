@@ -276,7 +276,7 @@ closed to the neutral `404` — both with bounded internal logging. No
 storefront HTML renderer, SEO, or UI shipped: rendering is M4D, the
 storefront workspace is M4E.
 
-**Implemented in M4D (ADR-021, under review).** The storefront renderer
+**Implemented in M4D (ADR-021; delivered 2026-07-29).** The storefront renderer
 consumes the M4C projection exactly: array order is display order,
 disabled sections never arrive and enablement is never re-derived,
 optional values are omitted rather than fabricated, empty galleries

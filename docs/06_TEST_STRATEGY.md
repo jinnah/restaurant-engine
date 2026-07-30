@@ -2,7 +2,7 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M4D implementation — under review)
+## Current state (M4D — delivered 2026-07-29)
 
 M4D adds the storefront renderer's coverage (ADR-021), in three layers:
 
