@@ -214,3 +214,17 @@ amendment of the same date). When this prompt or the blueprint says
 remains correct as the first vertical and launch market. Never introduce
 customer-specific code paths, a separate `tenant_id`, or `business_type`
 without a new approved decision.
+
+## Amendment — 2026-07-29: Universal restaurant-platform positioning (ADR-021)
+
+Restaurant Engine is an English-first, universal U.S. restaurant platform
+for restaurants across cuisines, cultures, ownership communities, and
+markets. The "initial customers" paragraph above describes the initial
+go-to-market segment only — a sales strategy, not a product boundary.
+Never introduce community-specific branding, defaults, themes, routes,
+workflows, or business rules; community- and cuisine-specific needs are
+structured, configurable data. Bengali remains the required initial
+complex-script rendering fixture (an engineering test), never visible
+product positioning. The platform stays restaurant-specific — do not
+generalize it into a general-purpose website builder. See
+`docs/decisions/ADR-021-server-rendered-storefront.md`.

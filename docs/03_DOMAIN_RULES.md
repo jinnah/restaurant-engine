@@ -276,6 +276,27 @@ closed to the neutral `404` — both with bounded internal logging. No
 storefront HTML renderer, SEO, or UI shipped: rendering is M4D, the
 storefront workspace is M4E.
 
+**Implemented in M4D (ADR-021, under review).** The storefront renderer
+consumes the M4C projection exactly: array order is display order,
+disabled sections never arrive and enablement is never re-derived,
+optional values are omitted rather than fabricated, empty galleries
+render nothing, and the empty published configuration renders coherent
+tenant chrome with no fabricated content. The renderer-side registries
+mirror the backend's: an exhaustive dispatch per section type and per
+design variant fails the strict typecheck when the generated contract
+grows, and runtime drift throws to the generic error boundary with
+nothing disclosed. The menu section composes with the public menu
+projection (featured items, navigation to `/menu`); `/menu` renders the
+complete projection with exact minor-unit prices (digit placement, never
+floats), sold-out badges, and neutral dietary labels — modifier groups
+and `is_orderable` stay ordering-surface facts (M6). Both public routes
+require a currently published version; a business that has never
+published has no public site under any route. Tenant copy renders through
+React escaping only (the single audited JSON-LD serializer is the one
+exception), and Unicode/complex-script rendering is verified with Bengali
+fixtures as engineering test data (universal-positioning ruling,
+ADR-021).
+
 ## Media
 
 Business domains store **media identifiers, not filesystem paths**, behind a

@@ -16,9 +16,11 @@ One business system with three user experiences:
    lifecycle operations for platform operators (same React application,
    permission-gated).
 
-Initial market: Bengali-owned restaurants in Buffalo, New York, then selected
-restaurants in New York City. English-first and Bengali-capable, USD,
-America/New_York defaults — without baking market specifics into core logic.
+An English-first, Unicode-capable platform for U.S. restaurants across
+cuisines and communities, with USD and America/New_York defaults — never
+baking market specifics into core logic. The initial go-to-market segment
+(Bengali-owned restaurants in Buffalo, New York, then selected NYC
+restaurants) is a sales strategy, not a product boundary (ADR-021).
 
 ## Governing documents
 

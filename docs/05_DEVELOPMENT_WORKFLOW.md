@@ -65,18 +65,20 @@ Fake-success placeholders are prohibited.
 
 ### Repository-wide (from the root)
 
-| Command                | Purpose                                                             |
-| ---------------------- | ------------------------------------------------------------------- |
-| `pnpm format:check`    | Prettier verification of docs, configuration, and code              |
-| `pnpm format`          | Apply Prettier formatting                                           |
-| `pnpm lint`            | Root ESLint flat config over the whole workspace                    |
-| `pnpm typecheck`       | Strict TypeScript (`tsc --noEmit`) in every workspace package       |
-| `pnpm test`            | Unit tests (Vitest) in every workspace package                      |
-| `pnpm build`           | Production builds of both applications (needs zero env)             |
-| `pnpm generate:client` | Regenerate the two committed API-contract artifacts (ADR-009)       |
-| `pnpm contract:check`  | Drift check: temp-dir regeneration byte-compared vs committed files |
-| `pnpm dev`             | One-command dev stack: database + API + both shells                 |
-| `pnpm smoke:dev`       | Verify the running dev stack (health probes + both shells)          |
+| Command                  | Purpose                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------- |
+| `pnpm format:check`      | Prettier verification of docs, configuration, and code                                |
+| `pnpm format`            | Apply Prettier formatting                                                             |
+| `pnpm lint`              | Root ESLint flat config over the whole workspace                                      |
+| `pnpm typecheck`         | Strict TypeScript (`tsc --noEmit`) in every workspace package                         |
+| `pnpm test`              | Unit tests (Vitest) in every workspace package                                        |
+| `pnpm build`             | Production builds of both applications (needs zero env)                               |
+| `pnpm generate:client`   | Regenerate the two committed API-contract artifacts (ADR-009)                         |
+| `pnpm contract:check`    | Drift check: temp-dir regeneration byte-compared vs committed files                   |
+| `pnpm storefront:budget` | Storefront first-load JS budget check (needs `pnpm build` first; M4D, ADR-021)        |
+| `pnpm storefront:verify` | Built-storefront wire verification against a disposable stub API (needs `pnpm build`) |
+| `pnpm dev`               | One-command dev stack: database + API + both shells                                   |
+| `pnpm smoke:dev`         | Verify the running dev stack (health probes + both shells)                            |
 
 The `typecheck`/`test`/`build` scripts shell out through `corepack pnpm -r`
 so the pinned pnpm resolves even where Corepack was never globally enabled
@@ -134,11 +136,16 @@ New environment variables (all optional, safe defaults; see
 | `pnpm --filter @restaurant-engine/storefront start`       | Serve the storefront production build     |
 | `pnpm --filter @restaurant-engine/control-center preview` | Serve the control-center production build |
 
-Environment-variable conventions (no frontend variables exist yet): values
-exposed to browser code use the framework prefixes `NEXT_PUBLIC_*`
-(storefront) and `VITE_*` (control center); every new variable gets a safe
-placeholder in `.env.example` in the same change that consumes it. The M1B
-shells build with **zero** environment variables. Dev-server URLs print as
+Environment-variable conventions: values exposed to browser code use the
+framework prefixes `NEXT_PUBLIC_*` (storefront) and `VITE_*` (control
+center); every new variable gets a safe placeholder in `.env.example` in
+the same change that consumes it. Production builds still need **zero**
+environment variables. The one storefront variable is **server-only**:
+`STOREFRONT_API_ORIGIN` (M4D, ADR-021) — the backend origin the
+storefront server fetches at request time. It is optional outside
+production (development and test default to `http://127.0.0.1:8000`);
+production fails closed on the first request if it is missing or
+invalid. It is never exposed to browser code. Dev-server URLs print as
 `localhost`; note the database's 127.0.0.1 rule above applies only to
 PostgreSQL connections.
 
@@ -192,6 +199,15 @@ the reserved labels `api`/`admin`/`www` never resolve a Business — the
 endpoint returns a neutral 404. There is no header or query override; tests
 set the `Host` header directly. Production sets `PLATFORM_BASE_DOMAIN` to the
 real platform domain (`localhost` is rejected at startup).
+
+From M4D the **rendered storefront** is tenant-resolved the same way: a
+published business's site is at `http://{slug}.localhost:3000/` (and
+`/menu`) in the dev stack, while bare `localhost:3000` answers the
+neutral 404 page — which is exactly what `pnpm smoke:dev` now expects as
+the storefront health signal. Relative media URLs work on the tenant
+origin through a development-only `/api` forwarder that preserves the
+browser's Host (disabled in production, where the reverse proxy owns
+`/api/*`).
 
 ### API contract pipeline (from Milestone 1C, ADR-009)
 

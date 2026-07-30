@@ -2,15 +2,28 @@
 
 Summarizes blueprint §2. The blueprint is authoritative.
 
-## Initial market and defaults
+## Positioning (clarified 2026-07-29; see ADR-021)
 
-Independent Bengali-owned restaurants in Buffalo, NY, then selected NYC
-restaurants. Bengali-specific needs are treated as structured, configurable
-data — never hard-coded into core domain logic.
+Restaurant Engine is an **English-first, universal U.S. restaurant
+platform** for restaurants across cuisines, cultures, ownership
+communities, and geographic markets. The initial go-to-market segment —
+independent Bengali-owned restaurants in Buffalo, NY, then selected NYC
+restaurants — is a sales strategy, not a product boundary or architectural
+identity. No market segment's specifics are hard-coded into domain logic,
+branding, defaults, themes, routes, or business rules; community- or
+cuisine-specific needs are expressed as structured, configurable data.
+The platform remains **restaurant-specific**: it is not a general website
+builder for retail, service, or other non-restaurant businesses.
+
+## Initial market and defaults
 
 - Currency: USD (per-tenant currency remains a tenant attribute).
 - Timezone: America/New_York (per-tenant attribute).
-- Locales: English first, Bengali-capable presentation.
+- Presentation: English-first, Unicode-capable, for U.S. restaurants across
+  cuisines and communities. Rendering is verified against complex-script
+  fixtures — Bengali is the required initial complex-script fixture
+  (conjuncts, matras, ZWNJ/ZWJ, NFC) — as an engineering test, never as
+  product positioning, seed data, or a production default.
 - US address and phone formats.
 - Halal and dietary attributes are structured menu data.
 - Pickup ordering first; cash or pay-at-store first.

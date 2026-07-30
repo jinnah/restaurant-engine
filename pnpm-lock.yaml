@@ -96,6 +96,9 @@ importers:
 
   apps/storefront:
     dependencies:
+      '@restaurant-engine/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       next:
         specifier: 16.2.10
         version: 16.2.10(@babel/core@7.29.7(supports-color@10.2.2))(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)

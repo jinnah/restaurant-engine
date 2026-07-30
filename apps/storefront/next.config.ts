@@ -10,6 +10,21 @@ const nextConfig: NextConfig = {
     // in the user profile), which then breaks its swc dependency check.
     root: join(__dirname, '..', '..'),
   },
+  async headers() {
+    return [
+      {
+        // Storefront HTML, metadata routes, and error responses are
+        // `no-store` (ADR-020 §12): publication replaces the projection in
+        // place, and suspension must not be outlived by a cached page.
+        // Deliberately excluded: `/_next/*` (hashed immutable build
+        // assets keep the framework's long-lived caching) and `/api/*`
+        // (the development forwarder passes the backend's own
+        // centrally-assigned cache policy through untouched).
+        source: '/((?!_next/|api/).*)',
+        headers: [{ key: 'Cache-Control', value: 'no-store' }],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

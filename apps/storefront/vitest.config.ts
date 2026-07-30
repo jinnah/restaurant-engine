@@ -5,7 +5,9 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
-    include: ['tests/**/*.test.tsx'],
+    // `.ts` as well as `.tsx`, so pure-utility and server-module tests can
+    // never be silently skipped (the M3E lesson, docs/06).
+    include: ['tests/**/*.test.{ts,tsx}'],
     setupFiles: ['tests/setup.ts'],
   },
 });
