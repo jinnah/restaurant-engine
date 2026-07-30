@@ -317,7 +317,7 @@ Milestone 4 complete. Until that close-out merges and is verified,
 
 ## Consequences
 
-`pnpm e2e` now starts three servers and runs twelve tests across eleven
+`pnpm e2e` now starts three servers and runs thirteen tests across eleven
 spec files; the orchestrator regression suite grows from 24 to 29
 cases. The e2e package gains its second registry dependency
 (`@axe-core/playwright`, dev-only, exact-pinned). CI is unchanged — the
