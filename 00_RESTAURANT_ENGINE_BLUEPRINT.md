@@ -1179,3 +1179,28 @@ signed-URL/CDN resolver is a delivery-layer concern (M3D+), not part of
 the storage protocol. Every other §7.5 control (validation, limits,
 randomized tenant-prefixed keys, re-encoding, orphan handling,
 responsive variants) stands unchanged.
+
+---
+
+## Amendment — 2026-07-29: Universal restaurant-platform positioning (M4D, ADR-021)
+
+Approved by the product owner at the M4D architecture gate. Restaurant
+Engine is an **English-first, universal U.S. restaurant platform** intended
+for restaurants across cuisines, cultures, ownership communities, and
+geographic markets. The Bengali-owned restaurants named in §1, §2.1, and
+§12.4 are the initial **go-to-market segment** — a sales strategy, never a
+product boundary or architectural identity. Read this document's
+Bengali-specific language prospectively: no Bengali-specific branding,
+navigation, workflows, field names, defaults, placeholder content, themes,
+SEO assumptions, onboarding behavior, routes, or business rules may be
+introduced, and the platform makes no public claim of being intended
+primarily for any one community. The §12.4/§19 commitment "Bengali text
+tested for wrapping, font fallback, line height, and screen-reader
+behavior" is preserved as **Unicode and complex-script rendering
+verification, with Bengali as the required initial complex-script fixture**
+(conjuncts, matras, ZWNJ/ZWJ, NFC) — engineering test data only, never seed
+data, production defaults, or visible positioning. The platform remains
+restaurant-specific: this ruling does not generalize it into a website
+builder for non-restaurant businesses. Recorded in
+`docs/decisions/ADR-021-server-rendered-storefront.md`; no historical
+wording above is altered.

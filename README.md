@@ -3,7 +3,9 @@
 A multi-tenant SaaS platform for independent restaurants: a premium
 server-rendered public storefront per restaurant, a restaurant workspace for
 owners and staff, and a platform control center for tenant lifecycle
-operations. Initial market: Bengali-owned restaurants in Buffalo, New York.
+operations. An English-first, universal U.S. restaurant platform across
+cuisines and communities; the initial go-to-market segment is independent
+restaurants in Buffalo, New York.
 
 ## Status
 

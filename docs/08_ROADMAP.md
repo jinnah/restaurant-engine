@@ -92,14 +92,14 @@ subdivides M4 into six independently reviewed sub-milestones, one PR each.
 M4A–M4C are strictly sequential; M4D and M4E may proceed in parallel once
 M4C lands; M4F depends on all of them.
 
-| Sub                                     | Scope                                                                                                                            | State                              |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| **M4A** — Storefront foundation         | storefront domain, section registry, design-variant registry, composition contract, `storefront_versions` persistence, migration | **Complete** (2026-07-26, ADR-020) |
-| **M4B** — Administrative API            | draft read/update, publication, restore, platform design assignment, capabilities, audit actions, media claiming                 | **Complete** (2026-07-28, ADR-020) |
-| **M4C** — Public projection and caching | public storefront endpoint, media predicate extension, bounded business-keyed caching                                            | **Complete** (2026-07-29, ADR-020) |
-| **M4D** — Server-rendered storefront    | `apps/storefront` rendering, section renderers, SEO basics, performance/accessibility budgets, Bengali rendering verification    | Not started                        |
-| **M4E** — Control-center workspace      | storefront workspace: edit, reorder, preview, publish, history, restore                                                          | Not started                        |
-| **M4F** — E2E and close-out             | mandatory journeys 2 and 3, verification, final documentation                                                                    | Not started                        |
+| Sub                                     | Scope                                                                                                                                                                                  | State                              |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| **M4A** — Storefront foundation         | storefront domain, section registry, design-variant registry, composition contract, `storefront_versions` persistence, migration                                                       | **Complete** (2026-07-26, ADR-020) |
+| **M4B** — Administrative API            | draft read/update, publication, restore, platform design assignment, capabilities, audit actions, media claiming                                                                       | **Complete** (2026-07-28, ADR-020) |
+| **M4C** — Public projection and caching | public storefront endpoint, media predicate extension, bounded business-keyed caching                                                                                                  | **Complete** (2026-07-29, ADR-020) |
+| **M4D** — Server-rendered storefront    | `apps/storefront` rendering, section renderers, SEO basics, performance/accessibility budgets, Unicode/complex-script rendering verification (Bengali as the required initial fixture) | Not started                        |
+| **M4E** — Control-center workspace      | storefront workspace: edit, reorder, preview, publish, history, restore                                                                                                                | Not started                        |
+| **M4F** — E2E and close-out             | mandatory journeys 2 and 3, verification, final documentation                                                                                                                          | Not started                        |
 
 M4A delivered the foundation only: registries, the composition contract,
 and one additive table. M4B delivered the administrative API over it —
@@ -228,9 +228,13 @@ works; cross-tenant media and catalog tests pass.
 ## Milestone 4 — Storefront composition and publication
 
 Section registry, validated configs, design governance, draft/publish/
-history, server-rendered storefront, SEO basics, English/Bengali rendering
-verification. **Exit:** invalid config cannot save; published config always
-renders; draft is never public; performance/accessibility budgets pass.
+history, server-rendered storefront, SEO basics, and Unicode/complex-script
+rendering verification — the blueprint's "English/Bengali rendering
+verification", read prospectively per the 2026-07-29 universal-positioning
+ruling (ADR-021): Bengali is the required initial complex-script fixture,
+not a market-specific product boundary. **Exit:** invalid config cannot
+save; published config always renders; draft is never public;
+performance/accessibility budgets pass.
 
 ## Milestone 5 — Hours and pickup readiness
 
