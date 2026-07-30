@@ -8,6 +8,7 @@ import type {
 } from '@restaurant-engine/api-client';
 import { useApiClient } from '../api/ClientProvider';
 import { requireCsrf, unwrapPrivileged } from '../api/failures';
+import { mediaKeys } from '../media/keys';
 import { businessKeys, menuKeys } from './keys';
 
 /**
@@ -274,7 +275,7 @@ export function useSetItemImage(businessId: string) {
         queryKey: menuKeys.all(businessId),
       });
       await queryClient.invalidateQueries({
-        queryKey: menuKeys.allMedia(businessId),
+        queryKey: mediaKeys.all(businessId),
       });
     },
   });

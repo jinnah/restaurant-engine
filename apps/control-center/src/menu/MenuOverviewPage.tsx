@@ -24,7 +24,7 @@ import {
 } from './components/CategoryFormDialog';
 import { ItemRow } from './components/ItemRow';
 import { ReorderList } from './components/ReorderList';
-import { useMediaIndex } from './mediaData';
+import { useMediaIndex } from '../media/mediaData';
 import {
   useAdminMenu,
   useBusiness,

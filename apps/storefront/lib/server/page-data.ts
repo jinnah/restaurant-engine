@@ -7,9 +7,11 @@
 import { notFound } from 'next/navigation';
 
 import type { PublicMenu } from '@restaurant-engine/api-client';
+import type {
+  MenuSectionData,
+  PublicStorefront,
+} from '@restaurant-engine/storefront-renderer';
 
-import type { PublicStorefront } from '../contract';
-import type { MenuSectionData } from '../../components/sections/MenuSection';
 import {
   getPublicMenu,
   getPublishedStorefront,

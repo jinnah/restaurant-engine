@@ -14,7 +14,10 @@ import {
   getPublishedStorefront,
   getRequestHost,
 } from '../lib/server/storefront-data';
-import { heroSection, storefrontFixture } from './fixtures';
+import {
+  heroSection,
+  storefrontFixture,
+} from '@restaurant-engine/storefront-renderer/fixtures';
 
 vi.mock('../lib/server/storefront-data', () => ({
   getPublishedStorefront: vi.fn(),

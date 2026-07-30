@@ -13,6 +13,7 @@
   "dependencies": {
     "@hookform/resolvers": "5.4.0",
     "@restaurant-engine/api-client": "workspace:*",
+    "@restaurant-engine/storefront-renderer": "workspace:*",
     "@tanstack/react-query": "5.101.2",
     "react": "19.2.7",
     "react-dom": "19.2.7",

@@ -9,7 +9,7 @@ import { useNotify } from '../components/NotificationProvider';
 import { ErrorSummary } from '../components/StatusPanels';
 import { CreateCategoryInlineDialog } from './components/CreateCategoryInlineDialog';
 import { ItemFields } from './components/ItemFields';
-import { UnsavedChangesPrompt } from './components/UnsavedChangesPrompt';
+import { UnsavedChangesPrompt } from '../components/UnsavedChangesPrompt';
 import {
   emptyItemValues,
   itemFieldsSchema,

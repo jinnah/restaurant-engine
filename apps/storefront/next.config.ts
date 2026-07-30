@@ -3,6 +3,9 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   typedRoutes: true,
+  // The shared renderer is consumed as raw TypeScript source with CSS
+  // Modules (ADR-022 §2); Next compiles it like application code.
+  transpilePackages: ['@restaurant-engine/storefront-renderer'],
   turbopack: {
     // Pin the monorepo root explicitly. Without this, Next infers the
     // workspace root by scanning upward for lockfiles and can select a

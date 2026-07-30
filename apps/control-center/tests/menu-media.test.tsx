@@ -23,7 +23,7 @@ import {
   sessionView,
 } from './support/mockClient';
 import { renderApp } from './support/render';
-import { isUnsupportedType } from '../src/menu/mediaData';
+import { isUnsupportedType } from '../src/media/mediaData';
 
 const SHALIK = '5f0d2c9a-7f5e-4c1b-9a37-0b8a52a9c001';
 const EDITOR = `/businesses/${SHALIK}/menu/items/i1`;

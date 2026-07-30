@@ -98,7 +98,7 @@ M4C lands; M4F depends on all of them.
 | **M4B** — Administrative API            | draft read/update, publication, restore, platform design assignment, capabilities, audit actions, media claiming                                                                       | **Complete** (2026-07-28, ADR-020) |
 | **M4C** — Public projection and caching | public storefront endpoint, media predicate extension, bounded business-keyed caching                                                                                                  | **Complete** (2026-07-29, ADR-020) |
 | **M4D** — Server-rendered storefront    | `apps/storefront` rendering, section renderers, SEO basics, performance/accessibility budgets, Unicode/complex-script rendering verification (Bengali as the required initial fixture) | **Complete** (2026-07-29, ADR-021) |
-| **M4E** — Control-center workspace      | storefront workspace: edit, reorder, preview, publish, history, restore                                                                                                                | Not started                        |
+| **M4E** — Control-center workspace      | storefront workspace: edit, reorder, preview, publish, history, restore                                                                                                                | **In progress** (ADR-022)          |
 | **M4F** — E2E and close-out             | mandatory journeys 2 and 3, verification, final documentation                                                                                                                          | Not started                        |
 
 M4A delivered the foundation only: registries, the composition contract,

@@ -58,7 +58,10 @@ export default tseslint.config(
   // ESLint 10 (rule-listener construction). Its value is marginal under
   // strict TypeScript; add it back when a release supports ESLint 10.
   {
-    files: ['apps/**/*.{ts,tsx}'],
+    // Application code plus the shared renderer package (ADR-022 §2): the
+    // renderer is React UI consumed by both apps, so it carries the same
+    // hooks, accessibility, and facade-import rules.
+    files: ['apps/**/*.{ts,tsx}', 'packages/storefront-renderer/**/*.{ts,tsx}'],
     plugins: {
       'react-hooks': reactHooks,
       'jsx-a11y': jsxA11y,
