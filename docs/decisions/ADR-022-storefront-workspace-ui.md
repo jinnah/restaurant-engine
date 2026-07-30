@@ -1,7 +1,7 @@
 # ADR-022: Control-Center Storefront Workspace (M4E)
 
-- **Status:** Accepted (architecture); **M4E in progress** — no delivery
-  record exists yet, and neither M4E nor Milestone 4 is complete
+- **Status:** Accepted; **M4E delivered 2026-07-30** (delivery record
+  below)
 - **Date:** 2026-07-30
 - **Deciders:** Product owner, principal architect
 
@@ -355,3 +355,75 @@ reordering (sits atop the keyboard model, ADR-018 ruling 5); an
 `admin-ui` package (second real application consumer); any framework
 change that alters the RHF error-indexing behavior this design refuses
 to rely on.
+
+## Delivery record
+
+### M4E — Control-center storefront workspace: delivered, 2026-07-30
+
+**Delivered behavior.** The four deep-linkable workspace pages under the
+keyed business boundary (§1). The framework-neutral shared renderer
+package consumed as raw TypeScript source by both applications, with the
+tenant-page baseline rewritten under the zero-specificity `:where()`
+scope and the single `links: 'active' | 'inert'` API addition — public
+pages render byte-identical active markup while the preview's in-site
+navigation carries no `href` and announces no link role (§§2–3). The
+draft composer: one parent form over the complete configuration, summary
+cards with focused per-section dialogs (no nested native form; Apply
+commits one complete section value; Cancel discards only the dialog
+snapshot), keyboard-first ordering, staged hero/gallery media claimed at
+draft save through the shared media-selection primitive (the menu
+adapter preserves the M3E copy verbatim), the native accent control, and
+the explicit full-document Save Draft with the D-5 create/update intent
+(§4). The §5 lifecycle-aware permission presentation, including the
+honest staff denial and the closed-business read-only surface. The §6
+concurrency and cache rules: explicit stale-conflict state preserving
+values and the stale token with "Reload current draft" as the only exit,
+draft merges that preserve `published`, preview keys carrying the saved
+draft's lock version and timestamp, and preview removal on every
+mutation — no stale projection can flash. The §7 validation posture:
+only the two contract-published count bounds mirrored and build-time
+pinned to the committed OpenAPI document, and the verified 422 grammar
+mapped by full indexed path with the documented clearing rules. §8
+publication (owner-only, saved non-dirty draft, explicit confirmation,
+no version-number claim), paged history, read-only version detail, and
+archived-only restore with fresh dialog-open concurrency state. §9
+server-fact-only status presentation.
+
+**Delivery evidence.** Implementation PR #27; reviewed feature head
+`5f52a602aacb8a018e2224a310498545559d7277`; merged to `main` as
+`09aa177c1cc9a89dff84cd7d8b09e6929de8a884` with ordered parents
+`b11253695ac68dce22bfe4da24e6fb126be2f505` then
+`5f52a602aacb8a018e2224a310498545559d7277`; the merge tree equals the
+reviewed feature-head tree. Exact-head PR CI run `30562964833` and
+exact-merge-SHA push CI run `30563536274` both completed successfully
+with all five jobs (repository-contract, frontend, contract, backend,
+e2e) green and zero artifacts. Substantive results: backend **1070
+passed**; api-client **95 passed**; storefront-renderer **52 passed**
+(the extracted renderer-pure suites plus the link-mode, client-directive,
+and stylesheet-policy pins); storefront app **66 passed**;
+control-center **389 passed**; E2E orchestrator **37 passed** with the
+one pre-existing Windows symlink skip; Playwright **9 passed** with the
+disposable database and media root created and cleaned per run; contract
+byte-clean at exactly **66 operations**; both production builds green;
+the storefront budget measured **456,547 bytes** for both `/` and
+`/menu`, under the **502,201-byte** ceiling; the built-server
+verification passed in full. Disposable visual acceptance (2026-07-30)
+passed at exactly **320×900, 768×900, and 1280×900**: the seven
+principal workspace surfaces plus the dirty, live stale-conflict,
+first-use, manager, staff-denial, and closed-business states, zero
+measured horizontal overflow across every capture, a real-browser
+conflict-and-reload drill, and public rendering **pixel-identical to the
+M4D baseline** on every compared home/menu viewport — including
+image-loaded captures behind a disposable same-origin reverse proxy. The
+disposable database, media root, server processes, proxy, and the M4D
+baseline worktree were removed afterward; preserved development/UAT
+resources were untouched throughout.
+
+**Limitations and deferrals, preserved.** Browser-level accessibility
+verification — axe, focus order, target geometry — remains M4F, as do
+Playwright journeys 2 and 3, the e2e-orchestrated storefront server, and
+the complete cross-host published-versus-draft journey; no WCAG
+certification is claimed. The recorded candidates (backend-computed
+draft equality, publishing the text-length constraints into OpenAPI, a
+preview-menu projection) remain future decisions. **Milestone 4 remains
+in progress; its exit criteria stay open until M4F.**
