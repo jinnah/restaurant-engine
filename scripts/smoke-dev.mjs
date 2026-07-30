@@ -32,10 +32,16 @@ const CHECKS = [
   // Node's fetch tries both families. The 127.0.0.1 rule (docs/05) applies
   // to PostgreSQL connections, not to the dev servers.
   {
-    name: 'Storefront shell (http://localhost:3000/)',
+    // From M4D the storefront is tenant-resolved by Host (ADR-013/021):
+    // bare localhost names no tenant, so a healthy server answers the
+    // neutral 404 page here. Tenant pages live at {slug}.localhost:3000,
+    // which Node's OS resolver cannot look up on Windows (docs/06) — the
+    // neutral 404 is the deliberate health signal.
+    name: 'Storefront server (http://localhost:3000/ — neutral 404 expected)',
     url: 'http://localhost:3000/',
     verify: async (response) =>
-      response.status === 200 && (await response.text()).includes('Storefront'),
+      response.status === 404 &&
+      (await response.text()).includes('Page not found'),
   },
   {
     name: 'Control-center shell (http://localhost:5173/)',

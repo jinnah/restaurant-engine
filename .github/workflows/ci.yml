@@ -76,6 +76,16 @@ jobs:
       - name: Production builds
         run: pnpm build
 
+      # M4D (ADR-021): the first-load JavaScript budget is enforced from
+      # the clean production build just produced, and the built storefront
+      # server is verified against a disposable stub API (headers,
+      # statuses, Host forwarding). Identical local commands.
+      - name: Storefront performance budget
+        run: pnpm storefront:budget
+
+      - name: Storefront built-server verification
+        run: pnpm storefront:verify
+
   backend:
     runs-on: ubuntu-latest
     defaults:
