@@ -187,8 +187,36 @@ audited JSON-LD boundary derive from published data only; storefront HTML
 is `no-store` while hashed build assets stay immutable. First-load
 JavaScript is budget-enforced in CI (`pnpm storefront:budget`), and
 `pnpm storefront:verify` asserts the built server's wire behavior against
-a disposable stub API. The storefront workspace UI (M4E) and the
-end-to-end journeys (M4F) remain.
+a disposable stub API.
+
+**Control-center storefront workspace and shared renderer (M4E, ADR-022 —
+delivered 2026-07-30):** the control center gains the storefront
+workspace as four deep-linkable full pages under the keyed business
+boundary — `/businesses/:businessId/storefront` (overview and draft
+composer), `.../storefront/preview`, `.../storefront/history`, and
+`.../storefront/history/:versionId`. The M4D renderer's framework-neutral
+visual surface moved to **`packages/storefront-renderer`** (section
+renderers and exhaustive dispatch, the `classic` variant layout, the
+responsive image component, the public menu listing, the pure helpers,
+their scoped stylesheets, and the tenant-page baseline under a
+zero-specificity `:where()` scope), consumed as raw TypeScript source by
+both applications — so the authenticated saved-draft preview renders
+through exactly the public components, never a parallel renderer.
+`apps/storefront` keeps public transport and Host resolution, SSR, data
+loading, metadata/canonical origins, SEO routes, the audited JSON-LD
+boundary, and lifecycle/error behavior; public links stay active while
+the preview's in-site navigation is structurally inert (the renderer's
+one `links: 'active' | 'inert'` prop renders the same anchors without
+`href`, so no navigation path exists and no link role is announced).
+Workspace affordances derive from role **and** lifecycle: owner and
+manager read/edit/preview/history, publish and restore are owner-only,
+staff hold no storefront read (no navigation; a deep link gets an honest
+denial), and a closed business stays fully readable with every mutation
+withheld while provisioning/suspended businesses keep service-authorized
+mutations. The 66-operation backend contract, database schema, OpenAPI
+document, and generated client are unchanged; the api-client change is
+facade-only (the index re-exports the M4C projection types). The formal
+browser journeys and the Milestone 4 close-out remain M4F.
 
 **Frontend workspace conventions (M1B):** one root ESLint flat config and one
 root `tsconfig.base.json` own shared configuration as plain files — a shared

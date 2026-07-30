@@ -1,7 +1,7 @@
 # ADR-020: Storefront Composition, Versioning, and Publication (Milestone 4)
 
 - **Status:** Accepted (architecture); delivery records filled per
-  sub-milestone — **M4A–M4D delivered**, M4E not started
+  sub-milestone — **M4A–M4E delivered**, M4F not started
 - **Date:** 2026-07-26
 - **Deciders:** Product owner, principal architect
 
@@ -638,3 +638,26 @@ dependency change occurred; the approved internal
 storefront-to-api-client `workspace:*` link was the only package/lockfile
 change. **M4E and M4F remain pending, and Milestone 4 remains
 incomplete** — its exit criteria (blueprint §19) stay open until M4F.
+
+### M4E — Control-center storefront workspace: delivered, 2026-07-30
+
+Delivered through PR #27 (reviewed feature head
+`5f52a602aacb8a018e2224a310498545559d7277`, merged to `main` as
+`09aa177c1cc9a89dff84cd7d8b09e6929de8a884`); exact-head PR CI run
+`30562964833` and exact-merge-SHA push CI run `30563536274` both
+completed successfully with all five jobs green and zero artifacts.
+**`docs/decisions/ADR-022-storefront-workspace-ui.md` is the
+authoritative M4E architecture and delivery record**; this ledger entry
+records only what Milestone 4 needs: the control center now carries the
+storefront workspace — the draft composer over all five registered
+section types with the full-document explicit save (D-5 intent),
+saved-draft preview through the shared framework-neutral renderer
+package with structurally inert navigation, owner-only publication and
+archived-only restore behind deliberate confirmations, paged history
+with read-only version detail, the lifecycle-aware §7 permission
+presentation (staff excluded honestly; closed businesses read-only),
+explicit stale-conflict preservation, and cache rules that can never
+flash a stale preview. The 66-operation contract, database schema,
+OpenAPI document, and generated client are unchanged. **M4F remains
+pending and Milestone 4 remains incomplete** — its exit criteria
+(blueprint §19) stay open until M4F.

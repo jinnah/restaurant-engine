@@ -2,7 +2,60 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M4D — delivered 2026-07-29)
+## Current state (M4E — delivered 2026-07-30)
+
+M4E adds the control-center storefront workspace's coverage (ADR-022)
+and the shared-renderer regression net, at the component/integration
+level:
+
+- **Control center (Vitest, jsdom; 389 tests at delivery).** The full
+  role-by-lifecycle permission matrix (owner/manager/staff across
+  active, provisioning, suspended, closed) and its presentation — staff
+  see no navigation and get an honest deep-link denial without a
+  request; closed businesses render read-only. Composer behavior: first
+  draft (create intent by omission) versus existing draft (exact lock
+  version), dialog Apply/Cancel against the single parent form, the
+  verified nested 422 grammar mapped by full indexed path (tag checked
+  against the discriminant, never name-matched) with clear-on-change and
+  structural-mutation clearing so a reorder can never wear another
+  section's error, the contract-pinned count bounds asserted at build
+  time against the committed `openapi.json`, media staging through the
+  shared library primitive (menu suites unchanged as the regression
+  net), stale-write conflict preservation with the explicit reload as
+  the only exit and a proof that background refetches cannot rebind a
+  dirty form, cache safety (draft merges preserve `published`;
+  save/restore/publish remove cached previews; the preview key carries
+  the saved draft's lock version and timestamp so no stale projection
+  can flash), owner-only publication gated on a saved non-dirty draft,
+  paged history, read-only version detail, archived-only restore with
+  fresh dialog-open concurrency state, and the defensive no-draft
+  restore explanation.
+- **Shared renderer (`packages/storefront-renderer`; 52 tests).** The
+  renderer-pure M4D suites moved with the extracted code (sections,
+  classic layout, image srcset, accent, money, contact links, the
+  Unicode/complex-script fixtures) plus the repointed stylesheet-policy
+  pins (now asserting the `:where()`-scoped tenant baseline), an
+  empty-allowlist `'use client'` scan, and the `links: 'active' |
+'inert'` suite proving inert markup differs from active markup only by
+  `href` absence. Public rendering is unchanged: the storefront app's
+  page-level, SEO, isolation, and built-server suites stayed green, the
+  first-load budget was unmoved, and disposable visual acceptance
+  measured the M4E build pixel-identical to the M4D baseline on every
+  compared public home/menu viewport.
+- **Disposable visual acceptance (2026-07-30).** The documented
+  disposable-environment browser procedure at exactly 320×900, 768×900,
+  and 1280×900: the seven principal workspace surfaces plus the dirty,
+  live stale-conflict, first-use, manager, staff-denial, and
+  closed-business states, with zero measured horizontal overflow across
+  every capture and a real-browser conflict/reload drill. Engineering
+  evidence, not a WCAG certification.
+
+Deliberate limits, unchanged from M4D: mandatory journeys 2 and 3, the
+e2e-orchestrated storefront server, browser-level accessibility
+verification (axe, focus order, target geometry), and the complete
+cross-host published-versus-draft journey remain M4F.
+
+## Earlier state (M4D — delivered 2026-07-29)
 
 M4D adds the storefront renderer's coverage (ADR-021), in three layers:
 

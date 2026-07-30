@@ -297,6 +297,38 @@ exception), and Unicode/complex-script rendering is verified with Bengali
 fixtures as engineering test data (universal-positioning ruling,
 ADR-021).
 
+**Implemented in M4E (ADR-022; delivered 2026-07-30).** The control-center
+storefront workspace enforces the §7 authorization matrix as
+presentation over the M4B service: owners and managers read, edit,
+preview, and browse history; publish and restore are owner-only; staff
+hold no storefront read, see no navigation, and a deep link renders an
+honest denial without a doomed request; a closed business stays fully
+readable while every mutation is withheld, and provisioning/suspended
+businesses keep the mutations the service authorizes. Draft editing is
+one full-document explicit save: the PUT carries the D-5 intent exactly
+(no cached draft → create by omitting `expected_lock_version`; otherwise
+the saved draft's exact integer), with no autosave and no optimistic
+update. A stale write enters an explicit conflict state that preserves
+the form values and the stale token, disables further mutations, marks
+the overview stale without refetching, and offers only the explicit
+"Reload current draft" exit — nothing retries, merges, or rebinds a
+dirty form from background data. The composer covers all five registered
+section types with keyboard-first Move up/Move down ordering; hero and
+gallery media are staged as `{media_id, alt_text}` references and the
+claim happens at draft save (§10) — no copy suggests selection or saving
+makes media public. Preview shows the current **saved** draft only,
+rendered through the shared public renderer with structurally inert
+in-site navigation, while the public storefront's links remain active.
+History lists published and archived versions, the detail page renders a
+version read-only, restore accepts archived sources only (fetching the
+fresh draft lock when its confirmation opens, never publishing), and
+publication is a separate explicit owner action requiring a saved,
+non-dirty draft. Status presentation states server facts only —
+last-saved and published version/time, provenance from
+`source_version_id` — and never infers that a saved draft matches or
+differs from the published version. No backend, database, OpenAPI, or
+generated-client change was made.
+
 ## Media
 
 Business domains store **media identifiers, not filesystem paths**, behind a
