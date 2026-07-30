@@ -1,5 +1,8 @@
 import type { Metadata } from 'next';
 
+// Plain anchors throughout the storefront (ADR-021): navigation is full
+// page loads — there is no client-side navigation machinery to enhance.
+
 // The one neutral not-found experience (ADR-021). Every public failure the
 // backend answers with its neutral 404 — unknown host, no published
 // storefront, suspended or otherwise ineligible business — and every
