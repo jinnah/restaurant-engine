@@ -1,10 +1,17 @@
+import type { Metadata } from 'next';
+
+import { JsonLd } from '../components/JsonLd';
 import { SectionList } from '../components/sections/SectionList';
 import { VariantLayout } from '../components/variants/registry';
+import { canonicalOrigin } from '../lib/canonical';
+import { restaurantJsonLd } from '../lib/restaurant-json-ld';
 import {
   menuSectionData,
   requirePublicMenu,
   requirePublishedStorefront,
 } from '../lib/server/page-data';
+import { storefrontMetadata } from '../lib/server/page-metadata';
+import { getRequestHost } from '../lib/server/storefront-data';
 
 // The published storefront of the Host-resolved business (ADR-021).
 // Request-time SSR only: the published composition changes in place at
@@ -16,6 +23,10 @@ import {
 // section composes with it.
 export const dynamic = 'force-dynamic';
 
+export function generateMetadata(): Promise<Metadata> {
+  return storefrontMetadata('home');
+}
+
 export default async function HomePage() {
   const storefront = await requirePublishedStorefront();
   const hasMenuSection = storefront.sections.some(
@@ -24,9 +35,14 @@ export default async function HomePage() {
   const menuData = hasMenuSection
     ? menuSectionData(await requirePublicMenu())
     : null;
+  const host = await getRequestHost();
+  const origin = host === null ? null : canonicalOrigin(host);
   return (
-    <VariantLayout storefront={storefront}>
-      <SectionList sections={storefront.sections} menuData={menuData} />
-    </VariantLayout>
+    <>
+      <VariantLayout storefront={storefront}>
+        <SectionList sections={storefront.sections} menuData={menuData} />
+      </VariantLayout>
+      <JsonLd data={restaurantJsonLd(storefront, origin)} />
+    </>
   );
 }

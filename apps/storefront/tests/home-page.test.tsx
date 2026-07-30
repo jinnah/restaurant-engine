@@ -17,6 +17,7 @@ import {
 vi.mock('../lib/server/storefront-data', () => ({
   getPublishedStorefront: vi.fn(),
   getPublicMenu: vi.fn(),
+  getRequestHost: vi.fn(async () => 'corner-kitchen.example.com'),
 }));
 
 const NOT_FOUND = new Error('NEXT_NOT_FOUND_SENTINEL');
