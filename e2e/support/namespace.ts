@@ -70,3 +70,22 @@ export function publicOrigin(slug: string): string {
  * honest control for "a valid host that resolves to no business".
  */
 export const APEX_ORIGIN = `http://localhost:${PUBLIC_PORT}`;
+
+/** The rendered-storefront port the orchestrator started (M4F). */
+const STOREFRONT_PORT = process.env['E2E_STOREFRONT_PORT'] ?? '3100';
+
+/**
+ * The rendered public storefront of one tenant:
+ * `http://{slug}.localhost:{storefront}`.
+ *
+ * Same resolution mechanics as `publicOrigin` — the storefront forwards
+ * the incoming Host verbatim to the backend (ADR-021), so the tenant is
+ * still chosen by the Host and nothing else, and every visit must be a
+ * browser navigation for the same Windows `*.localhost` reason.
+ */
+export function storefrontOrigin(slug: string): string {
+  return `http://${slug}.localhost:${STOREFRONT_PORT}`;
+}
+
+/** The storefront apex: a valid host that resolves to no business. */
+export const STOREFRONT_APEX_ORIGIN = `http://localhost:${STOREFRONT_PORT}`;
