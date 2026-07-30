@@ -169,7 +169,8 @@ enabled-published-section reference); and centrally assigned
 route-identity caching (`public, max-age=60` on successful public
 storefront responses only — errors and preview stay `no-store`).
 
-**Server-rendered storefront (M4D, ADR-021):** `apps/storefront` renders
+**Server-rendered storefront (M4D, ADR-021 — delivered 2026-07-29):**
+`apps/storefront` renders
 the published composition at `/` and the complete public menu at `/menu`
 — fully dynamic request-time SSR, server components only, both routes
 gated on the published version and answering the one neutral 404 for

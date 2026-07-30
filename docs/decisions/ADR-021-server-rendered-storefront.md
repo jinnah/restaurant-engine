@@ -1,7 +1,7 @@
 # ADR-021: Server-Rendered Storefront (M4D)
 
-- **Status:** Accepted (architecture); M4D implementation under review —
-  no delivery close-out is recorded yet
+- **Status:** Accepted; **M4D delivered 2026-07-29** (delivery record
+  below)
 - **Date:** 2026-07-29
 - **Deciders:** Product owner, principal architect
 
@@ -313,3 +313,67 @@ and this ADR's structural rule); a business locale model (per-tenant
 headers, forwarded-header trust, canonical-scheme interaction with TLS);
 facade re-export of the projection types; any framework upgrade that
 moves the measured baseline.
+
+## Delivery record
+
+### M4D — Server-rendered storefront: delivered, 2026-07-29
+
+**Delivered behavior.** English-first, universal U.S. restaurant-platform
+positioning, with Bengali only as the required initial complex-script
+engineering fixture (§1). Dynamic request-time SSR of the published
+storefront at `/` and the complete public menu at `/menu`, both gated on
+the currently published version (§2). Neutral 404 for every publicly
+ineligible case and a bounded neutral 500 (no-store, noindex, zero
+disclosure) for backend unavailability (§§3, 8). The Host-safe
+`node:http` tenant transport with verbatim Host forwarding, stripped
+alternative channels, `cache: "no-store"` on every request, and the
+framework-cache prohibition (§3); development-only media forwarding,
+production-disabled and path-bounded (§4). Five exhaustive section
+renderers and the sole `classic` design variant behind exhaustive
+dispatch (§5); exact minor-unit price rendering (§5); responsive
+projection-supplied media with intrinsic dimensions, eager LCP hero, and
+lazy galleries (§6). Published-data-only metadata under the
+deterministic canonical-origin policy, per-host robots and sitemap, and
+the audited Restaurant JSON-LD boundary (§7). Page and error responses
+`no-store` with immutable hashed build assets (§8). Accessibility floors
+including landmarks, the fixed heading hierarchy, 44 px targets, and the
+accent-contrast guard (§10). The enforced first-load JavaScript budget
+and the built-server verification command (§11).
+
+**Delivery evidence.** Implementation PR #25; reviewed feature head
+`f67bf4ca250ded6e60e70e2295b729f31dd3700d`; merged to `main` as
+`5b1238b3f89a5173ed7352a347ea8edb55a2dddf` with ordered parents
+`1e4ce9151c60470d97b81c15b79d97c44352859f` then
+`f67bf4ca250ded6e60e70e2295b729f31dd3700d`; the merge tree equals the
+reviewed feature-head tree. Exact-head PR CI run `30506609166` and
+exact-merge-SHA push CI run `30507146947` both completed successfully
+with all five jobs (repository-contract, frontend, contract, backend,
+e2e) green and zero GitHub artifacts. Substantive results in both:
+backend **1070 passed**; api-client **95 passed**; storefront **113
+passed**; control-center **328 passed**; Playwright **9 passed** with
+the disposable E2E database and media root created and cleaned per run;
+contract byte-clean at exactly **66 operations**; both production
+builds; the storefront budget for `/` and `/menu` measured **456,629
+bytes** in CI, under the **502,201-byte** ceiling (456,547 measured
+locally — an accepted platform variance inside the +10% margin); the
+built-server verification's **26 checks** all passed. Preserved
+development/UAT resources remained untouched throughout.
+
+The internal `@restaurant-engine/api-client` `workspace:*` link (the
+facade consumption this ADR records in Consequences) was the only
+package/lockfile change, approved as a narrow exception; it was
+initially made without the required stop-and-report step, which was
+acknowledged and recorded as a process nonconformance during the
+pre-push reconciliation.
+
+**Limitations and deferrals, preserved.** With JavaScript disabled, the
+outage document carries the correct 500 status, `no-store`, `noindex`,
+and non-disclosure behavior, but the client error boundary's visible
+message does not appear (framework client-boundary design).
+Browser-level axe, focus-order, and target-geometry verification and the
+complete storefront journeys remain M4F. Per-tenant locale and accurate
+document `lang` selection are not modeled. CSP headers remain an M8
+reverse-proxy concern. The M4E storefront workspace remains
+unimplemented, and hours, ordering, campaigns, custom domains, tenant
+code, and additional design variants remain outside M4D. Milestone 4
+remains in progress; its exit criteria stay open until M4F.

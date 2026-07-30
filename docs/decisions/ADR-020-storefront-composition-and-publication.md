@@ -1,7 +1,7 @@
 # ADR-020: Storefront Composition, Versioning, and Publication (Milestone 4)
 
 - **Status:** Accepted (architecture); delivery records filled per
-  sub-milestone — **M4A–M4C delivered**, M4D not started
+  sub-milestone — **M4A–M4D delivered**, M4E not started
 - **Date:** 2026-07-26
 - **Deciders:** Product owner, principal architect
 
@@ -622,3 +622,19 @@ server-rendered storefront, section renderers, SEO, the
 performance/accessibility budgets, and Bengali rendering verification
 (M4D), the control-center storefront workspace (M4E), and the M4F
 close-out are outside this sub-milestone.
+
+### M4D — Server-rendered storefront: delivered, 2026-07-29
+
+Delivered through PR #25 (reviewed feature head
+`f67bf4ca250ded6e60e70e2295b729f31dd3700d`, merged to `main` as
+`5b1238b3f89a5173ed7352a347ea8edb55a2dddf`).
+**`docs/decisions/ADR-021-server-rendered-storefront.md` is the
+authoritative renderer architecture and delivery record**; this ledger
+entry records only what Milestone 4 needs: `apps/storefront` now renders
+the published composition and the complete public menu under the sole
+`classic` variant, consuming exactly the M4C projection and M3D public
+menu. No backend, OpenAPI, generated-client, migration, or external
+dependency change occurred; the approved internal
+storefront-to-api-client `workspace:*` link was the only package/lockfile
+change. **M4E and M4F remain pending, and Milestone 4 remains
+incomplete** — its exit criteria (blueprint §19) stay open until M4F.
