@@ -1,0 +1,139 @@
+/* Public menu presentation (ADR-021): a browsable, cuisine-neutral
+   listing. Same content rhythm and floors as the shared sections. */
+
+.listing {
+  margin: 0 auto;
+  max-width: 46rem;
+  padding: 0 var(--space-2);
+}
+
+.pageHeading {
+  font-size: 1.75rem;
+  line-height: 1.25;
+  margin: 0 0 var(--space-2);
+}
+
+.category {
+  margin: 0 0 var(--space-3);
+}
+
+.categoryName {
+  border-bottom: 1px solid var(--color-border);
+  font-size: 1.25rem;
+  line-height: 1.3;
+  margin: 0 0 var(--space-1);
+  padding-bottom: var(--space-1);
+}
+
+.categoryDescription {
+  color: var(--color-muted);
+  margin: 0 0 var(--space-1);
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.itemImage {
+  border-radius: 0.375rem;
+  flex-shrink: 0;
+  height: 72px;
+  object-fit: cover;
+  width: 72px;
+}
+
+.itemBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.itemHeader {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-1);
+  justify-content: space-between;
+}
+
+.itemName {
+  font-weight: 600;
+}
+
+.itemPrice {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.itemDescription {
+  color: var(--color-muted);
+  margin: 0.25rem 0 0;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.375rem;
+}
+
+.badge {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  padding: 0.125rem 0.625rem;
+}
+
+.badgeFeatured {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.badgeSoldOut {
+  color: var(--color-text);
+}
+
+.empty {
+  color: var(--color-muted);
+}
+
+/* Featured strip inside the homepage menu section. */
+.featuredGrid {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+}
+
+.featuredCard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  margin: 0;
+  overflow: hidden;
+}
+
+.featuredImage {
+  aspect-ratio: 4 / 3;
+  display: block;
+  height: auto;
+  object-fit: cover;
+  width: 100%;
+}
+
+.featuredBody {
+  padding: var(--space-1) var(--space-2) var(--space-2);
+}

@@ -3,7 +3,7 @@ import { assertNever } from '../../lib/assert-never';
 import { ContactSection } from './ContactSection';
 import { GallerySection } from './GallerySection';
 import { HeroSection } from './HeroSection';
-import { MenuSection } from './MenuSection';
+import { MenuSection, type MenuSectionData } from './MenuSection';
 import { StorySection } from './StorySection';
 
 // The registry-driven dispatch (ADR-021): one renderer per registered
@@ -12,12 +12,19 @@ import { StorySection } from './StorySection';
 // contract; disabled sections never arrive). The exhaustive switch is the
 // renderer's registry teeth — a sixth section type in the generated
 // contract fails the strict typecheck here before it can ship unrendered.
-function renderSection(section: PublicSection) {
+// `menuData` is the public menu composition the menu section renders from
+// (null when the page carries no menu section).
+function renderSection(
+  section: PublicSection,
+  menuData: MenuSectionData | null,
+) {
   switch (section.type) {
     case 'hero':
       return <HeroSection key={section.id} section={section} />;
     case 'menu':
-      return <MenuSection key={section.id} section={section} />;
+      return (
+        <MenuSection key={section.id} section={section} menuData={menuData} />
+      );
     case 'story':
       return <StorySection key={section.id} section={section} />;
     case 'contact':
@@ -29,6 +36,12 @@ function renderSection(section: PublicSection) {
   }
 }
 
-export function SectionList({ sections }: { sections: PublicSection[] }) {
-  return <>{sections.map(renderSection)}</>;
+export function SectionList({
+  sections,
+  menuData = null,
+}: {
+  sections: PublicSection[];
+  menuData?: MenuSectionData | null;
+}) {
+  return <>{sections.map((section) => renderSection(section, menuData))}</>;
 }

@@ -7,6 +7,8 @@
 // stability in a real complex script. They are never seed data, defaults,
 // or product content, and carry no market meaning.
 
+import type { PublicMenu, PublicMenuItem } from '@restaurant-engine/api-client';
+
 import type {
   PublicContactSection,
   PublicGallerySection,
@@ -122,6 +124,71 @@ export function gallerySection(
       ],
       ...props,
     },
+  };
+}
+
+export function menuItemFixture(
+  overrides: Partial<PublicMenuItem> = {},
+): PublicMenuItem {
+  return {
+    id: '00000000-0000-0000-0000-000000000101',
+    name: 'House roast chicken',
+    description: 'Served with seasonal vegetables',
+    price_minor: 1250,
+    is_available: true,
+    is_orderable: true,
+    dietary_tags: ['halal'],
+    image: null,
+    modifier_groups: [],
+    ...overrides,
+  };
+}
+
+export function publicMenuFixture(
+  overrides: Partial<PublicMenu> = {},
+): PublicMenu {
+  return {
+    business: {
+      name: 'Corner Kitchen',
+      slug: 'corner-kitchen',
+      timezone: 'America/New_York',
+      currency: 'USD',
+    },
+    categories: [
+      {
+        id: '00000000-0000-0000-0000-000000000201',
+        name: 'Mains',
+        description: 'Hearty plates',
+        items: [
+          menuItemFixture(),
+          menuItemFixture({
+            id: '00000000-0000-0000-0000-000000000102',
+            name: 'Garden salad',
+            description: null,
+            price_minor: 995,
+            is_available: false,
+            dietary_tags: ['vegetarian', 'vegan'],
+          }),
+        ],
+      },
+      {
+        id: '00000000-0000-0000-0000-000000000202',
+        name: 'Drinks',
+        description: null,
+        items: [
+          menuItemFixture({
+            id: '00000000-0000-0000-0000-000000000103',
+            name: 'Fresh lemonade',
+            description: null,
+            price_minor: 500,
+            dietary_tags: [],
+            image: imageFixture(),
+          }),
+        ],
+      },
+    ],
+    featured_item_ids: ['00000000-0000-0000-0000-000000000101'],
+    ...overrides,
   };
 }
 

@@ -2,11 +2,21 @@ import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 import HomePage from '../app/page';
-import { getPublishedStorefront } from '../lib/server/storefront-data';
-import { heroSection, storefrontFixture, storySection } from './fixtures';
+import {
+  getPublicMenu,
+  getPublishedStorefront,
+} from '../lib/server/storefront-data';
+import {
+  heroSection,
+  menuSection,
+  publicMenuFixture,
+  storefrontFixture,
+  storySection,
+} from './fixtures';
 
 vi.mock('../lib/server/storefront-data', () => ({
   getPublishedStorefront: vi.fn(),
+  getPublicMenu: vi.fn(),
 }));
 
 const NOT_FOUND = new Error('NEXT_NOT_FOUND_SENTINEL');
@@ -16,15 +26,17 @@ vi.mock('next/navigation', () => ({
   },
 }));
 
-const mockData = vi.mocked(getPublishedStorefront);
+const mockStorefront = vi.mocked(getPublishedStorefront);
+const mockMenu = vi.mocked(getPublicMenu);
 
 beforeEach(() => {
-  mockData.mockReset();
+  mockStorefront.mockReset();
+  mockMenu.mockReset();
 });
 
 describe('the home page', () => {
   test('renders the published composition through the variant layout', async () => {
-    mockData.mockResolvedValue({
+    mockStorefront.mockResolvedValue({
       kind: 'ok',
       data: storefrontFixture([heroSection(), storySection()]),
     });
@@ -37,15 +49,32 @@ describe('the home page', () => {
       'Neighborhood kitchen, open late',
       'Our story',
     ]);
+    // No menu section published — the menu projection is never requested.
+    expect(mockMenu).not.toHaveBeenCalled();
+  });
+
+  test('a menu section composes featured items from the public menu', async () => {
+    mockStorefront.mockResolvedValue({
+      kind: 'ok',
+      data: storefrontFixture([menuSection()]),
+    });
+    mockMenu.mockResolvedValue({ kind: 'ok', data: publicMenuFixture() });
+    render(await HomePage());
+    expect(mockMenu).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('House roast chicken')).toBeInTheDocument();
+    expect(screen.getByText('$12.50')).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /view the full menu/i }),
+    ).toHaveAttribute('href', '/menu');
   });
 
   test('the neutral backend 404 becomes the framework not-found', async () => {
-    mockData.mockResolvedValue({ kind: 'not-found' });
+    mockStorefront.mockResolvedValue({ kind: 'not-found' });
     await expect(HomePage()).rejects.toBe(NOT_FOUND);
   });
 
   test('an unavailable backend throws to the generic error boundary', async () => {
-    mockData.mockResolvedValue({ kind: 'unavailable' });
+    mockStorefront.mockResolvedValue({ kind: 'unavailable' });
     await expect(HomePage()).rejects.toThrow(/unavailable/);
   });
 });
