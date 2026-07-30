@@ -18,15 +18,16 @@ initial architecture-contract commit.
 
 ## Status
 
-| Milestone                                                      | State                                            |
-| -------------------------------------------------------------- | ------------------------------------------------ |
-| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                        |
-| M1 — Platform foundation                                       | **Complete** (2026-07-15)                        |
-| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                        |
-| M3 — Catalog and media                                         | **Complete** (2026-07-23)                        |
-| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                        |
-| M5 – M8 — Hours, ordering, operations, pilot                   | Not started                                      |
-| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23) |
+| Milestone                                                      | State                                                             |
+| -------------------------------------------------------------- | ----------------------------------------------------------------- |
+| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                                         |
+| M1 — Platform foundation                                       | **Complete** (2026-07-15)                                         |
+| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                                         |
+| M3 — Catalog and media                                         | **Complete** (2026-07-23)                                         |
+| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                                         |
+| M4G — Curated storefront design and motion (extension)         | **Reconciled** (2026-07-30, ADR-024) — implementation not started |
+| M5 – M8 — Hours, ordering, operations, pilot                   | Not started                                                       |
+| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23)                  |
 
 ## Milestone 3 delivery decision (2026-07-19)
 
@@ -192,6 +193,59 @@ M4G (curated storefront design and motion) is recorded in ADR-023 as
 the proposed next slice before M5; it requires its own roadmap
 reconciliation, discovery, and authorization and is **not** part of this
 completed milestone. M5 has not begun.
+
+## M4G reconciliation (2026-07-30)
+
+Documentation-only reconciliation performed after the Milestone 4
+close-out (the reconciliation ADR-023 §7 required). It **adds no
+application code, API, schema, migration, or dependency**, and it does
+not reopen Milestone 4, which remains historically complete above.
+
+**M4G — Curated Storefront Design and Motion** is the separately
+authorized post-close-out extension scheduled **before Milestone 5**.
+Its approved architecture is
+`docs/decisions/ADR-024-curated-storefront-design-and-motion.md`; the
+rulings there are binding. In summary:
+
+- **Three production-ready curated variants** — the existing `classic`
+  plus `editorial` (premium typography, larger imagery, spacious,
+  strongest scroll-linked storytelling) and `express` (compact,
+  menu-and-action-oriented, minimal motion) — as renderer layout arms
+  behind the existing exhaustive dispatch, with section renderers
+  shared and never forked per variant.
+- **A curated brand surface** owners select within platform-authored
+  registries: five accessible palettes (AA-verified at build time),
+  three system-font typography pairings (no webfonts; complex-script
+  fallbacks preserved), and an optional tenant logo staged and claimed
+  like section media. All of it lives in the versioned configuration
+  (`schema_version` deliberately stays 1 — additive fields with
+  defaults), so snapshots, history, and restore preserve the visual
+  configuration; existing tenants render unchanged by default.
+- **Motion is pure CSS** (scroll-driven animations under `@supports`):
+  zero client JavaScript, budgets and the `'use client'` allowlists
+  untouched, the delivered reduced-motion floor applies, and the
+  unenhanced static presentation is always complete. The optional hero
+  loop is **not** in M4G (media pipeline is image-only; it remains a
+  recorded future candidate).
+- **The first platform design-assignment UI** (the M4B API exists
+  without a UI) lands with the workspace's palette/pairing/logo
+  controls.
+- **Delivery in four separately authorized slices** — M4G-A backend
+  registries/theme/§10-logo extension; M4G-B renderer variants and
+  motion; M4G-C control-center and platform UI; M4G-D per-variant
+  E2E/responsive/accessibility acceptance and close-out — each with
+  the standing verification gates and its own review.
+
+Explicitly outside M4G (ADR-024 non-goals): tenant CSS/HTML/JS, page
+builders, theme marketplaces, per-tenant deployments or forks,
+webfonts, video or any customer video pipeline, the hero loop,
+client-JS animation, and all Milestone 5 behavior. **Milestone 5
+remains unstarted** and follows M4G.
+
+Authority: blueprint §19 is unchanged; like the M9–M11 commercial
+reconciliation, this section is the reconciliation of record until a
+future blueprint review folds it in. No completed milestone record or
+historical wording elsewhere in this file was altered.
 
 ## Milestone 2 delivery decision (2026-07-16)
 

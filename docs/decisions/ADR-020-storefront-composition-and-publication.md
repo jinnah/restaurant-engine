@@ -686,3 +686,32 @@ only dependency change was the exact-pinned development-only
 `@axe-core/playwright`. **With M4F delivered, every §19 exit criterion
 is verified and Milestone 4 is complete** (`docs/08_ROADMAP.md`,
 Milestone 4 close-out).
+
+---
+
+## Amendment — 2026-07-30: theme-level media authorization (M4G, ADR-024)
+
+Proposed at the M4G architecture gate; **not yet implemented** (M4G-A).
+Recorded here so the widened predicate is discoverable from the
+decision it changes.
+
+§10's public-delivery predicate is authored around media referenced by
+the catalog or by an **enabled section** of the current published
+version. ADR-024 adds an optional tenant logo to the composition's
+`theme`, which is not a section, so under the unamended predicate a
+published logo would be a neutral 404 on the public host. The predicate
+therefore grows a third leg: an active, same-business asset is publicly
+deliverable when the public catalog references it, an enabled section
+of the current published version references it, **or the current
+published version's `theme` references it**. Draft-save media claiming
+walks `theme.logo` exactly as it walks section image references, and
+the authenticated preview includes a pending theme logo exactly as it
+includes pending section media.
+
+Everything else in §10 is unchanged and still binding: draft-only,
+archived-or-superseded-only, disabled-section-only, removed, and
+cross-business references still authorize nothing; validation precedes
+any claim; corrupt authorization state still fails closed to the
+neutral 404. The widening is tested with the same isolation-matrix
+discipline as its M4C predecessor. See
+`docs/decisions/ADR-024-curated-storefront-design-and-motion.md` §7.
