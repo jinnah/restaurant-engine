@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useSession } from '../auth/useSession';
 import {
@@ -6,6 +7,7 @@ import {
 } from '../business/useCurrentBusinessId';
 import { asApiFailure } from '../api/failure';
 import { classifyFailure } from '../api/failures';
+import { RestoreVersionDialog } from './components/RestoreVersionDialog';
 import { SECTION_TYPE_LABELS, sectionSummary } from './composition';
 import { formatDateTime } from './format';
 import { storefrontPermissions } from './permissions';
@@ -32,6 +34,7 @@ export function StorefrontVersionDetailPage() {
   const canRead = permissions?.canRead ?? false;
 
   const detail = useVersionDetail(businessId, versionId, canRead);
+  const [restoring, setRestoring] = useState(false);
 
   if (membership === null) {
     return null; // The guard owns this case.
@@ -114,7 +117,34 @@ export function StorefrontVersionDetailPage() {
           <dt>Design</dt>
           <dd>{version.design_variant}</dd>
         </dl>
+        {/* Archived sources only (D-4); owner-only; closed businesses
+            mutate nothing. The dialog itself fetches the fresh draft
+            lock version when it opens (ADR-022 §8). */}
+        {version.state === 'archived' && permissions?.canRestore === true && (
+          <div className={styles.actions}>
+            <button
+              type="button"
+              className={styles.secondary}
+              onClick={() => {
+                setRestoring(true);
+              }}
+            >
+              Restore this version to the draft
+            </button>
+          </div>
+        )}
       </div>
+
+      {restoring && (
+        <RestoreVersionDialog
+          businessId={businessId}
+          versionId={versionId}
+          versionNumber={version.version_number}
+          onClose={() => {
+            setRestoring(false);
+          }}
+        />
+      )}
 
       <div className={styles.panel}>
         <h3>Sections</h3>

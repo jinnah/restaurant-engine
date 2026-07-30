@@ -151,7 +151,7 @@ describe('dialog Apply and Cancel against the single parent form', () => {
       },
     });
     await openStorefront(client);
-    expect(screen.queryByText('You have unsaved changes.')).toBeNull();
+    expect(screen.queryByText(/You have unsaved changes/)).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit Hero' }));
     const dialog = await screen.findByRole('dialog');
@@ -161,7 +161,7 @@ describe('dialog Apply and Cancel against the single parent form', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
 
     expect(await screen.findByText('A new heading')).toBeInTheDocument();
-    expect(screen.getByText('You have unsaved changes.')).toBeInTheDocument();
+    expect(screen.getByText(/You have unsaved changes/)).toBeInTheDocument();
   });
 
   test('Cancel discards only the dialog edits; a dirty dialog asks first', async () => {
@@ -192,7 +192,7 @@ describe('dialog Apply and Cancel against the single parent form', () => {
 
     expect(screen.getByText('Welcome')).toBeInTheDocument();
     expect(screen.queryByText('Typed but never applied')).toBeNull();
-    expect(screen.queryByText('You have unsaved changes.')).toBeNull();
+    expect(screen.queryByText(/You have unsaved changes/)).toBeNull();
   });
 });
 

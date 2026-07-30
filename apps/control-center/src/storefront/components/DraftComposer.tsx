@@ -3,6 +3,7 @@ import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { useQueryClient } from '@tanstack/react-query';
 import { asApiFailure } from '../../api/failure';
 import { classifyFailure } from '../../api/failures';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import type { FormFailure } from '../../components/formErrors';
 import { useNotify } from '../../components/NotificationProvider';
 import { ErrorSummary } from '../../components/StatusPanels';
@@ -17,9 +18,11 @@ import {
   type SectionType,
 } from '../composition';
 import { mapDraftSaveFailure, type MappedFieldError } from '../fieldErrors';
+import { formatDateTime } from '../format';
 import type { StorefrontPermissions } from '../permissions';
 import {
   markOverviewStale,
+  usePublish,
   useSaveDraft,
   useStorefrontOverview,
 } from '../storefrontData';
@@ -61,6 +64,7 @@ export function DraftComposer({
   const notify = useNotify();
   const overview = useStorefrontOverview(businessId, permissions.canRead);
   const saveDraft = useSaveDraft(businessId);
+  const publish = usePublish(businessId);
 
   const draft = overview.data?.draft ?? null;
   const form = useForm<ComposerValues>({
@@ -75,6 +79,7 @@ export function DraftComposer({
   const watchedAccent = useWatch({ control: form.control, name: 'accent' });
 
   const [dialog, setDialog] = useState<DialogState>(null);
+  const [publishing, setPublishing] = useState(false);
   const [serverErrors, setServerErrors] = useState<MappedFieldError[]>([]);
   const [summary, setSummary] = useState<FormFailure | null>(null);
   const [conflict, setConflict] = useState<ConflictState | null>(null);
@@ -289,12 +294,80 @@ export function DraftComposer({
           >
             {saveDraft.isPending ? 'Saving…' : 'Save draft'}
           </button>
+          {/* Publish requires a SAVED, non-dirty draft (ADR-022 §8): it
+              carries the saved draft's lock version, so publishing over
+              unsaved edits would publish something other than what is on
+              screen. Owner-only; restore shares the capability. */}
+          {permissions.canPublish && (
+            <button
+              type="button"
+              className={styles.secondary}
+              disabled={
+                draft === null ||
+                form.formState.isDirty ||
+                saveDraft.isPending ||
+                publish.isPending ||
+                conflict !== null
+              }
+              onClick={() => {
+                setPublishing(true);
+              }}
+            >
+              Publish…
+            </button>
+          )}
           {form.formState.isDirty && !saveDraft.isPending && (
             <span className={styles.note} role="status">
               You have unsaved changes.
+              {permissions.canPublish && ' Save your draft before publishing.'}
             </span>
           )}
         </div>
+      )}
+
+      {publishing && draft !== null && (
+        <ConfirmDialog
+          title="Publish this draft?"
+          confirmLabel="Publish"
+          pending={publish.isPending}
+          onCancel={() => {
+            setPublishing(false);
+          }}
+          onConfirm={() => {
+            publish.mutate(
+              { expected_lock_version: draft.lock_version },
+              {
+                onSuccess: () => {
+                  setPublishing(false);
+                  notify({ message: 'Storefront published.' });
+                },
+                onError: (error: unknown) => {
+                  setPublishing(false);
+                  const failure = asApiFailure(error);
+                  if (classifyFailure(failure) === 'conflict') {
+                    setConflict({
+                      message: failure.message,
+                      serverLock: conflictLimitLockVersion(failure),
+                    });
+                    markOverviewStale(queryClient, businessId);
+                    return;
+                  }
+                  setSummary({ summary: failure.message, fields: {} });
+                },
+              },
+            );
+          }}
+        >
+          <p>
+            Publishing makes this saved draft your live storefront and archives
+            the currently published version. Your draft was last saved{' '}
+            {formatDateTime(draft.updated_at)}.
+          </p>
+          <p>
+            You can keep editing afterwards — publishing starts a fresh draft
+            from the published result.
+          </p>
+        </ConfirmDialog>
       )}
 
       {dialog !== null && (
