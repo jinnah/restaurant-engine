@@ -11,7 +11,7 @@
 // missing alt renders as `alt=""` (decorative) — never an invented
 // description.
 
-import type { PublicStorefrontImage } from '../lib/contract';
+import type { PublicStorefrontImage } from './contract';
 
 export interface StorefrontImageProps {
   image: PublicStorefrontImage;
@@ -39,8 +39,9 @@ export function StorefrontImage({
   return (
     // ADR-021: the platform serves its own authorized responsive
     // renditions; Next's optimizer pipeline is deliberately not placed in
-    // front of them. Suppression is scoped to exactly this element.
-    // eslint-disable-next-line @next/next/no-img-element -- ADR-021 media rendering ruling
+    // front of them. This package is framework-neutral, so the raw <img>
+    // needs no suppression here; the Next rule still guards the app,
+    // which renders images only through this component.
     <img
       src={image.url}
       srcSet={imageSrcSet(image)}

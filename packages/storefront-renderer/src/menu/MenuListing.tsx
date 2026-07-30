@@ -1,6 +1,6 @@
 import type { PublicMenu, PublicMenuItem } from '@restaurant-engine/api-client';
 
-import { formatMinorUnits } from '../../lib/money';
+import { formatMinorUnits } from '../money';
 import { StorefrontImage } from '../StorefrontImage';
 import styles from './menu.module.css';
 

@@ -6,7 +6,7 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { formatMinorUnits, minorUnitsToDecimalString } from '../lib/money';
+import { formatMinorUnits, minorUnitsToDecimalString } from '../src/money';
 
 describe('minorUnitsToDecimalString', () => {
   test('places digits exactly', () => {

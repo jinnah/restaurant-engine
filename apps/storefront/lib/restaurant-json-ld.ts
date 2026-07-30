@@ -4,7 +4,7 @@
 // (M5), cuisine, ordering, ratings, price range, or menu structured data:
 // nothing is claimed that the platform does not model.
 
-import type { PublicStorefront } from './contract';
+import type { PublicStorefront } from '@restaurant-engine/storefront-renderer';
 
 export function restaurantJsonLd(
   storefront: PublicStorefront,

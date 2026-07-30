@@ -1,15 +1,15 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, test } from 'vitest';
 
-import { SectionList } from '../components/sections/SectionList';
-import { VariantLayout } from '../components/variants/registry';
+import { SectionList } from '../src/sections/SectionList';
+import { VariantLayout } from '../src/variants/registry';
 import {
   COMPLEX_SCRIPT,
   contactSection,
   heroSection,
   storefrontFixture,
   storySection,
-} from './fixtures';
+} from '../src/fixtures';
 
 // Unicode/complex-script rendering verification (ADR-021): Bengali is the
 // required initial complex-script fixture — conjuncts, matras, ZWNJ/ZWJ —

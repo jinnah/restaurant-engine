@@ -29,7 +29,8 @@ import {
   type PublicMenu,
 } from '@restaurant-engine/api-client';
 
-import type { PublicStorefront } from '../contract';
+import type { PublicStorefront } from '@restaurant-engine/storefront-renderer';
+
 import { resolveApiOrigin } from './api-origin';
 import { createTenantFetch } from './tenant-fetch';
 

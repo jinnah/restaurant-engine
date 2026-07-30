@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import { tenantPageClass } from '@restaurant-engine/storefront-renderer';
 import './globals.css';
 
 // The root layout is deliberately bare chrome-free structure: every tenant
@@ -18,7 +19,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      {/* The whole public page is the tenant page, so the shared
+          renderer's scoped baseline (ADR-022 §2) applies at <body>. */}
+      <body className={tenantPageClass}>{children}</body>
     </html>
   );
 }

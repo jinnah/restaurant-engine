@@ -1,4 +1,4 @@
-import type { PublicGallerySection } from '../../lib/contract';
+import type { PublicGallerySection } from '../contract';
 import { StorefrontImage } from '../StorefrontImage';
 import styles from './sections.module.css';
 

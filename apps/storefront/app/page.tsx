@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
 
+import {
+  SectionList,
+  VariantLayout,
+} from '@restaurant-engine/storefront-renderer';
+
 import { JsonLd } from '../components/JsonLd';
-import { SectionList } from '../components/sections/SectionList';
-import { VariantLayout } from '../components/variants/registry';
 import { canonicalOrigin } from '../lib/canonical';
 import { restaurantJsonLd } from '../lib/restaurant-json-ld';
 import {

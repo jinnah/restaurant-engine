@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { mailtoHref, telHref } from '../lib/contact-links';
+import { mailtoHref, telHref } from '../src/contact-links';
 
 describe('telHref', () => {
   test('derives a dialable tel: from conventional formats', () => {

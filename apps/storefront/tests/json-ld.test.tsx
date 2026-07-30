@@ -6,7 +6,10 @@ import { describe, expect, test } from 'vitest';
 import { JsonLd } from '../components/JsonLd';
 import { safeJsonLdSerialize } from '../lib/json-ld';
 import { restaurantJsonLd } from '../lib/restaurant-json-ld';
-import { contactSection, storefrontFixture } from './fixtures';
+import {
+  contactSection,
+  storefrontFixture,
+} from '@restaurant-engine/storefront-renderer/fixtures';
 
 describe('safeJsonLdSerialize', () => {
   test('tenant text containing a script terminator cannot break out', () => {

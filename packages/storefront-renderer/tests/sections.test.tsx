@@ -1,10 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, test } from 'vitest';
 
-import { SectionList } from '../components/sections/SectionList';
-import { storyParagraphs } from '../components/sections/StorySection';
-import { imageSrcSet } from '../components/StorefrontImage';
-import type { PublicSection } from '../lib/contract';
+import { SectionList } from '../src/sections/SectionList';
+import { storyParagraphs } from '../src/sections/StorySection';
+import { imageSrcSet } from '../src/StorefrontImage';
+import type { PublicSection } from '../src/contract';
 import {
   contactSection,
   gallerySection,
@@ -12,7 +12,7 @@ import {
   imageFixture,
   menuSection,
   storySection,
-} from './fixtures';
+} from '../src/fixtures';
 
 describe('SectionList dispatch and ordering', () => {
   test('renders every registered type in exactly the projection order', () => {

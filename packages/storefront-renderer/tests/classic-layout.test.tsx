@@ -1,10 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, test } from 'vitest';
 
-import { SectionList } from '../components/sections/SectionList';
-import { VariantLayout } from '../components/variants/registry';
-import type { PublicStorefront } from '../lib/contract';
-import { heroSection, storefrontFixture, storySection } from './fixtures';
+import { SectionList } from '../src/sections/SectionList';
+import { VariantLayout } from '../src/variants/registry';
+import type { PublicStorefront } from '../src/contract';
+import { heroSection, storefrontFixture, storySection } from '../src/fixtures';
 
 function renderClassic(
   storefront = storefrontFixture([heroSection(), storySection()]),

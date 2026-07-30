@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, test } from 'vitest';
 
-import { MenuListing } from '../components/menu/MenuListing';
-import { menuItemFixture, publicMenuFixture } from './fixtures';
+import { MenuListing } from '../src/menu/MenuListing';
+import { menuItemFixture, publicMenuFixture } from '../src/fixtures';
 
 describe('MenuListing', () => {
   test('renders categories and items in projection order with exact prices', () => {

@@ -1,5 +1,6 @@
-import type { PublicHeroSection } from '../../lib/contract';
-import { assertNever } from '../../lib/assert-never';
+import type { PublicHeroSection } from '../contract';
+import { assertNever } from '../assert-never';
+import { siteLinkHref, type LinkMode } from '../links';
 import { StorefrontImage } from '../StorefrontImage';
 import styles from './sections.module.css';
 
@@ -9,8 +10,10 @@ import styles from './sections.module.css';
 // member cannot arrive unhandled.
 function HeroAction({
   action,
+  links,
 }: {
   action: PublicHeroSection['props']['primary_action'];
+  links: LinkMode;
 }) {
   switch (action) {
     case 'none':
@@ -18,7 +21,7 @@ function HeroAction({
     case 'view_menu':
       return (
         <p className={styles.menuLink}>
-          <a href="/menu" className={styles.cta}>
+          <a href={siteLinkHref(links, '/menu')} className={styles.cta}>
             View menu
           </a>
         </p>
@@ -28,7 +31,13 @@ function HeroAction({
   }
 }
 
-export function HeroSection({ section }: { section: PublicHeroSection }) {
+export function HeroSection({
+  section,
+  links = 'active',
+}: {
+  section: PublicHeroSection;
+  links?: LinkMode;
+}) {
   const { heading, subheading, image, primary_action } = section.props;
   return (
     <section className={`${styles.section} ${styles.hero}`}>
@@ -45,7 +54,7 @@ export function HeroSection({ section }: { section: PublicHeroSection }) {
           className={styles.heroImage}
         />
       )}
-      <HeroAction action={primary_action} />
+      <HeroAction action={primary_action} links={links} />
     </section>
   );
 }

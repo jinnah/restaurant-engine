@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 
-import { accentForeground, safeAccent } from '../../../lib/accent';
+import { accentForeground, safeAccent } from '../../accent';
+import { siteLinkHref } from '../../links';
 import type { VariantLayoutProps } from '../registry';
 import styles from './classic.module.css';
 
@@ -11,7 +12,11 @@ import styles from './classic.module.css';
 // one custom property pair (`--accent` plus its computed black/white
 // foreground), never as arbitrary styling. Chrome labels ("Menu") are
 // neutral product copy; no platform branding appears.
-export function ClassicLayout({ storefront, children }: VariantLayoutProps) {
+export function ClassicLayout({
+  storefront,
+  children,
+  links = 'active',
+}: VariantLayoutProps) {
   const accent = safeAccent(storefront.theme.accent);
   const themeStyle = {
     '--accent': accent,
@@ -22,7 +27,7 @@ export function ClassicLayout({ storefront, children }: VariantLayoutProps) {
       <header className={styles.header}>
         <h1 className={styles.name}>{storefront.business.name}</h1>
         <nav aria-label="Site" className={styles.nav}>
-          <a href="/menu" className={styles.navLink}>
+          <a href={siteLinkHref(links, '/menu')} className={styles.navLink}>
             Menu
           </a>
         </nav>

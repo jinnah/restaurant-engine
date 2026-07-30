@@ -1,7 +1,10 @@
 import type { Metadata } from 'next';
 
-import { MenuListing } from '../../components/menu/MenuListing';
-import { VariantLayout } from '../../components/variants/registry';
+import {
+  MenuListing,
+  VariantLayout,
+} from '@restaurant-engine/storefront-renderer';
+
 import {
   requirePublicMenu,
   requirePublishedStorefront,

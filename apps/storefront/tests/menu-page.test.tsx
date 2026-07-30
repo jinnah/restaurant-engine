@@ -11,7 +11,7 @@ import {
   menuItemFixture,
   publicMenuFixture,
   storefrontFixture,
-} from './fixtures';
+} from '@restaurant-engine/storefront-renderer/fixtures';
 
 vi.mock('../lib/server/storefront-data', () => ({
   getPublishedStorefront: vi.fn(),

@@ -1,10 +1,10 @@
-import type { PublicContactSection } from '../../lib/contract';
-import { mailtoHref, telHref } from '../../lib/contact-links';
+import type { PublicContactSection } from '../contract';
+import { mailtoHref, telHref } from '../contact-links';
 import styles from './sections.module.css';
 
 // Structured contact facts only — deliberately no hours of any kind (M5).
 // Phone and email become links only when they have an unambiguous link
-// form (lib/contact-links); otherwise they render as the plain text the
+// form (contact-links); otherwise they render as the plain text the
 // owner wrote.
 export function ContactSection({ section }: { section: PublicContactSection }) {
   const { heading, address_lines, phone, email } = section.props;

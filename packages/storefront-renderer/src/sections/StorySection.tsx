@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 
-import type { PublicStorySection } from '../../lib/contract';
+import type { PublicStorySection } from '../contract';
 import styles from './sections.module.css';
 
 // Body text is plain text with normalized newlines (backend

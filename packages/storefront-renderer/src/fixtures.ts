@@ -1,5 +1,5 @@
 // Typed payload builders for renderer tests, shaped exactly like the
-// generated contract (lib/contract derivations), plus the required
+// generated contract (contract derivations), plus the required
 // complex-script fixtures.
 //
 // The Bengali strings below are ENGINEERING TEST DATA ONLY (ADR-021):
@@ -18,7 +18,7 @@ import type {
   PublicStorefront,
   PublicStorefrontImage,
   PublicStorySection,
-} from '../lib/contract';
+} from './contract';
 
 export function imageFixture(
   overrides: Partial<PublicStorefrontImage> = {},

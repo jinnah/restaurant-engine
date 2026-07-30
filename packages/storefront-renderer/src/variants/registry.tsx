@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 
-import type { PublicStorefront } from '../../lib/contract';
-import { assertNever } from '../../lib/assert-never';
+import type { PublicStorefront } from '../contract';
+import { assertNever } from '../assert-never';
+import type { LinkMode } from '../links';
 import { ClassicLayout } from './classic/ClassicLayout';
 
 // The variant-to-layout registry (ADR-021): a design variant is a
@@ -18,13 +19,23 @@ import { ClassicLayout } from './classic/ClassicLayout';
 export interface VariantLayoutProps {
   storefront: PublicStorefront;
   children: ReactNode;
+  /** Preview link mode (ADR-022 §3); the public storefront omits it. */
+  links?: LinkMode;
 }
 
-export function VariantLayout({ storefront, children }: VariantLayoutProps) {
+export function VariantLayout({
+  storefront,
+  children,
+  links = 'active',
+}: VariantLayoutProps) {
   const variant = storefront.design_variant;
   switch (variant) {
     case 'classic':
-      return <ClassicLayout storefront={storefront}>{children}</ClassicLayout>;
+      return (
+        <ClassicLayout storefront={storefront} links={links}>
+          {children}
+        </ClassicLayout>
+      );
     default:
       return assertNever(variant);
   }

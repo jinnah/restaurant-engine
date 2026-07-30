@@ -1,7 +1,8 @@
 import type { PublicMenuItem } from '@restaurant-engine/api-client';
 
-import type { PublicMenuSection } from '../../lib/contract';
-import { formatMinorUnits } from '../../lib/money';
+import type { PublicMenuSection } from '../contract';
+import { siteLinkHref, type LinkMode } from '../links';
+import { formatMinorUnits } from '../money';
 import { StorefrontImage } from '../StorefrontImage';
 import menuStyles from '../menu/menu.module.css';
 import styles from './sections.module.css';
@@ -20,9 +21,11 @@ export interface MenuSectionData {
 export function MenuSection({
   section,
   menuData,
+  links = 'active',
 }: {
   section: PublicMenuSection;
   menuData: MenuSectionData | null;
+  links?: LinkMode;
 }) {
   const { heading, intro } = section.props;
   const featured = menuData?.featured ?? [];
@@ -53,7 +56,7 @@ export function MenuSection({
         </ul>
       )}
       <p className={styles.menuLink}>
-        <a href="/menu" className={styles.cta}>
+        <a href={siteLinkHref(links, '/menu')} className={styles.cta}>
           View the full menu
         </a>
       </p>
