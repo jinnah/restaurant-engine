@@ -15,7 +15,7 @@ test('the home page renders the storefront placeholder', () => {
   expect(screen.getByText(/public storefront foundation/i)).toBeInTheDocument();
 });
 
-test('layout and page declare the expected document titles', () => {
-  expect(layoutMetadata.title).toBe('Restaurant Engine Storefront');
+test('the root layout declares only the neutral fallback title', () => {
+  expect(layoutMetadata.title).toBe('Storefront');
   expect(pageMetadata.title).toBe('Storefront — Restaurant Engine');
 });
