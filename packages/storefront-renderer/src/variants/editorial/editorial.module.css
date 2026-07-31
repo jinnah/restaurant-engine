@@ -103,3 +103,58 @@
 .footerName {
   margin: 0;
 }
+
+/* ---------------------------------------------------------------- motion
+
+   Scroll-driven reveals, pure CSS (ADR-024 section 9). Editorial carries
+   the strongest treatment of the three variants, and "strongest" still
+   means restrained: opacity and a small translation on section entry,
+   plus a barely perceptible media settle. No scroll hijacking and no
+   forced timeline are possible - `view()` reads native scroll position
+   and nothing else.
+
+   Authoring rule, load-bearing: the KEYFRAME END STATE equals the
+   element's unenhanced base state. A browser without scroll-timeline
+   support skips the @supports block entirely and renders the complete,
+   fully visible presentation; a reader who asked for reduced motion gets
+   the baseline's `animation-timeline: auto` and collapsed duration,
+   which lands on that same end state. Content never depends on animation
+   to appear.
+
+   Purchasable content is excluded by `data-section-type`: the menu
+   section composes the featured items, and the /menu listing is not a
+   direct child of .main at all. */
+
+@keyframes editorialReveal {
+  from {
+    opacity: 0;
+    transform: translateY(1.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes editorialMediaSettle {
+  from {
+    transform: scale(1.03);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@supports (animation-timeline: view()) {
+  .main > section:not([data-section-type='menu']) {
+    animation: editorialReveal linear both;
+    animation-range: entry 0% entry 55%;
+    animation-timeline: view();
+  }
+
+  .main > section:not([data-section-type='menu']) img {
+    animation: editorialMediaSettle linear both;
+    animation-range: entry 0% entry 70%;
+    animation-timeline: view();
+  }
+}

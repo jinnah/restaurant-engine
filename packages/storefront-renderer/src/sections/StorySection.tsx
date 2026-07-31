@@ -14,7 +14,7 @@ export function storyParagraphs(body: string): string[][] {
 export function StorySection({ section }: { section: PublicStorySection }) {
   const { heading, body } = section.props;
   return (
-    <section className={styles.section}>
+    <section className={styles.section} data-section-type="story">
       <h2 className={styles.heading}>{heading}</h2>
       <div className={styles.storyBody}>
         {storyParagraphs(body).map((lines, paragraphIndex) => (

@@ -30,7 +30,10 @@ export function MenuSection({
   const { heading, intro } = section.props;
   const featured = menuData?.featured ?? [];
   return (
-    <section className={styles.section}>
+    // `data-section-type` is the motion-exclusion hook (ADR-024 §9): a
+    // variant may never animate purchasable content, and this section
+    // composes the featured menu items.
+    <section className={styles.section} data-section-type="menu">
       <h2 className={styles.heading}>{heading}</h2>
       {intro === null ? null : <p className={styles.intro}>{intro}</p>}
       {menuData === null || featured.length === 0 ? null : (

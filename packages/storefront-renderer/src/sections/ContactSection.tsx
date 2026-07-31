@@ -11,7 +11,7 @@ export function ContactSection({ section }: { section: PublicContactSection }) {
   const tel = phone === null ? null : telHref(phone);
   const mailto = email === null ? null : mailtoHref(email);
   return (
-    <section className={styles.section}>
+    <section className={styles.section} data-section-type="contact">
       <h2 className={styles.heading}>{heading}</h2>
       <address className={styles.contactList}>
         {address_lines.map((line) => (

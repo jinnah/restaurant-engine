@@ -93,8 +93,20 @@ describe('tenant-page baseline policy', () => {
     );
   });
 
-  test('reduced-motion floor exists', () => {
+  test('reduced-motion floor exists and neutralises scroll timelines', () => {
     expect(base).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
+    // Every delivered safeguard is preserved, plus the M4G-B addition
+    // (ADR-024 §9): a scroll-driven animation is progress-based, so it is
+    // detached from its timeline as well as duration-collapsed.
+    for (const declaration of [
+      /animation-duration:\s*0\.01ms !important/,
+      /animation-iteration-count:\s*1 !important/,
+      /animation-timeline:\s*auto !important/,
+      /scroll-behavior:\s*auto !important/,
+      /transition-duration:\s*0\.01ms !important/,
+    ]) {
+      expect(base).toMatch(declaration);
+    }
   });
 
   test('focus visibility floor exists', () => {

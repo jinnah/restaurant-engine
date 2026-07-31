@@ -12,7 +12,7 @@ export function GallerySection({ section }: { section: PublicGallerySection }) {
     return null;
   }
   return (
-    <section className={styles.section}>
+    <section className={styles.section} data-section-type="gallery">
       {heading === null ? null : <h2 className={styles.heading}>{heading}</h2>}
       <ul className={styles.galleryGrid}>
         {images.map((image) => (

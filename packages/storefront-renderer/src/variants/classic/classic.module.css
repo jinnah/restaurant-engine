@@ -78,3 +78,29 @@
 .footerName {
   margin: 0;
 }
+
+/* ---------------------------------------------------------------- motion
+
+   Classic keeps the minimal treatment (ADR-024 section 9): one subtle
+   opacity reveal on the hero, nothing else. Pure CSS, inside the
+   @supports guard, with the keyframe end state equal to the unenhanced
+   base state - so an unsupporting browser and a reduced-motion reader
+   both get the complete static presentation. Purchasable content is
+   never animated. */
+
+@keyframes classicHeroReveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@supports (animation-timeline: view()) {
+  .main > section[data-section-type='hero'] {
+    animation: classicHeroReveal linear both;
+    animation-range: entry 0% entry 40%;
+    animation-timeline: view();
+  }
+}

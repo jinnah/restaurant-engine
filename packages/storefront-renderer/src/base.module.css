@@ -102,14 +102,18 @@
 }
 
 /* Reduced-motion floor: nothing animates for users who asked it not to.
-   The renderer ships no animation; this keeps any future transition
-   honest. */
+   `animation-timeline: auto` is the M4G-B addition (ADR-024 §9): a
+   scroll-driven animation is progress-based, so detaching it from its
+   scroll timeline — as well as collapsing its duration — makes the
+   neutralisation unambiguous across engines rather than dependent on how
+   a finite duration is interpreted against a progress-based timeline. */
 @media (prefers-reduced-motion: reduce) {
   :where(.tenantPage) *,
   :where(.tenantPage) *::before,
   :where(.tenantPage) *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    animation-timeline: auto !important;
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
   }
