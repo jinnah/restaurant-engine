@@ -173,7 +173,12 @@ Versioned, schema-validated configuration:
 ```json
 {
   "schema_version": 1,
-  "theme": { "accent": "#A34B2A" },
+  "theme": {
+    "accent": "#A34B2A",
+    "palette": "warm",
+    "type_pairing": "humanist",
+    "logo": null
+  },
   "sections": [
     { "id": "hero-main", "type": "hero", "enabled": true, "props": {} }
   ]

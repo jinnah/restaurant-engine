@@ -691,9 +691,11 @@ Milestone 4 close-out).
 
 ## Amendment — 2026-07-30: theme-level media authorization (M4G, ADR-024)
 
-Proposed at the M4G architecture gate; **not yet implemented** (M4G-A).
-Recorded here so the widened predicate is discoverable from the
-decision it changes.
+Proposed at the M4G architecture gate and **implemented in M4G-A**
+(delivered 2026-07-31; see the ADR-024 delivery record). Recorded here
+so the widened predicate is discoverable from the decision it changes.
+Milestone 4 remains complete and is unaffected: M4G is a separately
+authorized extension after its close-out.
 
 §10's public-delivery predicate is authored around media referenced by
 the catalog or by an **enabled section** of the current published
