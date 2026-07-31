@@ -19,6 +19,23 @@
   padding: var(--space-2);
 }
 
+/* Identity block: the optional logo beside the always-present name
+   (ADR-024 section 7). */
+.identity {
+  align-items: center;
+  display: flex;
+  gap: var(--space-1);
+}
+
+/* Intrinsic width/height on the element reserve the box; the cap here
+   bounds display size without distorting the aspect ratio. */
+.logo {
+  display: block;
+  height: auto;
+  max-height: 2.5rem;
+  width: auto;
+}
+
 .name {
   font-size: calc(1.375rem * var(--type-scale, 1));
   line-height: 1.3;

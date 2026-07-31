@@ -1,4 +1,5 @@
 import { siteLinkHref } from '../../links';
+import { ThemeLogo } from '../../theme/ThemeLogo';
 import type { VariantLayoutProps } from '../registry';
 import styles from './classic.module.css';
 
@@ -21,7 +22,19 @@ export function ClassicLayout({
   return (
     <div className={styles.page} data-variant="classic">
       <header className={styles.header}>
-        <h1 className={styles.name}>{storefront.business.name}</h1>
+        {/* ADR-024 section 7: the logo sits BESIDE the name, which stays
+            the visible semantic h1. A null logo renders name-only
+            chrome. */}
+        <div className={styles.identity}>
+          {storefront.theme.logo === null ? null : (
+            <ThemeLogo
+              logo={storefront.theme.logo}
+              sizes="10rem"
+              className={styles.logo}
+            />
+          )}
+          <h1 className={styles.name}>{storefront.business.name}</h1>
+        </div>
         <nav aria-label="Site" className={styles.nav}>
           <a href={siteLinkHref(links, '/menu')} className={styles.navLink}>
             Menu

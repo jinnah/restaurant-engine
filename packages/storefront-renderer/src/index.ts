@@ -43,6 +43,7 @@ export {
 } from './accent';
 export { themeStyle } from './theme/theme-style';
 export { accentText } from './theme/accent-text';
+export { ThemeLogo, type ThemeLogoProps } from './theme/ThemeLogo';
 export {
   PALETTE_IDS,
   paletteTokens,
