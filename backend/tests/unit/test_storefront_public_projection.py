@@ -66,6 +66,7 @@ _PUBLIC_MODELS = (
     public_schemas.PublicGalleryProps,
     public_schemas.PublicStorefrontImage,
     public_schemas.PublicStorefrontImageVariant,
+    public_schemas.PublicThemeLogo,
 )
 
 
@@ -101,6 +102,114 @@ class TestPublicSchemasCarryNoInternalField:
             assert annotation is not None
             public_types.update(get_args(annotation))
         assert public_types == set(SectionType)
+
+
+class TestPublicThemeProjection:
+    """The theme half of the projection (M4G-A, ADR-024 §4, §7, §10)."""
+
+    def test_the_theme_projects_the_registry_tokens_and_the_logo_slot(self) -> None:
+        assert set(public_schemas.PublicTheme.model_fields) == {
+            "accent",
+            "palette",
+            "type_pairing",
+            "logo",
+        }
+
+    def test_every_theme_field_is_required_in_the_projection(self) -> None:
+        """A projection states everything; nothing is inferred by absence.
+
+        `logo` is required-but-nullable, the `PublicHeroProps.image`
+        precedent: a renderer reads `null` rather than having to distinguish
+        "absent" from "not set".
+        """
+        for name, field in public_schemas.PublicTheme.model_fields.items():
+            assert field.is_required(), name
+
+    def test_the_projected_logo_carries_no_alt_text(self) -> None:
+        """§7's decorative ruling on the output side.
+
+        A null `alt_text` passed through by a renderer would produce an
+        *unlabelled* image rather than a decorative one, so there is
+        deliberately no value to pass: `alt=""` is the only thing a variant
+        can write. The input-side counterpart is `ThemeLogo`.
+        """
+        assert "alt_text" not in public_schemas.PublicThemeLogo.model_fields
+        assert "alt_text" in public_schemas.PublicStorefrontImage.model_fields
+
+    def test_the_projected_logo_reserves_its_box(self) -> None:
+        """Intrinsic dimensions travel with the logo, so the header never
+        shifts while it loads (§7: no CLS)."""
+        assert {"width", "height"} <= set(public_schemas.PublicThemeLogo.model_fields)
+
+
+class TestPubliclyReferencedMediaIds:
+    """The one collection shared by the projection and the §10 predicate."""
+
+    @staticmethod
+    def _config(*, logo: uuid.UUID | None, hero: uuid.UUID, gallery: uuid.UUID) -> object:
+        theme: dict[str, object] = {"accent": "#a34b2a"}
+        if logo is not None:
+            theme["logo"] = {"media_id": str(logo)}
+        return parse_config(
+            {
+                "schema_version": 1,
+                "theme": theme,
+                "sections": [
+                    {
+                        "id": "hero-main",
+                        "type": "hero",
+                        "enabled": True,
+                        "props": {"heading": "Kept", "image": {"media_id": str(hero)}},
+                    },
+                    {
+                        "id": "gallery",
+                        "type": "gallery",
+                        "enabled": False,
+                        "props": {"images": [{"media_id": str(gallery)}]},
+                    },
+                ],
+            }
+        )
+
+    def test_the_theme_logo_precedes_enabled_section_media(self) -> None:
+        logo, hero, gallery = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        config = self._config(logo=logo, hero=hero, gallery=gallery)
+        collected = public_service.publicly_referenced_media_ids(config)  # type: ignore[arg-type]
+        assert collected == [logo, hero]
+
+    def test_a_disabled_sections_media_is_excluded(self) -> None:
+        """Least exposure, unchanged by M4G (ruling R-5): a disabled section
+        is omitted from the projection, so its media has no current public
+        rendering purpose."""
+        logo, hero, gallery = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        config = self._config(logo=logo, hero=hero, gallery=gallery)
+        assert gallery not in public_service.publicly_referenced_media_ids(config)  # type: ignore[arg-type]
+
+    def test_the_logo_is_independent_of_section_enablement(self) -> None:
+        """A logo is chrome, not a section, so disabling every section never
+        withdraws it — the third leg is genuinely independent (§7)."""
+        logo = uuid.uuid4()
+        config = parse_config(
+            {
+                "schema_version": 1,
+                "theme": {"logo": {"media_id": str(logo)}},
+                "sections": [
+                    {
+                        "id": "hero-main",
+                        "type": "hero",
+                        "enabled": False,
+                        "props": {"heading": "Hidden"},
+                    }
+                ],
+            }
+        )
+        assert public_service.enabled_sections(config) == []
+        assert public_service.publicly_referenced_media_ids(config) == [logo]
+
+    def test_no_logo_means_no_theme_contribution(self) -> None:
+        hero, gallery = uuid.uuid4(), uuid.uuid4()
+        config = self._config(logo=None, hero=hero, gallery=gallery)
+        assert public_service.publicly_referenced_media_ids(config) == [hero]  # type: ignore[arg-type]
 
 
 class TestEnabledSections:

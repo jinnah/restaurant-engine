@@ -30,7 +30,12 @@ const STOREFRONT_BODY = JSON.stringify({
     currency: 'USD',
   },
   design_variant: 'classic',
-  theme: { accent: '#a34b2a' },
+  theme: {
+    accent: '#a34b2a',
+    palette: 'warm',
+    type_pairing: 'humanist',
+    logo: null,
+  },
   sections: [],
 });
 

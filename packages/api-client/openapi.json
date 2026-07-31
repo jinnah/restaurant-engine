@@ -2299,6 +2299,18 @@
         "title": "ModifierOptionView",
         "type": "object"
       },
+      "PaletteId": {
+        "description": "Platform-authored colour schemes (append-only, five permanent values).\n\nA palette is a curated set of the existing ``.tenantPage`` custom\nproperties, not tenant input: contrast is a platform guarantee proved by\nbuild-time tests, which is only possible because the set is closed\n(ADR-024 §5). The tenant accent remains the single arbitrary token and\noverrides only the accent — it never participates in these five colours.",
+        "enum": [
+          "warm",
+          "ember",
+          "slate",
+          "olive",
+          "midnight"
+        ],
+        "title": "PaletteId",
+        "type": "string"
+      },
       "PasswordResetIssueRequest": {
         "additionalProperties": false,
         "description": "Platform command: issue a reset token for an account (M2D).",
@@ -3110,17 +3122,68 @@
         "type": "object"
       },
       "PublicTheme": {
-        "description": "The tenant-adjustable presentation tokens (one accent in M4).",
+        "description": "The tenant-adjustable presentation tokens of a rendered version.\n\n`accent` is the tenant's single arbitrary token; `palette` and\n`type_pairing` are selections from the closed platform registries, so a\nrenderer maps them to tokens through an exhaustive table and can never\nreceive an unregistered value from a 200 response (ADR-024 §3).\n\nThese tokens are stored inside the version row's configuration, so a\npublished or archived version projects the tokens it was published\nwith — the design-variant precedent extended to the whole visual\nsurface (ADR-024 §10).\n\n`logo` is null when the version sets none, and also when its asset is no\nlonger renderable: a reference that cannot resolve degrades to absence\nrather than a dead URL, and the business name is always present as text.",
         "properties": {
           "accent": {
             "title": "Accent",
             "type": "string"
+          },
+          "logo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicThemeLogo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "palette": {
+            "$ref": "#/components/schemas/PaletteId"
+          },
+          "type_pairing": {
+            "$ref": "#/components/schemas/TypePairingId"
           }
         },
         "required": [
-          "accent"
+          "accent",
+          "palette",
+          "type_pairing",
+          "logo"
         ],
         "title": "PublicTheme",
+        "type": "object"
+      },
+      "PublicThemeLogo": {
+        "description": "The tenant logo: renditions and true dimensions, and **no alt text**.\n\nADR-024 §7 rules the logo permanently decorative: it renders `alt=\"\"`\nbeside the business name, which stays the visible semantic `h1` in every\nvariant. Omitting `alt_text` here makes that ruling structural rather\nthan advisory — there is no value a renderer could pass through by\nmistake, and a null one would produce an *unlabelled* image rather than\na decorative one. This is the projection-side counterpart of\n`ThemeLogo` carrying no `alt_text`.\n\nIntrinsic `width`/`height` are present for the same reason every other\nimage descriptor carries them: the box is reserved before the image\nloads, so the header never shifts (no CLS).",
+        "properties": {
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/PublicStorefrontImageVariant"
+            },
+            "title": "Variants",
+            "type": "array"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "width",
+          "height",
+          "url",
+          "variants"
+        ],
+        "title": "PublicThemeLogo",
         "type": "object"
       },
       "PublishRequest": {
@@ -3432,16 +3495,60 @@
       },
       "Theme": {
         "additionalProperties": false,
-        "description": "The tenant-adjustable presentation tokens.\n\nExactly one accent colour in M4 — the whole of the tenant's styling\nsurface. Blueprint §12.3 permits accent tokens and forbids tenant CSS,\nJavaScript, and arbitrary HTML; anything richer than a token here would\ncross that line.",
+        "description": "The tenant-adjustable presentation tokens.\n\nBlueprint §12.3 permits curated tokens and forbids tenant CSS,\nJavaScript, and arbitrary HTML; every field here is either a validated\ntoken or a selection from a closed platform registry, so nothing a\ntenant submits ever reaches a stylesheet as authored text.\n\n``accent`` remains the single arbitrary value — one validated\n``#rrggbb`` — and is grandfathered exactly as stored: it overrides only\nthe accent token and never participates in a palette's colours\n(ADR-024 §5). ``palette`` and ``type_pairing`` select from the\ncode-owned registries; ``logo`` is an optional decorative image staged\nand claimed exactly like section media (ADR-020 §10 as amended).\n\nAll three additions default to the delivered presentation, which is what\nkeeps ``schema_version`` at 1: a configuration written before M4G parses\nto ``warm`` / ``humanist`` / ``null`` and renders unchanged.",
         "properties": {
           "accent": {
             "default": "#a34b2a",
             "title": "Accent",
             "type": "string"
+          },
+          "logo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ThemeLogo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "palette": {
+            "$ref": "#/components/schemas/PaletteId",
+            "default": "warm"
+          },
+          "type_pairing": {
+            "$ref": "#/components/schemas/TypePairingId",
+            "default": "humanist"
           }
         },
         "title": "Theme",
         "type": "object"
+      },
+      "ThemeLogo": {
+        "additionalProperties": false,
+        "description": "An optional tenant logo: one media asset id, and nothing else.\n\nDeliberately carries **no ``alt_text`` field** (ADR-024 §4, §7). The\nlogo is permanently decorative — it renders ``alt=\"\"`` beside the\nbusiness name, which every variant keeps as the visible semantic\n``h1`` — so alt text here would produce a duplicate accessible name for\nthe same fact, the redundancy screen-reader users report as noise.\nPublishing a field whose value can never affect rendering would invite\nowners to write alt text the product then ignores.\n\nContrast this with ``SectionImage``, which *does* carry contextual alt\ntext: a hero or gallery photograph conveys something the surrounding\ntext does not.",
+        "properties": {
+          "media_id": {
+            "format": "uuid",
+            "title": "Media Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "media_id"
+        ],
+        "title": "ThemeLogo",
+        "type": "object"
+      },
+      "TypePairingId": {
+        "description": "Curated heading/body font pairings (append-only, three permanent values).\n\nEvery pairing is a pair of **system** font stacks plus a bounded scale —\nADR-024 §6 ships no webfont, so each stack keeps the complex-script\nfallbacks the delivered stack carries and costs no request, no CLS, and\nno licensing or subsetting surface.\n\n``serif_display`` is snake_case deliberately: no hyphenated enum value\nexists anywhere in the backend domains (the convention is ``view_menu``,\n``online_ordering``), and naming it after the ``editorial`` design\nvariant would imply a coupling that does not exist — variant and pairing\nare independent axes chosen by different actors (ADR-024 §3).",
+        "enum": [
+          "humanist",
+          "serif_display",
+          "geometric"
+        ],
+        "title": "TypePairingId",
+        "type": "string"
       },
       "UserSummary": {
         "properties": {
