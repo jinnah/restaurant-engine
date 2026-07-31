@@ -18,16 +18,16 @@ initial architecture-contract commit.
 
 ## Status
 
-| Milestone                                                      | State                                                |
-| -------------------------------------------------------------- | ---------------------------------------------------- |
-| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                            |
-| M1 — Platform foundation                                       | **Complete** (2026-07-15)                            |
-| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                            |
-| M3 — Catalog and media                                         | **Complete** (2026-07-23)                            |
-| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                            |
-| M4G — Curated storefront design and motion (extension)         | **In progress** (M4G-A complete 2026-07-31, ADR-024) |
-| M5 – M8 — Hours, ordering, operations, pilot                   | Not started                                          |
-| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23)     |
+| Milestone                                                      | State                                                          |
+| -------------------------------------------------------------- | -------------------------------------------------------------- |
+| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                                      |
+| M1 — Platform foundation                                       | **Complete** (2026-07-15)                                      |
+| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                                      |
+| M3 — Catalog and media                                         | **Complete** (2026-07-23)                                      |
+| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                                      |
+| M4G — Curated storefront design and motion (extension)         | **In progress** (M4G-A and M4G-B complete 2026-07-31, ADR-024) |
+| M5 – M8 — Hours, ordering, operations, pilot                   | Not started                                                    |
+| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23)               |
 
 ## Milestone 3 delivery decision (2026-07-19)
 
@@ -259,9 +259,84 @@ Milestone 5.
 | Sub                                      | Scope                                                                                                                                                                | State                              |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 | **M4G-A** — Backend theme foundation     | palette and typography registries, additive `Theme` extension, document-level media collection, §10 theme-logo authorization, contract regeneration                  | **Complete** (2026-07-31, ADR-024) |
-| **M4G-B** — Renderer variants and motion | `editorial` and `express` layout arms, palette/pairing token application, `--accent-text`, logo chrome, CSS scroll-driven motion, per-variant CSS-weight measurement | Not started (next slice)           |
-| **M4G-C** — Control center and platform  | composer palette/pairing pickers, logo staging, preview parity, the first platform design-assignment UI                                                              | Not started                        |
+| **M4G-B** — Renderer variants and motion | `editorial` and `express` layout arms, palette/pairing token application, `--accent-text`, logo chrome, CSS scroll-driven motion, per-variant CSS-weight measurement | **Complete** (2026-07-31, ADR-024) |
+| **M4G-C** — Control center and platform  | composer palette/pairing pickers, logo staging, preview parity, the first platform design-assignment UI                                                              | Not started (next slice)           |
 | **M4G-D** — E2E and close-out            | one journey per variant, per-variant responsive/accessibility/reduced-motion acceptance, visual acceptance, close-out                                                | Not started                        |
+
+### M4G-B close-out (2026-07-31)
+
+M4G-B delivered the **renderer** slice: the three curated variants and
+their motion, over the M4G-A theme foundation. `DesignVariant` gained
+`editorial` and `express` in the same change that shipped their layout
+arms, so the enum and the renderer cannot drift apart; `classic` remains
+the platform default and the exhaustive dispatch still ends in
+`assertNever`. **Section renderers stay shared** — one component per
+section type, no per-variant fork — and each variant expresses itself
+only through its own chrome, the tokens its root sets, and CSS scoped
+under that root.
+
+The five curated palettes (`warm`, `ember`, `slate`, `olive`,
+`midnight`) and three system-font pairings (`humanist`, `serif_display`,
+`geometric`) reach the page as one typed custom-property set applied at
+the `.tenantPage` boundary — the public `<body>` and the control-center
+preview container — so the painted browser canvas and every descendant
+read the same source. `warm` and `humanist` reproduce the delivered
+presentation, so an untouched configuration renders as it did before.
+The one derived token, `--accent-text`, is computed at render time from
+the stored accent and that version's palette and is **never persisted**:
+the stored tenant accent is not rewritten, and an accent that already
+clears the contrast floor is returned unchanged.
+
+The optional tenant logo renders through one shared component with a
+literal `alt=""` that is never omitted, beside the business name, which
+remains the visible semantic `h1` in every variant; a missing or failed
+logo falls back to name-only chrome. Motion is pure CSS scroll-driven
+animation inside `@supports` guards, authored so the unenhanced state is
+the complete, fully visible presentation; the delivered reduced-motion
+floor is preserved and strengthened, and no motion touches purchasable
+menu content. **Zero client JavaScript** was added: both
+client-component allowlists are unchanged, and the first-load JavaScript
+budget is unmoved.
+
+The contract widened **only** the `DesignVariant` enum — 66 operations,
+`paths` and the operation mapping byte-identical, no schema added or
+removed. `schema_version` stays 1, the Alembic head stays
+`a41d9c7e5b30`, and there is no migration, endpoint, dependency,
+webfont, animation library, or lockfile change.
+
+**Verification.** Backend **1,132**; api-client **95**;
+storefront-renderer **146**; storefront **70**; control-center **398**;
+E2E orchestrator **42** passed with one Windows-symlink skip; Playwright
+**13**; the new CSS-measurement regression suite **13**. Production
+builds, built-server verification, contract and generated-client
+byte-currency, budgets, lint, formatting, strict typing, and the
+repository-contract checks all passed. First-load JavaScript measured
+**456,547 bytes** for `/` and for `/menu` against the unchanged
+**502,201-byte** ceiling. Delivered CSS measured **10,493 bytes per
+route** for Classic, Editorial, and Express alike; authored per-variant
+stylesheets measured Classic **2,369**, Editorial **4,206**, Express
+**2,200** bytes, reported as diagnostic only. The equal delivered totals
+are the measured consequence of the static exhaustive registry importing
+every layout arm — **no CSS threshold was introduced** (ADR-024 §11).
+
+**Delivery evidence.** Implementation PR #34; reviewed head
+`b026054bd8dd89d6892eed135040b468c82f61ba`; merged to `main` as
+`f0f30d6b2c5ea2d7eaf99594db300b21dc22e513` with ordered parents
+`17338e80d71d01e6e5d83ecdd39f79e93311c5de` then
+`b026054bd8dd89d6892eed135040b468c82f61ba`, the merge tree
+`2b1c6ca8dbb0a8c173b9ca2d28364a2e9a9e7244` equal to the reviewed
+feature-head tree. Exact-head PR CI run `30649288931` and
+exact-merge-SHA push CI run `30649849039` both completed successfully
+with all five jobs green and zero artifacts.
+
+**Boundary.** M4G-B shipped no control-center behavior: no composer
+palette or pairing picker, no logo upload or staging workflow, and no
+platform design-assignment UI — all M4G-C. The complete per-variant
+browser-acceptance matrix (responsive, axe, real-browser reduced motion,
+visual acceptance) and the M4G overall close-out remain M4G-D. No video
+or hero-loop pipeline exists. **M4G remains in progress**, Milestone 4
+remains historically complete and is not reopened, and Milestone 5 has
+not begun.
 
 ### M4G-A close-out (2026-07-31)
 

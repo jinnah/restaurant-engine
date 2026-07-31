@@ -2,7 +2,64 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M4G-A — delivered 2026-07-31)
+## Current state (M4G-B — delivered 2026-07-31)
+
+M4G-B adds the renderer slice's coverage (ADR-024) at the unit,
+component, policy, and build-measurement layers. The storefront-renderer
+suite grows from **52** to **146** and the storefront suite from **66**
+to **70**; a new **13**-case CSS-measurement regression suite ships
+beside the measurement command. The backend (**1132**), api-client
+(**95**), control-center (**398**), orchestrator (**42** passed with one
+Windows-symlink skip), and Playwright (**13**) suites are unchanged —
+M4G-B adds no browser-level acceptance, which is deliberately M4G-D.
+
+- **Per-palette contrast, proved at build time.** Every text-on-
+  background pairing the shipped stylesheets actually use is enumerated
+  and asserted against WCAG AA for all five palettes, because palettes
+  are platform code rather than tenant input. `warm` is pinned equal to
+  the delivered five colour tokens and `humanist` to the delivered stack
+  and scale, so an untouched configuration cannot drift.
+- **`--accent-text`, proved rather than sampled.** Termination is
+  established analytically: for each palette the preferred direction's
+  exact endpoint is asserted conformant, so the derivation resolves for
+  every sRGB input. On top of that proof the suite sweeps a 4,096-point
+  cube per palette, a 140,608-point sweep on the hardest palette, and a
+  full 360-point hue sweep at maximum saturation, plus identity,
+  black/white, rounding-edge, hue-preservation, determinism, and the
+  fallback branch. The stored accent is asserted unchanged whenever it
+  already conforms.
+- **Accessibility invariants per variant.** The four landmarks, the
+  fixed heading hierarchy, the business name as the single visible `h1`,
+  the logo's literal `alt=""` (present and empty, with no accessible
+  name that could duplicate the `h1`), name-only fallback, inert-preview
+  link parity, and the 44 px navigation target are asserted for
+  `classic`, `editorial`, and `express` alike.
+- **Motion policy as authoring rules.** jsdom runs no animation, so the
+  suite pins what makes the enhancement safe by construction: every
+  motion declaration inside an `@supports` scroll-timeline guard, every
+  keyframe terminating at the unenhanced visible state, purchasable menu
+  content never animated (the menu section excluded explicitly and the
+  `/menu` listing structurally out of reach), Express at zero motion,
+  and the reduced-motion floor intact with its scroll-timeline
+  detachment. Real-browser reduced-motion and scroll behaviour remain
+  M4G-D.
+- **Measurement integrity, not size.** The CSS command enforces no
+  threshold by decision, so its regression suite pins the ways it could
+  mislead instead: absent build output, malformed or unexpected
+  manifests, an unresolved `/` or `/menu`, a missing referenced asset,
+  and duplicate references counted twice each exit non-zero, while a
+  successful run reports exactly one delivered row per route and
+  variant, labels authored bytes diagnostic, and still succeeds on a very
+  large stylesheet. Every case runs against disposable temporary
+  fixtures and never reads the repository's production build.
+
+Deliberate limits: M4G-B claims no browser-level evidence. The
+per-variant responsive, axe, real-browser reduced-motion, and visual
+acceptance matrix — and the M4G overall close-out — remain **M4G-D**;
+the control-center pickers, logo staging, and platform design-assignment
+UI remain **M4G-C**.
+
+## Earlier state (M4G-A — delivered 2026-07-31)
 
 M4G-A adds the curated-theme foundation's coverage (ADR-024) at the
 unit, service, and isolation layers. The backend suite grows from

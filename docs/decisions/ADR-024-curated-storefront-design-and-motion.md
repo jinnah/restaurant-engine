@@ -1,7 +1,7 @@
 # ADR-024: M4G Curated Storefront Design and Motion
 
 - **Status:** Accepted (architecture); delivery records filled per slice
-  — **M4G-A delivered (2026-07-31); M4G-B, M4G-C, and M4G-D not
+  — **M4G-A and M4G-B delivered (2026-07-31); M4G-C and M4G-D not
   started**, each still requiring its own explicit authorization
 - **Date:** 2026-07-30
 - **Deciders:** Product owner, principal architect
@@ -557,3 +557,124 @@ acceptance journeys (M4G-D); no new endpoint, capability, role, audit
 event, lifecycle rule, database column, migration, dependency, or
 lockfile change. **M4G-B, M4G-C, and M4G-D remain the boundary and are
 not started**, and Milestone 5 has not begun.
+
+### M4G-B — Renderer variants and motion: delivered, 2026-07-31
+
+**Delivered behavior.** The §1 variant set is complete and
+production-renderable: `DesignVariant` gained `editorial` and `express`
+in the **same change** that shipped their layout arms, exactly as §8
+binds, so the enum and the renderer cannot drift apart. `classic`
+remains the platform default, and the dispatch still ends in
+`assertNever`, so a fourth registry member cannot ship without its arm
+and runtime drift throws rather than rendering something wrong.
+**Section renderers stayed shared** — one component per section type, no
+per-variant fork — and each variant expresses itself only through the
+three permitted sources of §8: its own chrome, the tokens its root sets,
+and CSS scoped under that root. Public and preview render through the
+same dispatch, and the ADR-022 §3 inert-link mode is unchanged.
+
+The §5 palette mechanics and §6 pairings ship as two exhaustive typed
+registries mirroring the backend enums, applied through one pure
+`themeStyle` function. **One implementation decision is recorded because
+a later reader will meet it:** the token set is applied at the
+`.tenantPage` boundary — the public `<body>` and the control-center
+preview container — rather than on each variant root. §5 says the
+variant layout applies the palette "exactly where it applies the accent
+pair today"; that placement would have left the painted browser canvas
+on the baseline palette, because the browser propagates the canvas
+background from `<body>` and custom properties inherit only downward, so
+a `midnight` page would show a light canvas behind it. Applying the same
+single typed set one level up satisfies §5's stated purpose — no
+selector-structure change, the `:where()`-scoped cascade untouched, one
+typed source, no palette value duplicated in CSS — while making the
+canvas correct. The storefront's root layout reads the **non-throwing**
+argument-less `React.cache` loader that `generateMetadata` and the page
+body already call, so the neutral 404 and the generic error document
+still render, unthemed, and the measured render cost stays at exactly
+two backend reads per page — now asserted on the wire rather than only
+logged.
+
+`warm` reproduces the delivered five colour tokens and `humanist` the
+delivered stack and heading scale, both pinned by test, so every
+configuration stored before M4G renders as it did. The §5 derived token
+`--accent-text` is computed at render time from the stored accent and
+that version's palette and is **never persisted**; it walks HSL
+**lightness while preserving hue and saturation**, in deterministic
+1/256 steps, testing the exact rounded RGB it will emit, and evaluates
+each direction's exact endpoint in its own right — a lightness derived
+from 8-bit RGB is not aligned to the step grid, so the loop cannot be
+assumed to reach it. Termination is therefore proved analytically rather
+than sampled. An accent that already clears the floor is returned
+unchanged, so the sole appearance change remains the one §5 bounded: a
+failing accent becoming legible.
+
+The §7 logo renders through one shared component with a **literal
+`alt=""` that is never omitted** — the obligation M4G-A's
+`PublicThemeLogo` deliberately created by carrying no alt text — beside
+the business name, which remains the visible semantic `h1` in every
+variant. Missing or failed logo media falls back to name-only chrome
+with no fabricated frame, and intrinsic dimensions reserve the box.
+
+§9 motion is pure CSS inside `@supports (animation-timeline: view())`
+guards, authored so the keyframe end state equals the unenhanced base
+state: a browser without scroll-timeline support and a reader who asked
+for reduced motion both land on the complete static presentation.
+Editorial carries the strongest restrained treatment, Classic one subtle
+hero reveal, and **Express none at all**. Purchasable content is never
+animated: the menu section is excluded explicitly through a non-visual
+`data-section-type` attribute added to the shared renderers, and the
+`/menu` listing is structurally out of reach. **No client JavaScript was
+added** — both allowlists are unchanged and the first-load budget is
+unmoved.
+
+Per §11 the CSS weight is **measured and reported with no threshold**,
+and the measurement command fails on measurement integrity rather than
+size, with its own regression suite over disposable fixtures.
+
+**Verification at delivery.** Backend **1132**, api-client **95**,
+storefront-renderer **146** (from 52), storefront **70** (from 66),
+control-center **398**, E2E orchestrator **42** passed with one
+Windows-symlink skip, Playwright **13**, CSS-measurement regression
+**13**. Production builds, built-server verification, contract and
+generated-client byte-currency, budgets, lint, formatting, strict
+typing, and repository-contract checks all passed. The contract widened
+**only** `DesignVariant`: **66** operations, `paths` and the operation
+mapping byte-identical, zero schemas added or removed. `schema_version`
+stays 1 and the Alembic head stays `a41d9c7e5b30`; no migration,
+endpoint, dependency, webfont, animation library, or lockfile change.
+First-load JavaScript measured **456,547 bytes** for `/` and `/menu`
+against the unchanged **502,201-byte** ceiling. Delivered CSS measured
+**10,493 bytes per route** for all three variants; authored per-variant
+stylesheets measured **2,369** (Classic), **4,206** (Editorial), and
+**2,200** (Express) bytes, reported as diagnostic only. The equal
+delivered totals are the measured consequence of the exhaustive registry
+statically importing every arm; no code splitting was attempted and no
+CSS threshold was introduced.
+
+**Delivery evidence.** Implementation PR #34; reviewed head
+`b026054bd8dd89d6892eed135040b468c82f61ba`; merged to `main` as
+`f0f30d6b2c5ea2d7eaf99594db300b21dc22e513` with ordered parents
+`17338e80d71d01e6e5d83ecdd39f79e93311c5de` then
+`b026054bd8dd89d6892eed135040b468c82f61ba`, the merge tree
+`2b1c6ca8dbb0a8c173b9ca2d28364a2e9a9e7244` equal to the reviewed
+feature-head tree. Exact-head PR CI run `30649288931` and
+exact-merge-SHA push CI run `30649849039` both completed successfully
+with all five jobs (repository-contract, contract, backend, frontend,
+e2e) green and zero artifacts. One earlier local E2E invocation ended
+with twelve tests reported passed and a non-zero exit before the failing
+test's identity was retained; the E2E-relevant tree did not differ from
+the previously passing tree, and three later complete runs — including
+the final pre-push run with its full log retained and the CI e2e job on
+both accepted runs — passed 13/13. **That single unidentified exit is
+recorded, not explained**, and is deliberately not characterised as
+proven benign.
+
+**Boundary.** M4G-B shipped no control-center behavior: no composer
+palette or pairing picker, no logo upload or staging workflow, and no
+platform design-assignment UI — all M4G-C. The complete per-variant
+browser-acceptance matrix (responsive, axe, real-browser reduced motion,
+target geometry, visual acceptance) and the M4G overall close-out remain
+M4G-D. No video, hero loop, webfont, page builder, or M5+ behavior
+exists. **M4G-C and M4G-D remain the boundary and are not started**,
+M4G overall remains in progress, Milestone 4 remains complete and is not
+reopened, and Milestone 5 has not begun.
