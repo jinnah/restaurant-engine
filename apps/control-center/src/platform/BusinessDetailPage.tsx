@@ -10,6 +10,7 @@ import {
   type LifecycleAction,
 } from './businessData';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { DesignAssignmentPanel } from './DesignAssignmentPanel';
 import { InvitationsPanel } from './InvitationsPanel';
 import { statusBadgeClass } from './statusBadge';
 import styles from './platform.module.css';
@@ -203,6 +204,8 @@ export function BusinessDetailPage() {
           </div>
         )}
       </section>
+
+      <DesignAssignmentPanel businessId={businessId} />
 
       <InvitationsPanel
         businessId={businessId}

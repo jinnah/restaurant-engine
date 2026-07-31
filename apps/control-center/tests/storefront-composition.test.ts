@@ -183,16 +183,28 @@ describe('theme preservation through an unrelated save', () => {
     // Parsed off the wire on purpose: the generated `Theme` marks every
     // defaulted field required, so a bare theme cannot be written as a
     // typed literal — yet it is exactly what a server predating M4G-A (or
-    // any future contract drift) would send. The adapter must pass through
-    // what it was given: no crash, and no fabricated tokens, because the
-    // server applies its own defaults to whatever is omitted.
+    // any future contract drift) would send. The adapter must not crash on
+    // it, and the accent it *was* given must survive untouched.
+    //
+    // The three absent fields come back as the registry defaults rather
+    // than staying absent, and that is the M4G-C consequence of owning
+    // them: the composer now offers a control for each, so it states the
+    // value each control is showing. Those are exactly the values the
+    // server applies to an omitted field, so the stored configuration is
+    // identical either way — nothing is fabricated and no stored choice is
+    // overwritten.
     const legacy = JSON.parse(
       '{"schema_version":1,"theme":{"accent":"#123abc"},"sections":[]}',
     ) as StorefrontConfig;
 
     const body = toDraftPut(composerValuesFromConfig(legacy), 2);
 
-    expect(body.config.theme).toEqual({ accent: '#123abc' });
+    expect(body.config.theme).toEqual({
+      accent: '#123abc',
+      palette: DEFAULT_PALETTE,
+      type_pairing: DEFAULT_TYPE_PAIRING,
+      logo: null,
+    });
     expect(body.expected_lock_version).toBe(2);
   });
 
@@ -205,6 +217,7 @@ describe('theme preservation through an unrelated save', () => {
       accent: DEFAULT_ACCENT,
       palette: DEFAULT_PALETTE,
       type_pairing: DEFAULT_TYPE_PAIRING,
+      logo: null,
     });
   });
 

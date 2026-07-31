@@ -1,5 +1,10 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
+import {
+  paletteTokens,
+  tenantPageClass,
+  typePairingTokens,
+} from '@restaurant-engine/storefront-renderer';
 import { renderApp } from './support/render';
 import {
   draftView,
@@ -375,5 +380,137 @@ describe('saved-draft preview', () => {
       await screen.findByText(/There is no draft to preview yet/),
     ).toBeInTheDocument();
     expect(client.storefront.preview).not.toHaveBeenCalled();
+  });
+});
+
+// M4G-C parity: the preview is the *saved* draft's server projection, and
+// it reaches the same shared renderer the public storefront uses. Nothing
+// below is a new preview mechanism — these prove the delivered one carries
+// the whole theme and the platform-assigned variant faithfully.
+describe('saved-draft preview parity', () => {
+  const LOGO_URL = `/api/v1/businesses/${BUSINESS}/media/9f1d2c3b-4a5e-4f60-8b71-2c3d4e5f6a7b/file/canonical`;
+
+  function brandedProjection(
+    overrides: Partial<Parameters<typeof previewProjection>[0]> = {},
+  ) {
+    return previewProjection({
+      design_variant: 'editorial',
+      theme: {
+        accent: '#3355ff',
+        palette: 'midnight',
+        type_pairing: 'serif_display',
+        logo: {
+          width: 512,
+          height: 512,
+          url: LOGO_URL,
+          variants: [],
+        },
+      },
+      sections: [
+        {
+          id: 'story',
+          type: 'story',
+          props: { heading: 'Since 1998', body: 'A neighborhood kitchen.' },
+        },
+      ],
+      ...overrides,
+    });
+  }
+
+  /** The preview container — this app's `.tenantPage` element. */
+  async function tenantPage(): Promise<HTMLElement> {
+    const heading = await screen.findByText('Since 1998');
+    const page = heading.closest<HTMLElement>(`.${tenantPageClass}`);
+    expect(page).not.toBeNull();
+    return page as HTMLElement;
+  }
+
+  test('a non-default theme and assigned variant reach the shared renderer', async () => {
+    const client = authedClient('owner', {
+      storefront: {
+        get: vi.fn(async () => ok(storefrontOverview({ draft: draftView() }))),
+        preview: vi.fn(async () => ok(brandedProjection())),
+      },
+    });
+    renderApp(`/businesses/${BUSINESS}/storefront/preview`, client);
+
+    // The tenant page carries the saved theme's tokens — the same
+    // `themeStyle` source the public <body> uses. The palette is never
+    // transcribed here: it is asserted as the token the renderer itself
+    // resolved from `midnight`, so the two cannot drift.
+    const page = await tenantPage();
+    const style = page.getAttribute('style') ?? '';
+    expect(style).toContain('--accent: #3355ff');
+    expect(style).toContain(`--color-bg: ${paletteTokens('midnight').bg}`);
+    expect(style).toContain(
+      `--font-heading: ${typePairingTokens('serif_display').heading}`,
+    );
+
+    // The platform-assigned variant drives the layout arm, not the tenant.
+    expect(page.querySelector('[data-variant="editorial"]')).not.toBeNull();
+  });
+
+  test('the logo renders decoratively from the authenticated media route', async () => {
+    const client = authedClient('owner', {
+      storefront: {
+        get: vi.fn(async () => ok(storefrontOverview({ draft: draftView() }))),
+        preview: vi.fn(async () => ok(brandedProjection())),
+      },
+    });
+    renderApp(`/businesses/${BUSINESS}/storefront/preview`, client);
+    const page = await tenantPage();
+
+    const logo = page.querySelector(`img[src="${LOGO_URL}"]`);
+    expect(logo).not.toBeNull();
+    // Literal, never omitted: the business name carries the meaning, and
+    // the preview URL is the member route that also serves pending assets.
+    expect(logo).toHaveAttribute('alt', '');
+    expect(within(page).getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Shalik',
+    );
+  });
+
+  test('no logo renders name-only chrome rather than a fabricated frame', async () => {
+    const client = authedClient('owner', {
+      storefront: {
+        get: vi.fn(async () => ok(storefrontOverview({ draft: draftView() }))),
+        preview: vi.fn(async () =>
+          ok(
+            brandedProjection({
+              design_variant: 'express',
+              theme: {
+                accent: '#a34b2a',
+                palette: 'warm',
+                type_pairing: 'humanist',
+                logo: null,
+              },
+            }),
+          ),
+        ),
+      },
+    });
+    renderApp(`/businesses/${BUSINESS}/storefront/preview`, client);
+    const page = await tenantPage();
+
+    expect(page.querySelector('img')).toBeNull();
+    expect(within(page).getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Shalik',
+    );
+  });
+
+  test('the preview keeps saying it shows the SAVED draft only', async () => {
+    // The composer's brand pickers change nothing here until Save draft
+    // (ADR-022 §3). The honesty that makes that safe is this caption.
+    const client = authedClient('owner', {
+      storefront: {
+        get: vi.fn(async () => ok(storefrontOverview({ draft: draftView() }))),
+        preview: vi.fn(async () => ok(brandedProjection())),
+      },
+    });
+    renderApp(`/businesses/${BUSINESS}/storefront/preview`, client);
+
+    expect(
+      await screen.findByText(/unsaved edits are not shown/),
+    ).toBeInTheDocument();
   });
 });

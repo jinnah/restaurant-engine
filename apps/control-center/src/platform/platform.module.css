@@ -41,6 +41,30 @@
   composes: actions from '../components/controls.module.css';
 }
 
+.check {
+  composes: check from '../components/controls.module.css';
+}
+
+/* A grouped set of radios: the legend names the choice the group makes. */
+.choiceFieldset {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  margin: 0;
+}
+
+.choiceFieldset legend {
+  font-weight: 600;
+  padding: 0 0.35rem;
+}
+
+/* Inside a choice row the description sits under its own label, so it must
+   not keep the block margin the standalone page hint carries. */
+.check .hint {
+  margin: 0.1rem 0 0;
+  font-size: 0.9rem;
+}
+
 .list {
   list-style: none;
   margin: 0;

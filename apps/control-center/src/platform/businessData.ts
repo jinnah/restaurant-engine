@@ -1,5 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { BusinessCreate } from '@restaurant-engine/api-client';
+import type {
+  BusinessCreate,
+  DesignAssignment,
+} from '@restaurant-engine/api-client';
 import { useApiClient } from '../api/ClientProvider';
 import { ApiFailure } from '../api/failure';
 import { currentCsrfToken } from '../auth/csrf';
@@ -55,6 +58,36 @@ export function useLifecycleAction(businessId: string) {
       await queryClient.invalidateQueries({
         queryKey: platformKeys.allBusinesses(),
       });
+    },
+  });
+}
+
+/**
+ * Assign the storefront draft's structural design variant (M4B command,
+ * first UI in M4G-C; ADR-020 §6).
+ *
+ * No cache is written or invalidated on success, and that is deliberate:
+ * the platform business representation carries no design variant, so there
+ * is nothing cached here that the command makes stale. The acknowledgment
+ * itself is the only fact the page may report, and the caller renders it
+ * verbatim rather than inferring a new client-side "current" value.
+ *
+ * The command takes no `expected_lock_version` — it is serialized by the
+ * Business row lock, not by the owner-facing draft token.
+ */
+export function useSetDesign(businessId: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: DesignAssignment) => {
+      const csrfToken = currentCsrfToken(queryClient);
+      if (csrfToken === null) {
+        throw new ApiFailure(401, null);
+      }
+      return unwrapPrivileged(
+        queryClient,
+        await client.platform.setDesign(businessId, body, csrfToken),
+      );
     },
   });
 }

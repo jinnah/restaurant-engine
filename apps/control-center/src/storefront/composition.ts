@@ -3,6 +3,7 @@ import type {
   PaletteId,
   StorefrontConfig,
   Theme,
+  ThemeLogo,
   TypePairingId,
 } from '@restaurant-engine/api-client';
 
@@ -15,17 +16,18 @@ export type SectionType = ConfigSection['type'];
  *
  * The draft PUT is a **full-document replacement** (ADR-020 D-5), so any
  * theme field the composer does not re-send is reset to its schema default
- * by the next ordinary save. Accent is the only token this form edits;
- * palette, typography pairing, and the logo (M4G-A, ADR-024 §4) belong to
- * controls that do not exist yet, and an owner fixing a typo in a heading
- * must not silently discard them.
+ * by the next ordinary save. M4G-C added the palette, typography-pairing,
+ * and logo controls beside the delivered accent, so those four fields are
+ * now edited rather than carried — but the carry stays, because it is what
+ * preserves a theme field the contract may add *next*: a future additive
+ * field survives an unrelated heading edit the moment it is published,
+ * with no change here.
  *
- * The whole theme is carried and the edited accent is layered on top at
- * serialization, rather than the untouched fields being enumerated: a
- * future additive theme field is then preserved the moment the contract
- * publishes it, with no change here. `theme.accent` inside this value is
- * the *loaded* accent and is always superseded — {@link toDraftPut} is the
- * single place that resolves the two.
+ * The whole theme is carried and the edited fields are layered on top at
+ * serialization, rather than the untouched fields being enumerated.
+ * `theme.accent`, `theme.palette`, `theme.type_pairing`, and `theme.logo`
+ * inside this value are the *loaded* values and are always superseded —
+ * {@link toDraftPut} is the single place that resolves the two.
  */
 export type CarriedTheme = Theme;
 
@@ -42,6 +44,9 @@ export const DEFAULT_ACCENT = '#a34b2a';
  * theme defaults are published by the committed OpenAPI document and are
  * pinned to it by a build-time test, the ADR-022 §7 mirror discipline, so
  * drift fails CI rather than silently overriding the server.
+ *
+ * These are the **first-use** values only. A loaded draft always shows its
+ * own stored palette and pairing; nothing here ever overrides the server.
  */
 export const DEFAULT_PALETTE: PaletteId = 'warm';
 export const DEFAULT_TYPE_PAIRING: TypePairingId = 'humanist';
@@ -74,6 +79,19 @@ export const SECTION_TYPES: readonly SectionType[] = [
  */
 export interface ComposerValues {
   accent: string;
+  /** The selected curated palette (ADR-024 §5) — a closed contract enum. */
+  palette: PaletteId;
+  /** The selected curated typography pairing (ADR-024 §6). */
+  typePairing: TypePairingId;
+  /**
+   * The staged or stored tenant logo, or `null` for none.
+   *
+   * `ThemeLogo` carries a `media_id` and nothing else: the logo is
+   * permanently decorative (ADR-024 §7), so there is no alt text to hold.
+   * Selecting one only *stages* the reference here — the claim happens
+   * server-side when the draft is saved (ADR-020 §10).
+   */
+  logo: ThemeLogo | null;
   /**
    * The loaded draft's theme, held in the form so it travels with the
    * editing baseline. Keeping it here rather than reading it from the
@@ -107,8 +125,15 @@ export function carriedThemeFromConfig(
 export function composerValuesFromConfig(
   config: StorefrontConfig | null,
 ): ComposerValues {
+  const logo = config?.theme?.logo;
   return {
     accent: config?.theme?.accent ?? DEFAULT_ACCENT,
+    palette: config?.theme?.palette ?? DEFAULT_PALETTE,
+    typePairing: config?.theme?.type_pairing ?? DEFAULT_TYPE_PAIRING,
+    // Cloned rather than shared: the source object belongs to the query
+    // cache, and form state must never alias it.
+    logo:
+      logo === null || logo === undefined ? null : { media_id: logo.media_id },
     carriedTheme: carriedThemeFromConfig(config),
     sections: structuredClone(config?.sections ?? []),
   };
@@ -125,8 +150,15 @@ export function toDraftPut(
 ): DraftPut {
   const config: StorefrontConfig = {
     schema_version: 1,
-    // Carried fields first so the accent the composer owns always wins.
-    theme: { ...values.carriedTheme, accent: values.accent },
+    // Carried fields first so every field the composer owns wins. A theme
+    // field this form does not edit still round-trips from `carriedTheme`.
+    theme: {
+      ...values.carriedTheme,
+      accent: values.accent,
+      palette: values.palette,
+      type_pairing: values.typePairing,
+      logo: values.logo,
+    },
     sections: values.sections,
   };
   return expectedLockVersion === null

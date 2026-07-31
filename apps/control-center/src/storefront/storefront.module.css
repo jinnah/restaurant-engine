@@ -206,6 +206,68 @@
   margin-top: var(--space-2);
 }
 
+/* --- Brand and appearance (M4G-C) --------------------------------------- */
+
+/* The same bordered group the section dialog's fieldsets use. Written out
+   rather than composed from `.groupFieldset` below: postcss-modules-scope
+   resolves `composes` in document order, so composing a class declared
+   later in this file builds in dev and fails the production build. */
+.brandFieldset {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  margin: var(--space-2) 0;
+}
+
+.brandFieldset legend {
+  font-weight: 600;
+  padding: 0 0.35rem;
+}
+
+/* A control and its decorative preview on one line; the preview drops
+   below the control rather than squeezing it at narrow widths. */
+.brandRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.brandRow > div {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+/* Painted with the chosen palette's own tokens (never a transcribed hex);
+   `Aa` shows text on that palette's page colour. Decorative: the option
+   text names and describes the palette. */
+.paletteSwatch {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--target-primary);
+  height: var(--target-primary);
+  margin-top: 1.6rem;
+  border: 1px solid;
+  border-radius: var(--radius);
+  font-weight: 600;
+}
+
+.typeSample {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--target-primary);
+  height: var(--target-primary);
+  margin-top: 1.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  font-size: 1.3rem;
+}
+
 .accentField {
   display: flex;
   align-items: center;
