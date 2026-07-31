@@ -2,7 +2,67 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M4F — delivered 2026-07-30)
+## Current state (M4G-A — delivered 2026-07-31)
+
+M4G-A adds the curated-theme foundation's coverage (ADR-024) at the
+unit, service, and isolation layers. The backend suite grows from
+**1070** to **1132**; the control-center suite from **389** to **398**.
+The api-client (95), storefront-renderer (52), storefront (66), and
+Playwright (13) suites are unchanged — M4G-A ships no renderer or public
+visual behavior, so no browser-level coverage was added.
+
+- **Registry and contract pins.** The two registries are asserted to
+  hold exactly their permanent values in order, with explicit registered
+  defaults, lowercase snake_case identifiers (no hyphen — the
+  repository-wide convention), and identifiers disjoint from the design
+  variant. A build-time pin reads the committed OpenAPI document and
+  proves both registries publish as closed enums with the defaults the
+  server owns, so a registry change that is not regenerated fails here
+  as well as in the drift check.
+- **Compatibility, made executable.** A configuration stored before M4G
+  — accent-only, or with no theme key at all — parses to the registry
+  defaults; the canonical dump round-trips byte-identically with and
+  without a logo; `schema_version` stays the literal 1; unknown theme
+  keys and unregistered tokens are rejected on submission. A service
+  test proves a **read** projects those defaults without rewriting the
+  stored JSON or advancing `lock_version`, and its companion pins the
+  single deliberate consequence: the first save of a pre-M4G draft is a
+  real write that upgrades the canonical form once.
+- **Media completeness and claim atomicity.** The completeness invariant
+  is now document-level: every `media_id` in the canonical dump must be
+  reachable by the claim path, so a future image-bearing field anywhere
+  in the registry cannot escape it. The theme logo is proved to follow
+  the established matrix — claimed when valid and pending, de-duplicated
+  when shared with a section, and rejected before **any** claim occurs
+  for unknown, cross-business, and expired references, with the
+  co-referenced asset left unpromoted and no draft row written.
+- **Authorization isolation for the third leg.** The published theme
+  logo is deliverable, and independently so: authorized even when every
+  section is disabled, while a disabled-section-only reference still
+  authorizes nothing. Draft-only, archived-only, superseded, removed,
+  pending, and cross-business references remain unauthorized, proven
+  per-host in one run; corrupt authorization state fails closed to the
+  neutral 404 while the projection of an unregistered stored palette or
+  pairing is the opaque 500 with the established bounded
+  `public_projection` log and no token disclosed. A bounded-query test
+  proves the logo joins the single batched media read rather than adding
+  a statement.
+- **Snapshot stability and preservation.** Publication freezes the theme
+  into the published version and seeds the next draft from it; an
+  archived version keeps the theme it was published with after a
+  republication changes the draft; restore copies the archived theme and
+  logo. In the control center, dedicated tests prove a non-default
+  palette, a non-default typography pairing, and an existing logo all
+  survive an unrelated composer save, that editing the accent preserves
+  every other theme field, and that a legacy accent-only payload still
+  works — including one end-to-end proof through the real composer form.
+
+M4G-A changed no CI workflow file, no dependency, and no lockfile.
+Browser-level coverage of the new variants, palettes, pairings, and logo
+chrome belongs to M4G-B and M4G-D; the Playwright suite below is
+unchanged.
+
+## Earlier state (M4F — delivered 2026-07-30)
 
 M4F closes Milestone 4's verification deferrals (ADR-023). `pnpm e2e`
 grows from nine tests to **thirteen**, and its orchestrator now owns a

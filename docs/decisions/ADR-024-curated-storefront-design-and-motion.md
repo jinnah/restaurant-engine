@@ -1,7 +1,8 @@
 # ADR-024: M4G Curated Storefront Design and Motion
 
-- **Status:** Accepted (architecture); **implementation not started** —
-  each slice below requires its own explicit authorization
+- **Status:** Accepted (architecture); delivery records filled per slice
+  — **M4G-A delivered (2026-07-31); M4G-B, M4G-C, and M4G-D not
+  started**, each still requiring its own explicit authorization
 - **Date:** 2026-07-30
 - **Deciders:** Product owner, principal architect
 
@@ -472,3 +473,87 @@ becoming measurable in field performance (would motivate a stylesheet
 budget); M6 ordering (cart chrome must adopt variant tokens); the M8
 reverse proxy (CSP interaction with scroll-driven animation is expected
 to be none, but is verified there).
+
+## Delivery record
+
+### M4G-A — Backend theme foundation: delivered, 2026-07-31
+
+**Delivered behavior.** The two registries of §3 ship as code-owned,
+append-only `StrEnum`s with explicit named defaults, published as closed
+OpenAPI enums: `PaletteId` (`warm`, `ember`, `slate`, `olive`,
+`midnight`) and `TypePairingId` (`humanist`, `serif_display`,
+`geometric`). They live in their own module rather than beside
+`DesignVariant` in `variants.py`, because the §2 governance split is
+load-bearing: the structural variant is platform-assigned, while palette
+and pairing are tenant content. The §4 `Theme` extension is additive with
+defaults — `palette`, `type_pairing`, and an optional `logo` whose
+`ThemeLogo` carries `media_id` only — and **`schema_version` stays 1** as
+ruled, with no schema v2, migration, backfill, or adoption workflow;
+every configuration stored before M4G reads as `warm` / `humanist` /
+`logo: null`, which is exactly its current appearance.
+
+The §7 media work landed in full. Media-reference collection moved up to
+the document level, so the theme logo is validated and claimed on the
+same validate-all-before-claim path as a section image, and the
+completeness invariant now covers the whole canonical document rather
+than sections alone. The §10 predicate gained its third leg — a published
+version's `theme` authorizes its logo — and it is genuinely independent:
+authorized even when every section is disabled, while
+disabled-section-only, draft-only, archived-or-superseded-only, removed,
+pending, and cross-business references still authorize nothing. The
+authenticated preview includes a pending theme logo through the member
+media route only. Unknown stored tokens fail closed exactly as
+unregistered variants do (§10): the neutral 404 on the anonymous media
+route, the opaque 500 with a bounded log on the projection, never a
+silent default.
+
+Two implementation decisions are recorded because a later reader will
+meet them. **The projection carries a dedicated `PublicThemeLogo`**
+rather than reusing the section-image descriptor: it omits `alt_text`
+entirely, so the §7 decorative ruling is structural on both the stored
+and projected sides and a renderer has no null value to pass through —
+**M4G-B must therefore render the logo with an explicit `alt=""` and
+never omit the attribute**. And the composer now carries the loaded
+draft's whole theme through an edit, because the draft PUT is a
+full-document replacement (ADR-020 D-5): without it, an unrelated
+heading edit would reset palette, pairing, and logo to their defaults.
+The carried value lives in form state rather than being read from the
+cache at save time, so a stale-write conflict cannot silently merge
+cached data (ADR-022 §6).
+
+**Verification at delivery.** Backend **1132** tests (1070 at the
+Milestone 4 head, +62 for M4G-A), ruff lint and format clean, mypy strict
+clean across 181 source files; api-client **95**, storefront-renderer
+**52**, storefront **66**, control-center **398** (389 + 9); Playwright
+**13**; workspace typecheck, lint, and format clean; `contract:check`
+byte-current at exactly **66 operations** with the `paths` object and
+every operation id unchanged; both production builds green; the
+first-load JavaScript budget unchanged at 456,547 bytes per route
+locally (456,629 in CI, the recorded platform variance) against the
+502,201-byte ceiling; the built-server verification green. The Alembic
+head remains `a41d9c7e5b30`. Only disposable test infrastructure was
+used; the preserved development and UAT databases were neither contacted
+nor modified.
+
+**Delivery evidence.** Implementation PR #32; implementation commit
+`7b7e5ed6e46e0cede5f60e4ac463a4fda5c7bc0f`; merged to `main` as
+`4b695077c8d2874ab7026352b39a67585aaee9c2` with ordered parents
+`04bc09861dfcfb9c8d3a3327714763dda7c6d6bd` then
+`7b7e5ed6e46e0cede5f60e4ac463a4fda5c7bc0f`, the merge tree equal to the
+reviewed feature-head tree. Exact-head PR CI run `30601961380` and
+exact-merge-SHA push CI run `30602476429` both completed successfully
+with all five jobs (repository-contract, backend, frontend, contract,
+e2e) green and zero artifacts.
+
+**Boundary.** M4G-A shipped no renderer theme styling and no public
+visual change — existing storefronts render exactly as before, because
+the defaults reproduce the delivered presentation and no renderer reads
+the new tokens yet. The `DesignVariant` enum deliberately did **not**
+gain `editorial` or `express`: §8 binds those to the change that ships
+their renderer arms. No `--accent-text` derivation, palette or pairing
+stylesheet, logo chrome, or motion (M4G-B); no composer pickers, logo
+staging workflow, or platform design-assignment UI (M4G-C); no per-variant
+acceptance journeys (M4G-D); no new endpoint, capability, role, audit
+event, lifecycle rule, database column, migration, dependency, or
+lockfile change. **M4G-B, M4G-C, and M4G-D remain the boundary and are
+not started**, and Milestone 5 has not begun.

@@ -18,16 +18,16 @@ initial architecture-contract commit.
 
 ## Status
 
-| Milestone                                                      | State                                                             |
-| -------------------------------------------------------------- | ----------------------------------------------------------------- |
-| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                                         |
-| M1 — Platform foundation                                       | **Complete** (2026-07-15)                                         |
-| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                                         |
-| M3 — Catalog and media                                         | **Complete** (2026-07-23)                                         |
-| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                                         |
-| M4G — Curated storefront design and motion (extension)         | **Reconciled** (2026-07-30, ADR-024) — implementation not started |
-| M5 – M8 — Hours, ordering, operations, pilot                   | Not started                                                       |
-| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23)                  |
+| Milestone                                                      | State                                                |
+| -------------------------------------------------------------- | ---------------------------------------------------- |
+| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                            |
+| M1 — Platform foundation                                       | **Complete** (2026-07-15)                            |
+| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                            |
+| M3 — Catalog and media                                         | **Complete** (2026-07-23)                            |
+| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                            |
+| M4G — Curated storefront design and motion (extension)         | **In progress** (M4G-A complete 2026-07-31, ADR-024) |
+| M5 – M8 — Hours, ordering, operations, pilot                   | Not started                                          |
+| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23)     |
 
 ## Milestone 3 delivery decision (2026-07-19)
 
@@ -246,6 +246,94 @@ Authority: blueprint §19 is unchanged; like the M9–M11 commercial
 reconciliation, this section is the reconciliation of record until a
 future blueprint review folds it in. No completed milestone record or
 historical wording elsewhere in this file was altered.
+
+## M4G delivery decision and slice status
+
+Each ADR-024 §12 slice is separately authorized and reviewed, one PR
+each. M4G-B depends on M4G-A; M4G-C depends on M4G-A (its parts that
+consume the new variants land after M4G-B); M4G-D depends on all of
+them. M4G is an extension **after** the completed Milestone 4;
+delivering a slice of it neither reopens Milestone 4 nor starts
+Milestone 5.
+
+| Sub                                      | Scope                                                                                                                                                                | State                              |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| **M4G-A** — Backend theme foundation     | palette and typography registries, additive `Theme` extension, document-level media collection, §10 theme-logo authorization, contract regeneration                  | **Complete** (2026-07-31, ADR-024) |
+| **M4G-B** — Renderer variants and motion | `editorial` and `express` layout arms, palette/pairing token application, `--accent-text`, logo chrome, CSS scroll-driven motion, per-variant CSS-weight measurement | Not started (next slice)           |
+| **M4G-C** — Control center and platform  | composer palette/pairing pickers, logo staging, preview parity, the first platform design-assignment UI                                                              | Not started                        |
+| **M4G-D** — E2E and close-out            | one journey per variant, per-variant responsive/accessibility/reduced-motion acceptance, visual acceptance, close-out                                                | Not started                        |
+
+### M4G-A close-out (2026-07-31)
+
+M4G-A delivered the **backend foundation only**. Two permanent
+server-owned registries ship beside the platform-assigned design-variant
+registry — `PaletteId` (`warm`, `ember`, `slate`, `olive`, `midnight`)
+and `TypePairingId` (`humanist`, `serif_display`, `geometric`) — each an
+append-only `StrEnum` with an explicit named default, published in the
+OpenAPI document as a closed enum. They live in their own module because
+the governance split is the product: the structural variant is
+platform-assigned, while palette, pairing, and logo are tenant content.
+
+The composition `Theme` gains `palette`, `type_pairing`, and an optional
+decorative `logo` (`media_id` only — the logo is permanently decorative,
+so no alt text exists to store), all with defaults that reproduce the
+delivered presentation. **`schema_version` deliberately remains 1**: a
+configuration written before M4G reads as `warm` / `humanist` / no logo,
+so legacy accent-only configurations stay readable and unchanged. Reads
+project those defaults without rewriting stored JSON or advancing
+`lock_version`.
+
+Media references are now collected at **document level**, so the theme
+logo travels the existing validate-all-before-claim path exactly as a
+section image does; the completeness invariant was raised to the whole
+canonical document, so no future image-bearing field can escape the
+claim path. The public projection reads the immutable published snapshot,
+so a published or archived version projects the theme it was published
+with. The ADR-020 §10 predicate gained an **independent third leg**: a
+published version's `theme` authorizes its logo regardless of section
+enablement, while draft-only, archived-or-superseded-only,
+disabled-section-only, removed, and cross-business references still
+authorize nothing. Corrupt or unregistered stored theme values fail
+closed through the established boundaries — the neutral 404 on the
+anonymous media route, the opaque 500 on the projection. In the control
+center, an unrelated accent edit now preserves the complete loaded theme,
+including any field a future contract adds.
+
+The OpenAPI document and generated TypeScript client were regenerated
+through the pinned generator; the **operation count stays 66** with no
+renamed operation id and the `paths` object unchanged. The **Alembic head
+stays `a41d9c7e5b30`** — no migration, no backfill, and no new column.
+
+Deliberately **not** in M4G-A: no renderer theme styling and no public
+visual change (existing storefronts render exactly as before); no theme
+picker or owner adoption workflow; no logo upload or staging workflow; no
+new endpoint; no new database column or Alembic revision; no dependency
+or lockfile change; and no M4G-B, M4G-C, M4G-D, or Milestone 5 behavior.
+
+Merge evidence (PR #32):
+
+- Implementation commit `7b7e5ed6e46e0cede5f60e4ac463a4fda5c7bc0f`,
+  merged to `main` as `4b695077c8d2874ab7026352b39a67585aaee9c2`
+  (ordered parents `04bc09861dfcfb9c8d3a3327714763dda7c6d6bd` then
+  `7b7e5ed6e46e0cede5f60e4ac463a4fda5c7bc0f`; the merge tree equals the
+  reviewed feature-head tree).
+- Exact-head PR CI run `30601961380` and exact-merge-SHA push CI run
+  `30602476429` both completed successfully — all five jobs
+  (repository-contract, backend, frontend, contract, e2e) green, **zero
+  artifacts**.
+- Verified counts: backend **1132**, api-client **95**,
+  storefront-renderer **52**, storefront **66**, control-center **398**,
+  Playwright **13**. Ruff lint and format checks green; strict mypy clean
+  across **181** source files; the generated-contract drift check
+  byte-current at 66 operations; workspace typecheck, lint, and format
+  checks green; both production builds green; the storefront budget and
+  built-server verification green.
+- Only disposable test infrastructure was used; `restaurant_engine` and
+  `restaurant_engine_uat` were neither contacted nor modified.
+
+**M4G-B is the next undelivered slice** and needs its own discovery and
+authorization. M4G-C and M4G-D remain not started, Milestone 4 remains
+complete, and **Milestone 5 remains unstarted**.
 
 ## Milestone 2 delivery decision (2026-07-16)
 
