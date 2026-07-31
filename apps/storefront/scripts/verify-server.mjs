@@ -285,6 +285,15 @@ async function main() {
       'home: the tenant-page element carries the tenant accent',
       bodyTag.includes('--accent:#0f2f4f'),
     );
+    // ADR-024 section 5: the stored accent is a dark navy, unreadable as
+    // text on the midnight palette, so the derived token must differ
+    // from it - and the stored accent itself must be untouched.
+    const accentText = /--accent-text:(#[0-9a-f]{6})/.exec(bodyTag)?.[1];
+    check(
+      'home: the derived accent-text token differs from the stored accent',
+      accentText !== undefined && accentText !== '#0f2f4f',
+      String(accentText),
+    );
     // ADR-021 section 3: the measured render cost is TWO backend reads
     // (projection + menu). The root layout reads the same argument-less
     // React.cache loader the page body and generateMetadata already call,

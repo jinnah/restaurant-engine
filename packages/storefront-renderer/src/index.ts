@@ -42,6 +42,7 @@ export {
   safeAccent,
 } from './accent';
 export { themeStyle } from './theme/theme-style';
+export { accentText } from './theme/accent-text';
 export {
   PALETTE_IDS,
   paletteTokens,

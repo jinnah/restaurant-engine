@@ -95,9 +95,11 @@
   padding: 0.125rem 0.625rem;
 }
 
+/* The border is decorative fill; the label is text, so it reads the
+   contrast-guarded token (ADR-024 section 5). */
 .badgeFeatured {
   border-color: var(--accent);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .badgeSoldOut {

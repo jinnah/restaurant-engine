@@ -28,6 +28,9 @@ describe('themeStyle', () => {
     expect(tokens['--color-border']).toBe(warm.border);
     expect(tokens['--accent']).toBe('#a34b2a');
     expect(tokens['--accent-contrast']).toBe('#ffffff');
+    // The default accent already clears the floor against warm, so the
+    // derived text token is the accent itself (ADR-024 section 5).
+    expect(tokens['--accent-text']).toBe('#a34b2a');
     expect(tokens['--font-body']).toBe(humanist.body);
     expect(tokens['--font-heading']).toBe(humanist.heading);
     expect(tokens['--type-scale']).toBe('1');
@@ -43,6 +46,10 @@ describe('themeStyle', () => {
     expect(tokens['--color-text']).toBe(midnight.text);
     expect(tokens['--color-muted']).toBe(midnight.muted);
     expect(tokens['--color-border']).toBe(midnight.border);
+    // The accent survives as the decorative fill; only the derived text
+    // token moves, and only to become legible on the dark palette.
+    expect(tokens['--accent']).toBe('#a34b2a');
+    expect(tokens['--accent-text']).not.toBe('#a34b2a');
   });
 
   test('a selected pairing replaces the typography tokens', () => {

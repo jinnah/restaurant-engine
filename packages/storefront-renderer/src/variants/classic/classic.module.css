@@ -32,7 +32,7 @@
 
 /* Navigation target: block padding keeps the target at the 44px floor. */
 .navLink {
-  color: var(--accent);
+  color: var(--accent-text);
   display: inline-block;
   font-weight: 600;
   min-height: 44px;

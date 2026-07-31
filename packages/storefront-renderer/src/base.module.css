@@ -29,6 +29,10 @@
   --color-border: #e0dad2;
   --accent: #a34b2a;
   --accent-contrast: #ffffff;
+  /* The contrast-guarded accent for text and focus indicators
+     (ADR-024 section 5). The baseline value is the platform default
+     accent, which clears the AA floor against the baseline palette. */
+  --accent-text: #a34b2a;
   --space-1: 0.5rem;
   --space-2: 1rem;
   --space-3: 2rem;
@@ -73,11 +77,11 @@
 }
 
 :where(.tenantPage) a {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 :where(.tenantPage) :focus-visible {
-  outline: 3px solid var(--accent);
+  outline: 3px solid var(--accent-text);
   outline-offset: 2px;
 }
 

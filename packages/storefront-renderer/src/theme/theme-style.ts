@@ -23,6 +23,7 @@
 import type { CSSProperties } from 'react';
 
 import { accentForeground, safeAccent } from '../accent';
+import { accentText } from './accent-text';
 import type { PublicTheme } from '../contract';
 import { paletteTokens } from './palettes';
 import { typePairingTokens } from './type-pairings';
@@ -46,6 +47,7 @@ export function themeStyle(theme: PublicTheme): CSSProperties {
     '--color-border': palette.border,
     '--accent': accent,
     '--accent-contrast': accentForeground(accent),
+    '--accent-text': accentText(accent, palette),
     '--font-body': pairing.body,
     '--font-heading': pairing.heading,
     '--type-scale': pairing.scale,
