@@ -2,6 +2,7 @@ import { Link } from 'react-router';
 import {
   SectionList,
   tenantPageClass,
+  themeStyle,
   VariantLayout,
 } from '@restaurant-engine/storefront-renderer';
 import { useSession } from '../auth/useSession';
@@ -129,7 +130,14 @@ export function StorefrontPreviewPage() {
           </p>
         )}
       </div>
-      <div className={`${styles.previewSurface} ${tenantPageClass}`}>
+      {/* The preview container is this app's `.tenantPage` element, so
+          it carries the theme's custom properties exactly as the public
+          <body> does (ADR-024 Section 5) - one typed source, identical
+          public and preview rendering. */}
+      <div
+        className={`${styles.previewSurface} ${tenantPageClass}`}
+        style={themeStyle(projection.theme)}
+      >
         <VariantLayout storefront={projection} links="inert">
           <SectionList
             sections={projection.sections}

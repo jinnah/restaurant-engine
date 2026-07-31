@@ -19,6 +19,7 @@ import type {
   PublicStorefrontImage,
   PublicStorySection,
   PublicTheme,
+  PublicThemeLogo,
 } from './contract';
 
 /**
@@ -34,6 +35,25 @@ export function themeFixture(
     palette: 'warm',
     type_pairing: 'humanist',
     logo: null,
+    ...overrides,
+  };
+}
+
+export function themeLogoFixture(
+  overrides: Partial<PublicThemeLogo> = {},
+): PublicThemeLogo {
+  return {
+    width: 480,
+    height: 160,
+    url: '/api/v1/public/media/00000000-0000-0000-0000-0000000010g0/w640',
+    variants: [
+      {
+        variant: 'w320',
+        width: 320,
+        height: 107,
+        url: '/api/v1/public/media/00000000-0000-0000-0000-0000000010g0/w320',
+      },
+    ],
     ...overrides,
   };
 }

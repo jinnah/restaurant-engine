@@ -4,6 +4,8 @@ import type { PublicStorefront } from '../contract';
 import { assertNever } from '../assert-never';
 import type { LinkMode } from '../links';
 import { ClassicLayout } from './classic/ClassicLayout';
+import { EditorialLayout } from './editorial/EditorialLayout';
+import { ExpressLayout } from './express/ExpressLayout';
 
 // The variant-to-layout registry (ADR-021): a design variant is a
 // *renderer* contract (ADR-020), and this dispatch is the renderer side of
@@ -35,6 +37,18 @@ export function VariantLayout({
         <ClassicLayout storefront={storefront} links={links}>
           {children}
         </ClassicLayout>
+      );
+    case 'editorial':
+      return (
+        <EditorialLayout storefront={storefront} links={links}>
+          {children}
+        </EditorialLayout>
+      );
+    case 'express':
+      return (
+        <ExpressLayout storefront={storefront} links={links}>
+          {children}
+        </ExpressLayout>
       );
     default:
       return assertNever(variant);

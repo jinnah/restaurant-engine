@@ -6,8 +6,20 @@
    its preview container. Every descendant rule is wrapped in :where(),
    which contributes zero specificity — the effective cascade against the
    component modules is exactly what the original element selectors had.
-   The tenant's one styling token (--accent, with its computed
-   --accent-contrast foreground) is set per page by the variant layout. */
+
+   M4G-B (ADR-024 §5): `themeStyle()` sets the palette, the typography
+   pairing, and the accent pair as inline custom properties on THIS very
+   element, from one typed registry — so the tokens reach the painted
+   browser canvas as well as every descendant, and an inline declaration
+   simply wins over the class declarations below. No palette identifier
+   and no palette-specific block exists in CSS.
+
+   The declarations below are therefore the single untokened baseline,
+   not a second registry. They exist because the neutral platform
+   surfaces — the 404 and the generic error document — deliberately carry
+   no tenant theme. `tests/palettes.test.ts` and
+   `tests/type-pairings.test.ts` pin them equal to `warm` / `humanist`,
+   so the baseline can never drift from the delivered presentation. */
 
 .tenantPage {
   --color-bg: #faf8f5;
@@ -17,6 +29,10 @@
   --color-border: #e0dad2;
   --accent: #a34b2a;
   --accent-contrast: #ffffff;
+  /* The contrast-guarded accent for text and focus indicators
+     (ADR-024 section 5). The baseline value is the platform default
+     accent, which clears the AA floor against the baseline palette. */
+  --accent-text: #a34b2a;
   --space-1: 0.5rem;
   --space-2: 1rem;
   --space-3: 2rem;
@@ -24,8 +40,11 @@
   box-sizing: border-box;
   /* Universal system stack first; complex-script system fonts (Bengali
      among them) appear as later fallbacks so any script renders with
-     correct shaping at zero network cost. No webfont is loaded. */
-  font-family:
+     correct shaping at zero network cost. No webfont is loaded. The
+     pairing registry supplies `--font-body`; the fallback below is the
+     delivered stack, used by the unthemed platform surfaces. */
+  font-family: var(
+    --font-body,
     system-ui,
     -apple-system,
     'Segoe UI',
@@ -35,7 +54,8 @@
     'Noto Sans',
     'Noto Sans Bengali',
     'Nirmala UI',
-    sans-serif;
+    sans-serif
+  );
   /* Generous line height so stacked diacritics and conjunct clusters
      (matras, hasanta sequences) never clip. */
   line-height: 1.6;
@@ -57,28 +77,43 @@
 }
 
 :where(.tenantPage) a {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 :where(.tenantPage) :focus-visible {
-  outline: 3px solid var(--accent);
+  outline: 3px solid var(--accent-text);
   outline-offset: 2px;
 }
 
+/* Heading typography from the pairing registry (ADR-024 §6). Type
+   selectors inside :where() keep this at (0,0,1), so every component
+   module's class rule still wins on the properties it sets; these are
+   properties no component sets. The fallbacks reproduce the user-agent
+   defaults the delivered presentation relied on. */
+:where(.tenantPage) :is(h1, h2, h3) {
+  font-family: var(--font-heading, inherit);
+  font-weight: var(--heading-weight, bold);
+  letter-spacing: var(--heading-tracking, normal);
+}
+
 :where(.tenantPage) h1 {
-  font-size: 1.75rem;
+  font-size: calc(1.75rem * var(--type-scale, 1));
   line-height: 1.25;
 }
 
 /* Reduced-motion floor: nothing animates for users who asked it not to.
-   The renderer ships no animation; this keeps any future transition
-   honest. */
+   `animation-timeline: auto` is the M4G-B addition (ADR-024 §9): a
+   scroll-driven animation is progress-based, so detaching it from its
+   scroll timeline — as well as collapsing its duration — makes the
+   neutralisation unambiguous across engines rather than dependent on how
+   a finite duration is interpreted against a progress-based timeline. */
 @media (prefers-reduced-motion: reduce) {
   :where(.tenantPage) *,
   :where(.tenantPage) *::before,
   :where(.tenantPage) *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    animation-timeline: auto !important;
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
   }

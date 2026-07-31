@@ -9,6 +9,7 @@
 export type {
   DesignVariant,
   HeroAction,
+  PaletteId,
   PublicContactSection,
   PublicGallerySection,
   PublicHeroSection,
@@ -18,4 +19,6 @@ export type {
   PublicStorefrontImage,
   PublicStorySection,
   PublicTheme,
+  PublicThemeLogo,
+  TypePairingId,
 } from '@restaurant-engine/api-client';

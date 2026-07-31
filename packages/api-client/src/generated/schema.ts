@@ -1510,7 +1510,7 @@ export interface components {
          * @description Platform-curated structural design variants (append-only).
          * @enum {string}
          */
-        DesignVariant: "classic";
+        DesignVariant: "classic" | "editorial" | "express";
         /**
          * DietaryTag
          * @description Structured dietary attributes of a menu item (append-only).

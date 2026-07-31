@@ -1,31 +1,40 @@
-import type { CSSProperties } from 'react';
-
-import { accentForeground, safeAccent } from '../../accent';
 import { siteLinkHref } from '../../links';
+import { ThemeLogo } from '../../theme/ThemeLogo';
 import type { VariantLayoutProps } from '../registry';
 import styles from './classic.module.css';
 
 // The `classic` variant layout (ADR-021): tenant-branded chrome around the
 // shared section renderers. The page is entirely the tenant's — the
 // business name is the h1 and every section heading is an h2, one fixed
-// hierarchy regardless of section order. The tenant accent enters CSS as
-// one custom property pair (`--accent` plus its computed black/white
-// foreground), never as arbitrary styling. Chrome labels ("Menu") are
+// hierarchy regardless of section order. Chrome labels ("Menu") are
 // neutral product copy; no platform branding appears.
+//
+// M4G-B (ADR-024 §5): the theme's custom properties — palette, typography
+// pairing, and the accent pair — are no longer set here. They are applied
+// once, by `themeStyle()`, on the element carrying `tenantPageClass`, so
+// the painted browser canvas and every descendant read the same typed
+// source. A variant sets only its own chrome tokens.
 export function ClassicLayout({
   storefront,
   children,
   links = 'active',
 }: VariantLayoutProps) {
-  const accent = safeAccent(storefront.theme.accent);
-  const themeStyle = {
-    '--accent': accent,
-    '--accent-contrast': accentForeground(accent),
-  } as CSSProperties;
   return (
-    <div className={styles.page} style={themeStyle}>
+    <div className={styles.page} data-variant="classic">
       <header className={styles.header}>
-        <h1 className={styles.name}>{storefront.business.name}</h1>
+        {/* ADR-024 section 7: the logo sits BESIDE the name, which stays
+            the visible semantic h1. A null logo renders name-only
+            chrome. */}
+        <div className={styles.identity}>
+          {storefront.theme.logo === null ? null : (
+            <ThemeLogo
+              logo={storefront.theme.logo}
+              sizes="10rem"
+              className={styles.logo}
+            />
+          )}
+          <h1 className={styles.name}>{storefront.business.name}</h1>
+        </div>
         <nav aria-label="Site" className={styles.nav}>
           <a href={siteLinkHref(links, '/menu')} className={styles.navLink}>
             Menu

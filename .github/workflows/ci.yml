@@ -86,6 +86,19 @@ jobs:
       - name: Storefront built-server verification
         run: pnpm storefront:verify
 
+      # M4G-B (ADR-024 section 11): per-route and per-variant CSS weight is
+      # MEASURED AND REPORTED, deliberately without a size threshold - a
+      # blocking number invented before any measurement exists would be
+      # arbitrary. The command still fails on measurement integrity (absent
+      # build, unreadable manifest, unresolvable route, missing asset), so
+      # an unmeasurable build is never silently reported as a pass.
+      #
+      # `storefront:css` runs the measurement's own regression suite first
+      # (disposable fixtures, no dependency on this build) and only then
+      # measures the real production build just produced above.
+      - name: Storefront CSS regression suite and weight report
+        run: pnpm storefront:css
+
   backend:
     runs-on: ubuntu-latest
     defaults:

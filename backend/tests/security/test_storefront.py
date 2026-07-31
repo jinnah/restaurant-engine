@@ -12,9 +12,7 @@ import threading
 import time
 import uuid
 from collections.abc import Iterator
-from enum import StrEnum
-from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any
 from unittest import mock
 
 import pytest
@@ -1752,20 +1750,6 @@ class TestHistoryReads:
             storefront_service.list_versions(db, _actor(staff_id), business, limit=50, offset=0)
 
 
-class _FutureVariant(StrEnum):
-    """A not-yet-registered variant, standing in for the M4D+ second entry.
-
-    The design-variant registry deliberately ships exactly one member until
-    a second renderer exists, so the effective-reassignment branch cannot
-    be reached through the real enum today. These tests prove its
-    mechanics — increment, audit, the §6 interleaving — against the seam
-    the next registered variant will use, bypassing only the request
-    schema's enum validation (``model_construct``).
-    """
-
-    MODERN = "modern"
-
-
 class TestDesignAssignment:
     def test_creates_the_first_draft_with_the_requested_variant(
         self,
@@ -1902,27 +1886,24 @@ class TestDesignAssignment:
             db, create_user, create_business, create_membership
         )
         admin_id = create_user(PLATFORM_ADMIN, is_platform_admin=True)
-        payload = DesignAssignment.model_construct(
-            design_variant=cast(DesignVariant, _FutureVariant.MODERN)
+        # M4G-B registered the second and third variants, so this runs
+        # against the real enum through the ordinary request schema - no
+        # model_construct bypass and no stubbed response model.
+        payload = DesignAssignment(design_variant=DesignVariant.EDITORIAL)
+
+        result = storefront_service.assign_design(
+            db, _actor(admin_id, is_platform_admin=True), business, payload
         )
 
-        # The strict response model rightly cannot represent an
-        # unregistered variant, so the acknowledgment construction alone is
-        # stubbed; every service-side effect below is real. Rewrite this
-        # test against the real enum when the second variant registers.
-        with mock.patch.object(storefront_service, "DesignAssignmentResult", SimpleNamespace):
-            result = storefront_service.assign_design(
-                db, _actor(admin_id, is_platform_admin=True), business, payload
-            )
-
         assert result.previous_variant is DesignVariant.CLASSIC
+        assert result.design_variant is DesignVariant.EDITORIAL
         rows = _version_rows(migrated_engine, business)
-        assert rows[0]["design_variant"] == "modern"
+        assert rows[0]["design_variant"] == "editorial"
         assert rows[0]["lock_version"] == 1
         events = _audit_events(migrated_engine, business, "storefront.design_assigned")
         assert events[-1]["details"] == {
             "previous_variant": "classic",
-            "new_variant": "modern",
+            "new_variant": "editorial",
         }
         # The owner's stale write (lock 0) now conflicts (§6).
         with pytest.raises(ApiError) as excinfo:

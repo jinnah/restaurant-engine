@@ -40,7 +40,10 @@ export function HeroSection({
 }) {
   const { heading, subheading, image, primary_action } = section.props;
   return (
-    <section className={`${styles.section} ${styles.hero}`}>
+    <section
+      className={`${styles.section} ${styles.hero}`}
+      data-section-type="hero"
+    >
       <h2 className={styles.heroHeading}>{heading}</h2>
       {subheading === null ? null : (
         <p className={styles.heroSubheading}>{subheading}</p>

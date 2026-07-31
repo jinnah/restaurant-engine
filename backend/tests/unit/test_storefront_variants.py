@@ -4,15 +4,19 @@ from app.domains.storefront import variants
 from app.domains.storefront.variants import PLATFORM_DEFAULT_VARIANT, DesignVariant
 
 
-def test_the_registry_is_closed_and_ships_exactly_one_variant() -> None:
-    """One variant in M4A, deliberately.
+def test_the_registry_is_closed_and_ships_exactly_the_rendered_variants() -> None:
+    """Every registered variant has a shipped renderer arm.
 
-    A variant is a *renderer* contract and no renderer exists before M4D;
-    naming more now would publish structure nothing can render. This test
-    is expected to change when M4D adds real variants — it exists so that
-    happens as a decision, not as drift.
+    A variant is a *renderer* contract, so a member exists only once its
+    layout arm ships (ADR-024 §8): ``classic`` from M4D, ``editorial`` and
+    ``express`` from M4G-B. This test exists so registry growth happens as
+    a decision, not as drift.
     """
-    assert {variant.value for variant in DesignVariant} == {"classic"}
+    assert {variant.value for variant in DesignVariant} == {
+        "classic",
+        "editorial",
+        "express",
+    }
 
 
 def test_the_platform_default_is_explicit_and_registered() -> None:
