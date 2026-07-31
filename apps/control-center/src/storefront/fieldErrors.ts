@@ -16,6 +16,16 @@ import type { ApiFailure } from '../api/failure';
  * cannot land on the wrong section. Anything unmappable (whole-document
  * paths, media-reference messages, a tag/index mismatch) stays in the
  * persistent form-level summary with the server's message verbatim.
+ *
+ * The theme is mapped by **exact published path only** (M4G-C). A Pydantic
+ * field error naming `body.config.theme.palette`, `…type_pairing`,
+ * `…logo`, or `…logo.media_id` reaches the control that owns it. The
+ * service-level media rejection — unknown, cross-business, or non-image
+ * references — is deliberately *not* one of these: it is a general 422
+ * carrying `details.media_ids` and no field error at all, so it stays in
+ * the summary with the server's own wording. Guessing a control from a
+ * media id would mean inferring which reference the server refused, and
+ * the response is indistinguishable by design (ADR-020 §10).
  */
 export interface MappedFieldError {
   /** RHF path on ComposerValues, e.g. `sections.2.props.heading`. */
@@ -28,6 +38,19 @@ export interface MappedSaveFailure {
   /** Messages that could not be attached to a specific input. */
   unmapped: string[];
 }
+
+/**
+ * `body.config.theme.…` suffixes the composer owns a control for, mapped
+ * to their form paths. Exhaustive over the published `Theme` fields; a
+ * suffix absent here stays in the summary rather than being guessed.
+ */
+const THEME_FIELD_PATHS: Record<string, string> = {
+  accent: 'accent',
+  palette: 'palette',
+  type_pairing: 'typePairing',
+  logo: 'logo',
+  'logo.media_id': 'logo',
+};
 
 export function mapDraftSaveFailure(
   failure: ApiFailure,
@@ -44,16 +67,13 @@ export function mapDraftSaveFailure(
 
   for (const fieldError of fieldErrors) {
     const parts = fieldError.field.split('.');
-    // body.config.theme.accent → the composer's accent field.
-    if (
-      parts.length === 4 &&
-      parts[0] === 'body' &&
-      parts[1] === 'config' &&
-      parts[2] === 'theme' &&
-      parts[3] === 'accent'
-    ) {
-      fields.push({ path: 'accent', message: fieldError.message });
-      continue;
+    // body.config.theme.{suffix} → the brand control that owns it.
+    if (parts[0] === 'body' && parts[1] === 'config' && parts[2] === 'theme') {
+      const mapped = THEME_FIELD_PATHS[parts.slice(3).join('.')];
+      if (mapped !== undefined) {
+        fields.push({ path: mapped, message: fieldError.message });
+        continue;
+      }
     }
     // body.config.sections.{i}.{tag}.{rest...}
     if (

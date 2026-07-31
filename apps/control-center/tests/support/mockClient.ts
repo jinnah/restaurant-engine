@@ -11,6 +11,7 @@ import type {
   DraftView,
   ErrorEnvelope,
   ItemSummary,
+  MediaAssetView,
   MembershipSummary,
   PublicStorefront,
   SessionView,
@@ -219,6 +220,30 @@ export function previewProjection(
   };
 }
 
+/**
+ * One library asset. Pending by default, because that is the state a
+ * freshly uploaded image is in while it is only *staged* by a draft.
+ */
+export function mediaAsset(
+  overrides: Partial<MediaAssetView> = {},
+): MediaAssetView {
+  return {
+    id: '00000000-0000-4000-8000-0000000000b1',
+    kind: 'image',
+    original_filename: 'logo.png',
+    source_format: 'png',
+    status: 'pending',
+    pending_expires_at: '2026-08-02T00:00:00Z',
+    byte_size: 12345,
+    width: 512,
+    height: 512,
+    variants: [],
+    created_at: '2026-07-31T00:00:00Z',
+    updated_at: '2026-07-31T00:00:00Z',
+    ...overrides,
+  };
+}
+
 /** An empty administrative menu — the starting point for most menu tests. */
 export function adminMenu(categories: CategoryWithItems[] = []): AdminMenu {
   return { categories };
@@ -309,6 +334,7 @@ export function makeClient(overrides: ClientOverrides = {}): ApiClient {
       setEntitlements: vi.fn(async () => deniedPlatform()),
       issuePasswordReset: vi.fn(async () => deniedPlatform()),
       listAuditEvents: vi.fn(async () => deniedPlatform()),
+      setDesign: vi.fn(async () => deniedPlatform()),
       ...overrides.platform,
     },
     businesses: {

@@ -87,7 +87,14 @@ describe('first draft save (create intent)', () => {
       // the platform defaults explicitly (M4G-A): the generated `Theme`
       // makes every defaulted field required. The server would apply the
       // same values, so the stored result is identical either way.
-      theme: { accent: '#a34b2a', palette: 'warm', type_pairing: 'humanist' },
+      // `logo: null` is sent for the same reason M4G-C sends every other
+      // brand field on every save — the PUT is a full document.
+      theme: {
+        accent: '#a34b2a',
+        palette: 'warm',
+        type_pairing: 'humanist',
+        logo: null,
+      },
       sections: [
         {
           id: 'hero',
@@ -142,11 +149,11 @@ describe('existing draft save (update intent)', () => {
     expect(body.expected_lock_version).toBe(3);
   });
 
-  test('an unrelated edit re-sends the theme fields the composer cannot edit', async () => {
-    // M4G-A end to end through the real form: the composer has no palette,
-    // pairing, or logo control, and the draft PUT replaces the whole
-    // document — so a heading edit would otherwise reset all three to their
-    // schema defaults on the server.
+  test('an unrelated edit re-sends every stored theme field unchanged', async () => {
+    // The draft PUT replaces the whole document, so a heading edit would
+    // otherwise reset the theme to its schema defaults on the server. The
+    // carry (M4G-A) plus the brand fields the form now seeds from the
+    // loaded draft (M4G-C) must round-trip all of them untouched.
     const stored = storefrontConfig({
       sections: heroConfig().sections,
       theme: {

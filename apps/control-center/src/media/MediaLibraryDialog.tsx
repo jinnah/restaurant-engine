@@ -24,11 +24,28 @@ const MAX_ALT = 300;
 type AltChoice = 'describe' | 'decorative' | null;
 
 /**
+ * Whether this placement lets the person decide the alt text.
+ *
+ * `'choose'` is the delivered behaviour and the default: the describe /
+ * decorative pair is offered and one of them must be picked before the
+ * image can be attached. Every M3E/M4E consumer stays on it, unchanged.
+ *
+ * `'decorative'` is for a placement where the product has already ruled
+ * the image permanently decorative and no alt text can ever exist — the
+ * tenant logo (ADR-024 §7), which renders `alt=""` beside a business name
+ * that is always present as text. Offering a "Describe this image" choice
+ * there would invite a description the product then discards, so the whole
+ * fieldset is absent rather than disabled, and the attach reports `null`.
+ */
+export type MediaAltMode = 'choose' | 'decorative';
+
+/**
  * The per-consumer copy of the shared library dialog (ADR-022 §4): each
  * placement names its own action, decorative wording, description example,
  * and delete-conflict explanation, because the consequences differ. The
- * behavioral core — upload, library, pending honesty, deletion, the
- * describe/decorative choice — is identical for every consumer.
+ * behavioral core — upload, library, pending honesty, deletion — is
+ * identical for every consumer; only the describe/decorative choice can be
+ * absent, and only for a placement that declares itself decorative.
  */
 export interface MediaLibraryCopy {
   title: string;
@@ -36,10 +53,17 @@ export interface MediaLibraryCopy {
   confirmLabel: string;
   /** The confirm action while the consumer's own mutation runs. */
   pendingConfirmLabel: string;
-  /** The decorative-image radio label. */
-  decorativeLabel: string;
-  /** Example description shown under the alt-text field. */
-  altHint: string;
+  /**
+   * The decorative-image radio label. Supplied by every `'choose'`
+   * consumer; absent for a `'decorative'` placement, which offers no
+   * radio at all.
+   */
+  decorativeLabel?: string;
+  /**
+   * Example description shown under the alt-text field. Absent for a
+   * `'decorative'` placement, for the same reason.
+   */
+  altHint?: string;
   /** Rendered when deleting a still-referenced asset answers 409. */
   deleteConflictMessage: string;
   /**
@@ -61,6 +85,8 @@ export interface MediaLibraryDialogProps {
   error: string | null;
   /** `business.media.write`: whether library entries may be deleted here. */
   canManageLibrary: boolean;
+  /** Defaults to `'choose'` — the delivered describe/decorative pair. */
+  altMode?: MediaAltMode;
 }
 
 function formatBytes(bytes: number): string {
@@ -72,8 +98,15 @@ function formatBytes(bytes: number): string {
 /**
  * Choose an image from the business's media library: upload a new one, or
  * pick an existing asset, then describe it. Shared by the menu item-image
- * flow (M3E) and the storefront section-image flows (M4E) through thin
- * copy adapters.
+ * flow (M3E), the storefront section-image flows (M4E), and the theme
+ * logo (M4G-C) through thin copy adapters.
+ *
+ * The description step is the one thing a placement may opt out of, via
+ * {@link MediaAltMode}. It is not a styling switch: a `'decorative'`
+ * placement is one where the product has already ruled that no alt text
+ * can exist, so asking for one would be dishonest. Everything else —
+ * upload, library, pending honesty, deletion, the focus and dismissal
+ * contracts — is identical for every consumer.
  *
  * Uploading and attaching are two different operations against two different
  * domains, and the dialog does them in that order rather than pretending they
@@ -123,6 +156,7 @@ export function MediaLibraryDialog({
   pending,
   error,
   canManageLibrary,
+  altMode = 'choose',
 }: MediaLibraryDialogProps) {
   const client = useApiClient();
   const [offset, setOffset] = useState(0);
@@ -246,10 +280,14 @@ export function MediaLibraryDialog({
     });
   }
 
+  // A decorative placement has nothing to decide beyond the image itself,
+  // so the alt choice is not part of its confirm condition.
+  const decorative = altMode === 'decorative';
   const canConfirm =
     selected !== null &&
-    altChoice !== null &&
-    !(altChoice === 'describe' && altText.trim() === '') &&
+    (decorative ||
+      (altChoice !== null &&
+        !(altChoice === 'describe' && altText.trim() === ''))) &&
     !busy;
 
   return (
@@ -434,7 +472,7 @@ export function MediaLibraryDialog({
         </>
       )}
 
-      {selected !== null && (
+      {selected !== null && !decorative && (
         <fieldset className={styles.fieldset}>
           <legend>Describe this image</legend>
           <p className={styles.fieldHintText}>
@@ -512,7 +550,7 @@ export function MediaLibraryDialog({
               // the decorative branch makes the intent explicit.
               onAttach(
                 selected,
-                altChoice === 'describe' ? altText.trim() : null,
+                !decorative && altChoice === 'describe' ? altText.trim() : null,
               );
             }
           }}

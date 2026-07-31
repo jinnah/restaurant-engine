@@ -19,6 +19,12 @@ import {
   DEFAULT_PALETTE,
   DEFAULT_TYPE_PAIRING,
 } from '../src/storefront/composition';
+import {
+  PALETTE_CHOICES,
+  PALETTE_ORDER,
+  TYPE_PAIRING_CHOICES,
+  TYPE_PAIRING_ORDER,
+} from '../src/storefront/themeChoices';
 
 interface SchemaProperty {
   maxItems?: number;
@@ -33,7 +39,10 @@ const document = JSON.parse(
   ),
 ) as {
   components: {
-    schemas: Record<string, { properties?: Record<string, SchemaProperty> }>;
+    schemas: Record<
+      string,
+      { properties?: Record<string, SchemaProperty>; enum?: string[] }
+    >;
   };
 };
 
@@ -61,6 +70,31 @@ describe('mirrored bounds equal the committed OpenAPI constraints', () => {
     expect(theme?.['accent']?.default).toBe(DEFAULT_ACCENT);
     expect(theme?.['palette']?.default).toBe(DEFAULT_PALETTE);
     expect(theme?.['type_pairing']?.default).toBe(DEFAULT_TYPE_PAIRING);
+  });
+
+  // M4G-C: the composer offers a choice per registry member, so the set it
+  // offers must be the set the contract publishes — in the same order the
+  // renderer registers them. A registry member added to the backend but
+  // never surfaced here would otherwise be silently unreachable, and one
+  // offered but not published would be a 422 waiting to happen. The label
+  // records are keyed by the generated union, so their exhaustiveness is
+  // already a typecheck; this pins the runtime order and the enum itself.
+  test('palette choices equal the published PaletteId enum, in order', () => {
+    expect(document.components.schemas['PaletteId']?.enum).toEqual([
+      ...PALETTE_ORDER,
+    ]);
+    expect(Object.keys(PALETTE_CHOICES).sort()).toEqual(
+      [...PALETTE_ORDER].sort(),
+    );
+  });
+
+  test('typography choices equal the published TypePairingId enum, in order', () => {
+    expect(document.components.schemas['TypePairingId']?.enum).toEqual([
+      ...TYPE_PAIRING_ORDER,
+    ]);
+    expect(Object.keys(TYPE_PAIRING_CHOICES).sort()).toEqual(
+      [...TYPE_PAIRING_ORDER].sort(),
+    );
   });
 
   test('no text-length bound is published for the mirror to claim', () => {

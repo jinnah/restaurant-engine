@@ -26,6 +26,7 @@ import {
   useSaveDraft,
   useStorefrontOverview,
 } from '../storefrontData';
+import { BrandFields } from './BrandFields';
 import { SectionCard } from './SectionCard';
 import { SectionEditDialog } from './SectionEditDialog';
 import styles from '../storefront.module.css';
@@ -76,7 +77,6 @@ export function DraftComposer({
     control: form.control,
     name: 'sections',
   });
-  const watchedAccent = useWatch({ control: form.control, name: 'accent' });
 
   const [dialog, setDialog] = useState<DialogState>(null);
   const [publishing, setPublishing] = useState(false);
@@ -89,7 +89,6 @@ export function DraftComposer({
   }
 
   const sectionsValue = watchedSections ?? [];
-  const accentValue = watchedAccent ?? '';
   const presentTypes = new Set(sectionsValue.map((section) => section.type));
   const missingTypes = SECTION_TYPES.filter((type) => !presentTypes.has(type));
   const canEdit = permissions.canEdit && conflict === null;
@@ -125,13 +124,24 @@ export function DraftComposer({
         const failure = asApiFailure(error);
         const kind = classifyFailure(failure);
         if (kind === 'conflict') {
-          // §6: preserve values and the stale token; mark the overview
-          // stale WITHOUT refetching; nothing is retried or merged.
-          setConflict({
-            message: failure.message,
-            serverLock: conflictLimitLockVersion(failure),
-          });
-          markOverviewStale(queryClient, businessId);
+          if (isStaleDraftConflict(failure)) {
+            // §6: preserve values and the stale token; mark the overview
+            // stale WITHOUT refetching; nothing is retried or merged.
+            setConflict({
+              message: failure.message,
+              serverLock: conflictLimitLockVersion(failure),
+            });
+            markOverviewStale(queryClient, businessId);
+            return;
+          }
+          // A different 409 — today, the media claim path's `invalid_state`
+          // for a staged asset that expired before the save reached it.
+          // Nothing about the draft changed anywhere else, so the stale
+          // panel would make a false claim and would strand the editor in a
+          // state whose only exit discards the very reference that needs
+          // replacing. The server's own message goes in the summary and
+          // every value, including the staged logo, stays put.
+          setSummary({ summary: failure.message, fields: {} });
           return;
         }
         if (kind === 'invalid') {
@@ -141,8 +151,8 @@ export function DraftComposer({
           );
           setServerErrors(mapped.fields);
           for (const field of mapped.fields) {
-            if (field.path === 'accent') {
-              form.setError('accent', {
+            if (isBrandFieldPath(field.path)) {
+              form.setError(field.path, {
                 type: 'server',
                 message: field.message,
               });
@@ -171,8 +181,6 @@ export function DraftComposer({
     form.clearErrors();
     setConflict(null);
   }
-
-  const accentError = form.formState.errors.accent?.message;
 
   return (
     <section aria-labelledby="composer-title" className={styles.panel}>
@@ -263,24 +271,7 @@ export function DraftComposer({
         </div>
       )}
 
-      <div className={styles.accentField}>
-        <label htmlFor="accent-input">Accent color</label>
-        {canEdit ? (
-          <input id="accent-input" type="color" {...form.register('accent')} />
-        ) : (
-          <span
-            className={styles.accentSwatch}
-            style={{ background: accentValue }}
-            aria-hidden="true"
-          />
-        )}
-        <code>{accentValue}</code>
-        {accentError !== undefined && (
-          <p role="alert" className={styles.fieldErrorText}>
-            {accentError}
-          </p>
-        )}
-      </div>
+      <BrandFields businessId={businessId} form={form} canEdit={canEdit} />
 
       {permissions.canEdit && (
         <div className={styles.actions}>
@@ -344,7 +335,12 @@ export function DraftComposer({
                 onError: (error: unknown) => {
                   setPublishing(false);
                   const failure = asApiFailure(error);
-                  if (classifyFailure(failure) === 'conflict') {
+                  // Same distinction as the save path: only the backend's
+                  // own stale/conflict response means the draft moved.
+                  if (
+                    classifyFailure(failure) === 'conflict' &&
+                    isStaleDraftConflict(failure)
+                  ) {
                     setConflict({
                       message: failure.message,
                       serverLock: conflictLimitLockVersion(failure),
@@ -425,6 +421,36 @@ export function DraftComposer({
       />
     </section>
   );
+}
+
+/**
+ * The brand controls a mapped 422 path can land on (M4G-C). Section paths
+ * are indexed and handled separately; anything else stays in the summary.
+ */
+const BRAND_FIELD_PATHS = ['accent', 'palette', 'typePairing', 'logo'] as const;
+type BrandFieldPath = (typeof BRAND_FIELD_PATHS)[number];
+
+function isBrandFieldPath(path: string): path is BrandFieldPath {
+  return (BRAND_FIELD_PATHS as readonly string[]).includes(path);
+}
+
+/**
+ * Is this 409 the **stale-draft** conflict, as opposed to some other rule
+ * the same status carries?
+ *
+ * The status alone is not the question. `ErrorCode.CONFLICT` is the
+ * optimistic-concurrency answer — the draft moved under this editor — and
+ * it is the only one the §6 conflict state describes truthfully. The media
+ * claim path answers `invalid_state` on the same status when a staged
+ * asset expired before the save reached it, and the publish path answers
+ * it for a lifecycle refusal; neither means the draft changed elsewhere.
+ * An envelope-less 409 cannot arise through any application path, and
+ * treating it as *not* stale is the safe default: the summary states the
+ * server's message instead of asserting a concurrent edit that may not
+ * have happened.
+ */
+function isStaleDraftConflict(failure: ReturnType<typeof asApiFailure>) {
+  return failure.envelope?.error.code === 'conflict';
 }
 
 /**
