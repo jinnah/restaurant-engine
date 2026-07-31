@@ -18,7 +18,25 @@ import type {
   PublicStorefront,
   PublicStorefrontImage,
   PublicStorySection,
+  PublicTheme,
 } from './contract';
+
+/**
+ * The delivered presentation: the platform default accent plus the registry
+ * defaults every configuration stored before M4G projects (ADR-024 §5), so
+ * a fixture that overrides one token keeps the rest realistic.
+ */
+export function themeFixture(
+  overrides: Partial<PublicTheme> = {},
+): PublicTheme {
+  return {
+    accent: '#a34b2a',
+    palette: 'warm',
+    type_pairing: 'humanist',
+    logo: null,
+    ...overrides,
+  };
+}
 
 export function imageFixture(
   overrides: Partial<PublicStorefrontImage> = {},
@@ -204,7 +222,7 @@ export function storefrontFixture(
       currency: 'USD',
     },
     design_variant: 'classic',
-    theme: { accent: '#a34b2a' },
+    theme: themeFixture(),
     sections,
     ...overrides,
   };

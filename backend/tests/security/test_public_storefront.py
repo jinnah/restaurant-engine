@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import structlog.testing
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, event, text
@@ -103,10 +104,22 @@ def _config(
     )
 
 
-def _config_json(sections: list[dict[str, Any]] | None = None, accent: str = "#a34b2a") -> str:
-    return json.dumps(
-        {"schema_version": 1, "theme": {"accent": accent}, "sections": sections or []}
-    )
+def _config_json(
+    sections: list[dict[str, Any]] | None = None,
+    accent: str = "#a34b2a",
+    *,
+    logo: uuid.UUID | None = None,
+    palette: str | None = None,
+    type_pairing: str | None = None,
+) -> str:
+    theme: dict[str, Any] = {"accent": accent}
+    if logo is not None:
+        theme["logo"] = {"media_id": str(logo)}
+    if palette is not None:
+        theme["palette"] = palette
+    if type_pairing is not None:
+        theme["type_pairing"] = type_pairing
+    return json.dumps({"schema_version": 1, "theme": theme, "sections": sections or []})
 
 
 def _hero(
@@ -279,6 +292,9 @@ def _published_site(
     design_variant: str = "classic",
     accent: str = "#a34b2a",
     status: str = "active",
+    logo: uuid.UUID | None = None,
+    palette: str | None = None,
+    type_pairing: str | None = None,
 ) -> tuple[uuid.UUID, uuid.UUID]:
     """An active Business with one published version (seeded directly)."""
     business_id = create_business(slug=slug, name="Shalik", status=status)
@@ -288,7 +304,9 @@ def _published_site(
         business_id,
         state="published",
         version_number=1,
-        config_json=_config_json(sections, accent=accent),
+        config_json=_config_json(
+            sections, accent=accent, logo=logo, palette=palette, type_pairing=type_pairing
+        ),
         design_variant=design_variant,
         published_by=publisher,
     )
@@ -321,7 +339,14 @@ class TestPublicStorefrontShape:
             "currency": "USD",
         }
         assert body["design_variant"] == "classic"
-        assert body["theme"] == {"accent": "#146b5c"}
+        # The theme states every token; a version stored before M4G projects
+        # the registry defaults, which reproduce its current appearance.
+        assert body["theme"] == {
+            "accent": "#146b5c",
+            "palette": "warm",
+            "type_pairing": "humanist",
+            "logo": None,
+        }
         assert [section["type"] for section in body["sections"]] == ["hero", "menu", "contact"]
         for section in body["sections"]:
             assert set(section) == {"id", "type", "props"}
@@ -335,6 +360,103 @@ class TestPublicStorefrontShape:
         }
         contact = body["sections"][2]["props"]
         assert contact["address_lines"] == ["12 Bailey Ave", "Buffalo, NY"]
+
+    def test_stored_registry_tokens_project_verbatim(
+        self,
+        client: TestClient,
+        create_business: CreateBusiness,
+        create_user: CreateUser,
+        migrated_engine: Engine,
+    ) -> None:
+        """Publication stability (ADR-024 §10): a published version renders
+        with the tokens it was published with, the design-variant precedent
+        extended to the whole visual configuration."""
+        _published_site(
+            create_business,
+            create_user,
+            migrated_engine,
+            sections=[_hero("Shalik Kitchen")],
+            palette="midnight",
+            type_pairing="serif_display",
+        )
+        theme = _get(client).json()["theme"]
+        assert theme["palette"] == "midnight"
+        assert theme["type_pairing"] == "serif_display"
+
+    def test_a_published_theme_logo_resolves_to_public_url_descriptors(
+        self,
+        client: TestClient,
+        create_business: CreateBusiness,
+        create_user: CreateUser,
+        migrated_engine: Engine,
+        media_root: Path,
+    ) -> None:
+        business_id = create_business(slug="shalik", name="Shalik", status="active")
+        logo = _seed_asset(migrated_engine, business_id, root=media_root)
+        publisher = create_user("publisher@example.com")
+        _seed_version(
+            migrated_engine,
+            business_id,
+            state="published",
+            version_number=1,
+            config_json=_config_json([_hero("Shalik Kitchen")], logo=logo),
+            published_by=publisher,
+        )
+
+        projected = _get(client).json()["theme"]["logo"]
+
+        # Intrinsic dimensions plus renditions — and deliberately no alt
+        # text: the logo is decorative and the name carries the meaning.
+        assert set(projected) == {"width", "height", "url", "variants"}
+        assert (projected["width"], projected["height"]) == (1200, 800)
+        assert projected["url"] == _media_url(logo)
+        assert [variant["variant"] for variant in projected["variants"]] == ["w320", "w640"]
+        assert all(
+            variant["url"] == _media_url(logo, variant["variant"])
+            for variant in projected["variants"]
+        )
+
+    def test_an_unresolvable_theme_logo_degrades_to_null(
+        self,
+        client: TestClient,
+        create_business: CreateBusiness,
+        create_user: CreateUser,
+        migrated_engine: Engine,
+    ) -> None:
+        """§7: a logo that cannot render costs nothing informational — the
+        business name is always present as text — so the projection omits it
+        rather than advertising a URL that would answer 404."""
+        _published_site(
+            create_business,
+            create_user,
+            migrated_engine,
+            sections=[_hero("Shalik Kitchen")],
+            logo=uuid.uuid4(),
+        )
+        body = _get(client).json()
+        assert body["theme"]["logo"] is None
+        assert body["business"]["name"] == "Shalik"
+
+    def test_a_pending_theme_logo_is_never_projected_publicly(
+        self,
+        client: TestClient,
+        create_business: CreateBusiness,
+        create_user: CreateUser,
+        migrated_engine: Engine,
+        media_root: Path,
+    ) -> None:
+        business_id = create_business(slug="shalik", name="Shalik", status="active")
+        pending = _seed_asset(migrated_engine, business_id, status="pending", root=media_root)
+        publisher = create_user("publisher@example.com")
+        _seed_version(
+            migrated_engine,
+            business_id,
+            state="published",
+            version_number=1,
+            config_json=_config_json([_hero("Shalik Kitchen")], logo=pending),
+            published_by=publisher,
+        )
+        assert _get(client).json()["theme"]["logo"] is None
 
     def test_disabled_sections_are_omitted_and_order_is_preserved(
         self,
@@ -719,6 +841,66 @@ class TestCorruptPublishedState:
         assert "vintage" not in response.text
         assert response.headers["cache-control"] == "no-store"
 
+    @pytest.mark.parametrize(
+        ("token", "palette", "type_pairing"),
+        [
+            ("retired-scheme", "retired-scheme", None),
+            ("retired-pairing", None, "retired-pairing"),
+        ],
+    )
+    def test_an_unregistered_stored_theme_token_is_an_opaque_500(
+        self,
+        token: str,
+        palette: str | None,
+        type_pairing: str | None,
+        tolerant_client: TestClient,
+        create_business: CreateBusiness,
+        create_user: CreateUser,
+        migrated_engine: Engine,
+    ) -> None:
+        """The M4G-A registries fail closed exactly like the variant does.
+
+        ADR-024 §10: a stored palette or pairing the registry no longer
+        accepts is an integrity defect, and the projection must fail loud
+        rather than render a guessed default — which would misrepresent a
+        published version as something its owner never approved. Retiring an
+        entry removes it from the *assignable* set only (renderable ⊇
+        assignable), so this state is reachable only through drift or
+        corruption, never through the API.
+
+        The authorization side of the same corruption is the opposite
+        answer by design (ruling R-6) and is proved separately in
+        ``TestThemeLogoMediaDelivery``: the anonymous media route keeps its
+        neutral 404.
+        """
+        business_id, _ = _published_site(
+            create_business,
+            create_user,
+            migrated_engine,
+            sections=[],
+            palette=palette,
+            type_pairing=type_pairing,
+        )
+
+        with structlog.testing.capture_logs() as logs:
+            response = tolerant_client.get(_STOREFRONT, headers=_host())
+
+        assert response.status_code == 500
+        assert response.json()["error"]["code"] == "internal_error"
+        assert response.headers["cache-control"] == "no-store"
+        # The stored token never reaches the client.
+        assert token not in response.text
+
+        # ...and the bounded anomaly is recorded on the established
+        # public_projection path: a reason code plus the business id, and
+        # nothing of the configuration itself.
+        warnings = [entry for entry in logs if entry.get("log_level") == "warning"]
+        assert [entry["event"] for entry in warnings] == ["storefront_published_config_invalid"]
+        assert set(warnings[0]) == {"event", "log_level", "business_id", "context"}
+        assert warnings[0]["business_id"] == str(business_id)
+        assert warnings[0]["context"] == "public_projection"
+        assert token not in str(warnings[0])
+
 
 class TestBoundedQueries:
     """The projection must not issue work per section or per image."""
@@ -803,6 +985,48 @@ class TestBoundedQueries:
         with self._statements(app) as recorded:
             assert _get(client).status_code == 200
         assert len(recorded) == 2
+
+    def test_a_theme_logo_costs_no_additional_statement(
+        self,
+        client: TestClient,
+        app: FastAPI,
+        create_business: CreateBusiness,
+        create_user: CreateUser,
+        migrated_engine: Engine,
+    ) -> None:
+        """The logo joins the one batched media read rather than adding its
+        own: the theme leg is a wider collection, not a second query."""
+        with_logo = create_business(slug="logo", name="Logo", status="active")
+        logo_asset = _seed_asset(migrated_engine, with_logo)
+        publisher = create_user("publisher-logo@example.com")
+        _seed_version(
+            migrated_engine,
+            with_logo,
+            state="published",
+            version_number=1,
+            config_json=_config_json([_hero("Home", media_id=logo_asset)], logo=logo_asset),
+            published_by=publisher,
+        )
+        section_only = create_business(slug="plain", name="Plain", status="active")
+        plain_asset = _seed_asset(migrated_engine, section_only)
+        publisher_plain = create_user("publisher-plain@example.com")
+        _seed_version(
+            migrated_engine,
+            section_only,
+            state="published",
+            version_number=1,
+            config_json=_config_json([_hero("Home", media_id=plain_asset)]),
+            published_by=publisher_plain,
+        )
+
+        with self._statements(app) as recorded:
+            assert _get(client, "logo.localhost").status_code == 200
+            logo_count = len(recorded)
+        with self._statements(app) as recorded:
+            assert _get(client, "plain.localhost").status_code == 200
+            plain_count = len(recorded)
+
+        assert logo_count == plain_count
 
 
 class TestPreview:
@@ -1005,6 +1229,335 @@ class TestPreview:
         )
         # Never the anonymous delivery path for a draft asset.
         assert "/api/v1/public/media/" not in str(image)
+
+    def test_a_pending_theme_logo_is_previewed_through_the_member_route(
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
+    ) -> None:
+        """ADR-024 §7: preview includes a pending theme logo exactly as it
+        includes pending section media — the one surface that already serves
+        draft assets, so no new delivery route exists."""
+        business_id = create_business(slug="shalik", name="Shalik", status="active")
+        owner_id = create_user(OWNER)
+        create_membership(business_id, owner_id)
+        pending = _seed_asset(migrated_engine, business_id, status="pending")
+        _seed_version(
+            migrated_engine,
+            business_id,
+            state="draft",
+            config_json=_config_json([_hero("Draft hero")], logo=pending),
+        )
+        login_as(client, OWNER)
+
+        logo = self._preview(client, business_id).json()["theme"]["logo"]
+
+        assert logo is not None
+        assert logo["url"] == f"/api/v1/businesses/{business_id}/media/{pending}/file/canonical"
+        assert all(
+            variant["url"].startswith(f"/api/v1/businesses/{business_id}/media/")
+            for variant in logo["variants"]
+        )
+        assert "/api/v1/public/media/" not in str(logo)
+
+    def test_the_preview_theme_carries_the_draft_registry_tokens(
+        self,
+        client: TestClient,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+        migrated_engine: Engine,
+    ) -> None:
+        business_id = create_business(slug="shalik", name="Shalik", status="active")
+        owner_id = create_user(OWNER)
+        create_membership(business_id, owner_id)
+        _seed_version(
+            migrated_engine,
+            business_id,
+            state="draft",
+            config_json=_config_json([_hero("Draft")], palette="olive", type_pairing="geometric"),
+        )
+        login_as(client, OWNER)
+
+        theme = self._preview(client, business_id).json()["theme"]
+
+        assert theme["palette"] == "olive"
+        assert theme["type_pairing"] == "geometric"
+        assert theme["logo"] is None
+
+
+class TestThemeLogoMediaDelivery:
+    """The §10 predicate's third leg (ADR-020 amendment, ADR-024 §7).
+
+    Same isolation discipline as its M4C predecessor: every negative case
+    that authorizes nothing for a *section* reference must authorize nothing
+    for a *theme* reference either, and the one genuinely new property — the
+    theme leg is independent of section enablement — is proved directly.
+    """
+
+    def _delivery(
+        self, client: TestClient, asset_id: uuid.UUID, host: str = "shalik.localhost"
+    ) -> Any:
+        return client.get(_media_url(asset_id), headers=_host(host))
+
+    def test_a_published_theme_logo_authorizes_delivery(
+        self,
+        client: TestClient,
+        create_business: CreateBusiness,
+        create_user: CreateUser,
+        migrated_engine: Engine,
+        media_root: Path,
+    ) -> None:
+        business_id = create_business(slug="shalik", name="Shalik", status="active")
+        logo = _seed_asset(migrated_engine, business_id, root=media_root)
+        publisher = create_user("publisher@example.com")
+        _seed_version(
+            migrated_engine,
+            business_id,
+            state="published",
+            version_number=1,
+            config_json=_config_json([_hero("Home")], logo=logo),
+            published_by=publisher,
+        )
+
+        response = self._delivery(client, logo)
+
+        assert response.status_code == 200
+        assert response.content == _PAYLOAD
+        assert response.headers["cache-control"] == "public, max-age=3600, immutable"
+
+    def test_the_logo_is_authorized_with_every_section_disabled(
+        self,
+        client: TestClient,
+        create_business: CreateBusiness,
+        create_user: CreateUser,
+        migrated_engine: Engine,
+        media_root: Path,
+    ) -> None:
+        """The new property: a logo is chrome, not a section. Disabling every
+        section withdraws the section leg and leaves the theme leg intact —
+        which is exactly why it had to be a third leg rather than a widening
+        of the section rule."""
+        business_id = create_business(slug="shalik", name="Shalik", status="active")
+        logo = _seed_asset(migrated_engine, business_id, root=media_root)
+        publisher = create_user("publisher@example.com")
+        _seed_version(
+            migrated_engine,
+            business_id,
+            state="published",
+            version_number=1,
+            config_json=_config_json([_hero("Hidden", enabled=False)], logo=logo),
+            published_by=publisher,
+        )
+
+        assert self._delivery(client, logo).status_code == 200
+        # ...and the projection really does present no sections at all.
+        assert _get(client).json()["sections"] == []
+
+    def test_a_disabled_section_reference_still_authorizes_nothing(
+        self,
+        client: TestClient,
+        create_business: CreateBusiness,
+        create_user: CreateUser,
+        migrated_engine: Engine,
+        media_root: Path,
+    ) -> None:
+        """The converse guard: adding the theme leg must not have loosened
+        the disabled-section rule (R-5 stands unchanged)."""
+        business_id = create_business(slug="shalik", name="Shalik", status="active")
+        hidden = _seed_asset(migrated_engine, business_id, root=media_root)
+        logo = _seed_asset(migrated_engine, business_id, root=media_root)
+        publisher = create_user("publisher@example.com")
+        _seed_version(
+            migrated_engine,
+            business_id,
+            state="published",
+            version_number=1,
+            config_json=_config_json([_hero("Hidden", enabled=False, media_id=hidden)], logo=logo),
+            published_by=publisher,
+        )
+
+        assert self._delivery(client, logo).status_code == 200
+        assert self._delivery(client, hidden).status_code == 404
+
+    def test_a_draft_only_theme_logo_authorizes_nothing(
+        self,
+        client: TestClient,
+        create_business: CreateBusiness,
+        migrated_engine: Engine,
+        media_root: Path,
+    ) -> None:
+        business_id = create_business(slug="shalik", name="Shalik", status="active")
+        logo = _seed_asset(migrated_engine, business_id, root=media_root)
+        _seed_version(
+            migrated_engine,
+            business_id,
+            state="draft",
+            config_json=_config_json([_hero("Draft")], logo=logo),
+        )
+        assert self._delivery(client, logo).status_code == 404
+
+    def test_an_archived_only_theme_logo_authorizes_nothing(
+        self,
+        client: TestClient,
+        create_business: CreateBusiness,
+        create_user: CreateUser,
+        migrated_engine: Engine,
+        media_root: Path,
+    ) -> None:
+        business_id = create_business(slug="shalik", name="Shalik", status="active")
+        logo = _seed_asset(migrated_engine, business_id, root=media_root)
+        publisher = create_user("publisher@example.com")
+        _seed_version(
+            migrated_engine,
+            business_id,
+            state="archived",
+            version_number=1,
+            config_json=_config_json([_hero("Old")], logo=logo),
+            published_by=publisher,
+        )
+        _seed_version(
+            migrated_engine,
+            business_id,
+            state="published",
+            version_number=2,
+            config_json=_config_json([_hero("New")]),
+            published_by=publisher,
+        )
+        assert self._delivery(client, logo).status_code == 404
+
+    def test_a_logo_removed_by_a_newer_publication_authorizes_nothing(
+        self,
+        client: TestClient,
+        create_business: CreateBusiness,
+        create_user: CreateUser,
+        migrated_engine: Engine,
+        media_root: Path,
+    ) -> None:
+        """§10's stated sequence: the logo stays public while the published
+        version references it, and stops the moment a publication drops it."""
+        business_id = create_business(slug="shalik", name="Shalik", status="active")
+        logo = _seed_asset(migrated_engine, business_id, root=media_root)
+        publisher = create_user("publisher@example.com")
+        first = _seed_version(
+            migrated_engine,
+            business_id,
+            state="published",
+            version_number=1,
+            config_json=_config_json([_hero("Home")], logo=logo),
+            published_by=publisher,
+        )
+        assert self._delivery(client, logo).status_code == 200
+
+        with migrated_engine.begin() as connection:
+            connection.execute(
+                text("UPDATE storefront_versions SET state = 'archived' WHERE id = :id"),
+                {"id": first},
+            )
+        _seed_version(
+            migrated_engine,
+            business_id,
+            state="published",
+            version_number=2,
+            config_json=_config_json([_hero("Home")]),
+            published_by=publisher,
+        )
+
+        assert self._delivery(client, logo).status_code == 404
+
+    def test_a_pending_asset_referenced_by_a_published_theme_stays_404(
+        self,
+        client: TestClient,
+        create_business: CreateBusiness,
+        create_user: CreateUser,
+        migrated_engine: Engine,
+        media_root: Path,
+    ) -> None:
+        """Public delivery never serves pending media (ADR-017 R7); the
+        theme leg grants display authorization, never inventory eligibility."""
+        business_id = create_business(slug="shalik", name="Shalik", status="active")
+        pending = _seed_asset(migrated_engine, business_id, status="pending", root=media_root)
+        publisher = create_user("publisher@example.com")
+        _seed_version(
+            migrated_engine,
+            business_id,
+            state="published",
+            version_number=1,
+            config_json=_config_json([_hero("Home")], logo=pending),
+            published_by=publisher,
+        )
+        assert self._delivery(client, pending).status_code == 404
+
+    def test_a_theme_logo_does_not_cross_businesses(
+        self,
+        client: TestClient,
+        create_business: CreateBusiness,
+        create_user: CreateUser,
+        migrated_engine: Engine,
+        media_root: Path,
+    ) -> None:
+        """Tenant isolation on the new leg: each host authorizes only its own
+        published theme, in the same run so neither result is incidental."""
+        first_id = create_business(slug="shalik", name="Shalik", status="active")
+        second_id = create_business(slug="tandoor", name="Tandoor", status="active")
+        publisher = create_user("publisher@example.com")
+        first_logo = _seed_asset(migrated_engine, first_id, root=media_root)
+        second_logo = _seed_asset(migrated_engine, second_id, root=media_root)
+        for business_id, logo in ((first_id, first_logo), (second_id, second_logo)):
+            _seed_version(
+                migrated_engine,
+                business_id,
+                state="published",
+                version_number=1,
+                config_json=_config_json([_hero("Home")], logo=logo),
+                published_by=publisher,
+            )
+
+        assert self._delivery(client, first_logo, "shalik.localhost").status_code == 200
+        assert self._delivery(client, second_logo, "tandoor.localhost").status_code == 200
+        # Neither host may deliver the other's logo.
+        assert self._delivery(client, second_logo, "shalik.localhost").status_code == 404
+        assert self._delivery(client, first_logo, "tandoor.localhost").status_code == 404
+
+    def test_an_unregistered_stored_palette_denies_with_the_neutral_404(
+        self,
+        client: TestClient,
+        create_business: CreateBusiness,
+        create_user: CreateUser,
+        migrated_engine: Engine,
+        media_root: Path,
+    ) -> None:
+        """Fail-closed on the authorization side (ruling R-6): a stored token
+        the registry no longer accepts is an integrity defect that authorizes
+        nothing, and the anonymous route keeps its neutral 404 rather than
+        surfacing a 500."""
+        business_id = create_business(slug="shalik", name="Shalik", status="active")
+        logo = _seed_asset(migrated_engine, business_id, root=media_root)
+        publisher = create_user("publisher@example.com")
+        version_id = _seed_version(
+            migrated_engine,
+            business_id,
+            state="published",
+            version_number=1,
+            config_json=_config_json([_hero("Home")], logo=logo),
+            published_by=publisher,
+        )
+        assert self._delivery(client, logo).status_code == 200
+
+        with migrated_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE storefront_versions SET config ="
+                    " jsonb_set(config, '{theme,palette}', '\"retired-scheme\"')"
+                    " WHERE id = :id"
+                ),
+                {"id": version_id},
+            )
+
+        assert self._delivery(client, logo).status_code == 404
 
 
 class TestStorefrontMediaDelivery:

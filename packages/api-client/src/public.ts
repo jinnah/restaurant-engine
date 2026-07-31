@@ -27,6 +27,7 @@ export type PublicModifierOption =
   components['schemas']['PublicModifierOption'];
 export type PublicStorefront = components['schemas']['PublicStorefront'];
 export type PublicTheme = components['schemas']['PublicTheme'];
+export type PublicThemeLogo = components['schemas']['PublicThemeLogo'];
 export type PublicStorefrontImage =
   components['schemas']['PublicStorefrontImage'];
 export type PublicStorefrontImageVariant =

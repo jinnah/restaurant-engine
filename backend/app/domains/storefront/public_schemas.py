@@ -30,6 +30,7 @@ from pydantic import BaseModel, Field
 
 from app.domains.businesses.schemas import PublicSiteSummary
 from app.domains.storefront.sections import HeroAction, SectionType
+from app.domains.storefront.theme_registries import PaletteId, TypePairingId
 from app.domains.storefront.variants import DesignVariant
 
 
@@ -155,10 +156,50 @@ AnyPublicSection = (
 PublicSection = Annotated[AnyPublicSection, Field(discriminator="type")]
 
 
+class PublicThemeLogo(BaseModel):
+    """The tenant logo: renditions and true dimensions, and **no alt text**.
+
+    ADR-024 §7 rules the logo permanently decorative: it renders `alt=""`
+    beside the business name, which stays the visible semantic `h1` in every
+    variant. Omitting `alt_text` here makes that ruling structural rather
+    than advisory — there is no value a renderer could pass through by
+    mistake, and a null one would produce an *unlabelled* image rather than
+    a decorative one. This is the projection-side counterpart of
+    `ThemeLogo` carrying no `alt_text`.
+
+    Intrinsic `width`/`height` are present for the same reason every other
+    image descriptor carries them: the box is reserved before the image
+    loads, so the header never shifts (no CLS).
+    """
+
+    width: int
+    height: int
+    url: str
+    variants: list[PublicStorefrontImageVariant]
+
+
 class PublicTheme(BaseModel):
-    """The tenant-adjustable presentation tokens (one accent in M4)."""
+    """The tenant-adjustable presentation tokens of a rendered version.
+
+    `accent` is the tenant's single arbitrary token; `palette` and
+    `type_pairing` are selections from the closed platform registries, so a
+    renderer maps them to tokens through an exhaustive table and can never
+    receive an unregistered value from a 200 response (ADR-024 §3).
+
+    These tokens are stored inside the version row's configuration, so a
+    published or archived version projects the tokens it was published
+    with — the design-variant precedent extended to the whole visual
+    surface (ADR-024 §10).
+
+    `logo` is null when the version sets none, and also when its asset is no
+    longer renderable: a reference that cannot resolve degrades to absence
+    rather than a dead URL, and the business name is always present as text.
+    """
 
     accent: str
+    palette: PaletteId
+    type_pairing: TypePairingId
+    logo: PublicThemeLogo | None
 
 
 class PublicStorefront(BaseModel):

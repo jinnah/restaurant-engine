@@ -301,10 +301,15 @@ SECTION_MODELS: dict[SectionType, type[AnySection]] = {
 def referenced_media_ids(section: AnySection) -> list[uuid.UUID]:
     """Every media asset this section references, in stable order.
 
-    One place that knows where images live inside the registry, so the M4B
-    claim/validation path and any later reference audit cannot disagree with
-    the schemas. Adding an image-bearing field without extending this
+    One place that knows where images live inside the *section* registry, so
+    the claim/validation path and any later reference audit cannot disagree
+    with the schemas. Adding an image-bearing field without extending this
     function is caught by a permanent test.
+
+    The document-level answer is ``composition.referenced_media_ids``, which
+    walks the theme as well and delegates here for each section (M4G-A):
+    ``theme.logo`` is not a section, so this function alone is no longer the
+    complete picture.
     """
     if isinstance(section, HeroSection):
         return [section.props.image.media_id] if section.props.image is not None else []

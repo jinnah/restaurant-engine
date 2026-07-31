@@ -83,7 +83,11 @@ describe('first draft save (create intent)', () => {
     expect('expected_lock_version' in body).toBe(false);
     expect(body.config).toEqual({
       schema_version: 1,
-      theme: { accent: '#a34b2a' },
+      // The create path has no stored configuration to carry, so it states
+      // the platform defaults explicitly (M4G-A): the generated `Theme`
+      // makes every defaulted field required. The server would apply the
+      // same values, so the stored result is identical either way.
+      theme: { accent: '#a34b2a', palette: 'warm', type_pairing: 'humanist' },
       sections: [
         {
           id: 'hero',
@@ -136,6 +140,67 @@ describe('existing draft save (update intent)', () => {
       { expected_lock_version?: number },
     ];
     expect(body.expected_lock_version).toBe(3);
+  });
+
+  test('an unrelated edit re-sends the theme fields the composer cannot edit', async () => {
+    // M4G-A end to end through the real form: the composer has no palette,
+    // pairing, or logo control, and the draft PUT replaces the whole
+    // document — so a heading edit would otherwise reset all three to their
+    // schema defaults on the server.
+    const stored = storefrontConfig({
+      sections: heroConfig().sections,
+      theme: {
+        accent: '#a34b2a',
+        palette: 'midnight',
+        type_pairing: 'serif_display',
+        logo: { media_id: '9f1d2c3b-4a5e-4f60-8b71-2c3d4e5f6a7b' },
+      },
+    });
+    const putDraft = vi.fn(async () =>
+      ok(draftView({ config: stored, lock_version: 4 })),
+    );
+    const client = ownerClient({
+      storefront: {
+        get: vi.fn(async () =>
+          ok(
+            storefrontOverview({
+              draft: draftView({ config: stored, lock_version: 3 }),
+            }),
+          ),
+        ),
+        putDraft,
+      },
+    });
+    await openStorefront(client);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Hero' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('Heading'), {
+      target: { value: 'Hello again' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Save draft' }));
+    await waitFor(() => {
+      expect(putDraft).toHaveBeenCalledTimes(1);
+    });
+
+    const [, body] = putDraft.mock.calls[0] as unknown as [
+      string,
+      {
+        config: {
+          theme?: unknown;
+          sections?: { props: { heading: string } }[];
+        };
+      },
+    ];
+    expect(body.config.theme).toEqual({
+      accent: '#a34b2a',
+      palette: 'midnight',
+      type_pairing: 'serif_display',
+      logo: { media_id: '9f1d2c3b-4a5e-4f60-8b71-2c3d4e5f6a7b' },
+    });
+    // ...and the edit the owner actually made still went through.
+    expect(body.config.sections?.[0]?.props.heading).toBe('Hello again');
   });
 });
 

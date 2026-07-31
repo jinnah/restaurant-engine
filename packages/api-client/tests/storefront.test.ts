@@ -17,9 +17,12 @@ const BID = '5f7d3f5e-3f3e-4b62-9a5e-3c7c2b1a0d9e';
 const VID = '0a860cbe-4d55-4f6a-9d3f-2b6a7e1c9d10';
 
 // Annotated so `schema_version` stays the literal 1 the contract pins.
+// The theme names every defaulted field because the generated type makes
+// them required (M4G-A added palette and type_pairing); `logo` is genuinely
+// optional and is omitted here.
 const CONFIG: DraftPut['config'] = {
   schema_version: 1,
-  theme: { accent: '#a34b2a' },
+  theme: { accent: '#a34b2a', palette: 'warm', type_pairing: 'humanist' },
   sections: [],
 };
 

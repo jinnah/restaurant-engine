@@ -59,6 +59,7 @@ from app.domains.storefront.composition import (
     default_config,
     dump_config,
     parse_config,
+    referenced_media_ids,
 )
 from app.domains.storefront.models import StorefrontVersion, VersionState
 from app.domains.storefront.public_schemas import PublicStorefront
@@ -75,7 +76,6 @@ from app.domains.storefront.schemas import (
     VersionPage,
     VersionSummary,
 )
-from app.domains.storefront.sections import referenced_media_ids
 from app.domains.storefront.variants import DesignVariant
 
 
@@ -195,12 +195,13 @@ def _claim_referenced_media(db: Session, business_id: uuid.UUID, config: Storefr
     that same lock first, so an asset cannot vanish between validation and
     claim. An expired same-business pending asset is the established 409
     ``invalid_state`` from the claim path (final correction J).
+
+    The walk is document-level (``composition.referenced_media_ids``), so
+    the theme logo is validated and claimed exactly like a section image
+    (ADR-024 §7): one collection point means a reference cannot be claimed
+    by one path and missed by another.
     """
-    ordered = list(
-        dict.fromkeys(
-            media_id for section in config.sections for media_id in referenced_media_ids(section)
-        )
-    )
+    ordered = list(dict.fromkeys(referenced_media_ids(config)))
     if not ordered:
         return
     unknown: list[str] = []

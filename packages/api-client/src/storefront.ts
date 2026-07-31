@@ -27,6 +27,15 @@ export type VersionSummary = components['schemas']['VersionSummary'];
 export type VersionPage = components['schemas']['VersionPage'];
 export type VersionDetail = components['schemas']['VersionDetail'];
 export type DesignVariant = components['schemas']['DesignVariant'];
+// The tenant-selected theme registries (M4G-A, ADR-024 §3). Published as
+// closed enums so the composer and the renderer consume the registry
+// itself rather than mirroring a handwritten copy (blueprint §3.7). The
+// platform-assigned `DesignVariant` above remains a separate axis, chosen
+// by a different actor through a different command.
+export type Theme = components['schemas']['Theme'];
+export type ThemeLogo = components['schemas']['ThemeLogo'];
+export type PaletteId = components['schemas']['PaletteId'];
+export type TypePairingId = components['schemas']['TypePairingId'];
 export type PublicStorefront = components['schemas']['PublicStorefront'];
 
 const CSRF_HEADER = 'X-CSRF-Token';

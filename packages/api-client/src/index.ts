@@ -95,11 +95,15 @@ export type {
   DesignVariant,
   DraftPut,
   DraftView,
+  PaletteId,
   PublishRequest,
   RestoreRequest,
   StorefrontApi,
   StorefrontConfig,
   StorefrontOverview,
+  Theme,
+  ThemeLogo,
+  TypePairingId,
   VersionDetail,
   VersionPage,
   VersionSummary,
@@ -125,6 +129,7 @@ export type {
   PublicStorefrontImageVariant,
   PublicStorySection,
   PublicTheme,
+  PublicThemeLogo,
 } from './public';
 export { isErrorEnvelope } from './errors';
 export type {

@@ -12,13 +12,15 @@ URL builder they inject (ADR-020 §9):
   assets with ``no-store``.
 
 This module also owns the storefront half of the public media-delivery
-predicate (ADR-020 §10, ruling R-5): an asset is deliverable through the
-storefront branch only while an **enabled** section of the currently
-published version references it. Disabled sections are omitted from the
-public projection, so their media has no current public rendering purpose
-and authorizes nothing — least exposure. The application-layer media
-router composes this predicate with catalog's, so neither domain imports
-the other.
+predicate (ADR-020 §10, ruling R-5, amended 2026-07-30 by ADR-024 §7): an
+asset is deliverable through the storefront branch while an **enabled**
+section of the currently published version references it, **or that
+version's theme does**. Disabled sections are omitted from the public
+projection, so their media has no current public rendering purpose and
+authorizes nothing — least exposure; the theme carries no enablement, so a
+published logo is authorized independently of section state. The
+application-layer media router composes this predicate with catalog's, so
+neither domain imports the other.
 
 Fail-closed behavior splits by question (approved ruling R-6): the
 *projection* of a corrupt stored config or unregistered variant is an
@@ -40,7 +42,11 @@ from app.domains.businesses.schemas import PublicSiteSummary
 from app.domains.media import public_service as media_public
 from app.domains.media.models import MediaAsset, MediaAssetVariant
 from app.domains.storefront import repository
-from app.domains.storefront.composition import StorefrontConfig, parse_config
+from app.domains.storefront.composition import (
+    StorefrontConfig,
+    parse_config,
+    theme_media_ids,
+)
 from app.domains.storefront.models import StorefrontVersion
 from app.domains.storefront.public_schemas import (
     AnyPublicSection,
@@ -58,6 +64,7 @@ from app.domains.storefront.public_schemas import (
     PublicStoryProps,
     PublicStorySection,
     PublicTheme,
+    PublicThemeLogo,
 )
 from app.domains.storefront.sections import (
     AnySection,
@@ -106,6 +113,27 @@ def warn_config_invalid(business_id: uuid.UUID, context: str) -> None:
     )
 
 
+def _variant_views(
+    asset: MediaAsset,
+    variants: list[MediaAssetVariant],
+    url_builder: MediaUrlBuilder,
+) -> list[PublicStorefrontImageVariant]:
+    """The responsive rendition descriptors of one asset, in stored order.
+
+    Shared by the section-image and theme-logo views so the two descriptor
+    families cannot drift in URL construction or dimension reporting.
+    """
+    return [
+        PublicStorefrontImageVariant(
+            variant=variant.variant,  # type: ignore[arg-type]
+            width=variant.width,
+            height=variant.height,
+            url=url_builder(asset.id, variant.variant),
+        )
+        for variant in variants
+    ]
+
+
 def _image_view(
     image: SectionImage,
     asset: MediaAsset,
@@ -122,15 +150,26 @@ def _image_view(
         width=asset.width,
         height=asset.height,
         url=url_builder(asset.id, media_public.CANONICAL_VARIANT),
-        variants=[
-            PublicStorefrontImageVariant(
-                variant=variant.variant,  # type: ignore[arg-type]
-                width=variant.width,
-                height=variant.height,
-                url=url_builder(asset.id, variant.variant),
-            )
-            for variant in variants
-        ],
+        variants=_variant_views(asset, variants, url_builder),
+    )
+
+
+def _logo_view(
+    asset: MediaAsset,
+    variants: list[MediaAssetVariant],
+    url_builder: MediaUrlBuilder,
+) -> PublicThemeLogo:
+    """Describe the resolved theme logo — the image view without alt text.
+
+    The logo is permanently decorative (ADR-024 §7), so no alt text exists
+    to project: the business name carries the meaning as text in every
+    variant.
+    """
+    return PublicThemeLogo(
+        width=asset.width,
+        height=asset.height,
+        url=url_builder(asset.id, media_public.CANONICAL_VARIANT),
+        variants=_variant_views(asset, variants, url_builder),
     )
 
 
@@ -152,6 +191,28 @@ def _resolve_image(
     if asset is None:
         return None
     return _image_view(image, asset, variants_by_asset.get(asset.id, []), url_builder)
+
+
+def _resolve_logo(
+    config: StorefrontConfig,
+    assets: dict[uuid.UUID, MediaAsset],
+    variants_by_asset: dict[uuid.UUID, list[MediaAssetVariant]],
+    url_builder: MediaUrlBuilder,
+) -> PublicThemeLogo | None:
+    """The theme logo descriptor, or ``None`` when it cannot render.
+
+    Same degradation rule as a section image, and §7 makes it explicitly
+    safe here: an unresolvable logo costs nothing informational, because the
+    business name is always present as text and the image conveys nothing on
+    its own.
+    """
+    logo = config.theme.logo
+    if logo is None:
+        return None
+    asset = assets.get(logo.media_id)
+    if asset is None:
+        return None
+    return _logo_view(asset, variants_by_asset.get(asset.id, []), url_builder)
 
 
 def _section_view(
@@ -218,6 +279,27 @@ def enabled_sections(config: StorefrontConfig) -> list[AnySection]:
     return [section for section in config.sections if section.enabled]
 
 
+def publicly_referenced_media_ids(config: StorefrontConfig) -> list[uuid.UUID]:
+    """Every media asset a public rendering of this configuration presents.
+
+    The theme first, then the **enabled** sections in display order. Like
+    :func:`enabled_sections`, this is one definition shared by the
+    projection and the ADR-020 §10 predicate, so an asset the public page
+    shows and an asset the public media route authorizes are the same set by
+    construction (ruling R-5, extended to the theme by ADR-024 §7).
+
+    Two boundaries are deliberate. A **disabled** section's media is
+    excluded: it is omitted from the projection, so it has no current public
+    rendering purpose and authorizes nothing — least exposure. The **theme**
+    has no enablement flag — a logo is chrome, not a section — so a set logo
+    is always present here, independently of how many sections are enabled.
+    """
+    ids = theme_media_ids(config.theme)
+    for section in enabled_sections(config):
+        ids.extend(referenced_media_ids(section))
+    return ids
+
+
 def assemble_storefront(
     db: Session,
     *,
@@ -244,11 +326,7 @@ def assemble_storefront(
     config = parse_config(row.config)
     variant = DesignVariant(row.design_variant)
     sections = enabled_sections(config)
-    referenced = list(
-        dict.fromkeys(
-            media_id for section in sections for media_id in referenced_media_ids(section)
-        )
-    )
+    referenced = list(dict.fromkeys(publicly_referenced_media_ids(config)))
     assets, variants_by_asset = media_public.list_public_representations(
         db,
         business_id=business_id,
@@ -258,7 +336,12 @@ def assemble_storefront(
     return PublicStorefront(
         business=summary,
         design_variant=variant,
-        theme=PublicTheme(accent=config.theme.accent),
+        theme=PublicTheme(
+            accent=config.theme.accent,
+            palette=config.theme.palette,
+            type_pairing=config.theme.type_pairing,
+            logo=_resolve_logo(config, assets, variants_by_asset, url_builder),
+        ),
         sections=[
             _section_view(section, assets, variants_by_asset, url_builder) for section in sections
         ],
@@ -268,21 +351,30 @@ def assemble_storefront(
 def media_is_publicly_referenced(
     db: Session, *, business_id: uuid.UUID, media_id: uuid.UUID
 ) -> bool:
-    """Is this asset referenced by an enabled published storefront section?
+    """Is this asset presented by the currently published storefront?
 
     The storefront half of the public media-delivery predicate (ADR-020
-    §10, ruling R-5). It reads exactly the one ``state='published'`` row
-    of the already-resolved Business, so draft-only, archived-only,
-    unpublished, and cross-business references structurally authorize
-    nothing; a disabled section's reference authorizes nothing either,
-    because it is omitted from the public projection and has no current
-    rendering purpose.
+    §10, ruling R-5, as amended 2026-07-30 by ADR-024 §7). It reads exactly
+    the one ``state='published'`` row of the already-resolved Business, so
+    draft-only, archived-only, superseded, unpublished, and cross-business
+    references structurally authorize nothing; a disabled section's
+    reference authorizes nothing either, because it is omitted from the
+    public projection and has no current rendering purpose.
+
+    The amended predicate has **three independent legs**, and this function
+    owns the second and third: an enabled section of the current published
+    version, **or that version's theme**. The theme leg is genuinely
+    independent — a logo is chrome rather than a section, so it is
+    authorized even when every section is disabled, and disabling sections
+    never withdraws it. The catalog leg is composed by the media router,
+    so neither domain imports the other.
 
     Fail-closed to **deny** (ruling R-6): a published row whose stored
     config or variant no longer validates is an integrity defect — it is
     logged as an anomaly and authorizes nothing, so corruption can never
     become anonymous media access, and the anonymous route keeps its
-    neutral 404 rather than surfacing a 500.
+    neutral 404 rather than surfacing a 500. An unregistered stored palette
+    or pairing fails here exactly as an unregistered variant does.
     """
     row = repository.get_published(db, business_id=business_id)
     if row is None:
@@ -293,4 +385,4 @@ def media_is_publicly_referenced(
     except (ValidationError, ValueError):
         warn_config_invalid(business_id, "media_predicate")
         return False
-    return any(media_id in referenced_media_ids(section) for section in enabled_sections(config))
+    return media_id in publicly_referenced_media_ids(config)

@@ -14,10 +14,16 @@ import {
   MAX_ADDRESS_LINES,
   MAX_GALLERY_IMAGES,
 } from '../src/storefront/limits';
+import {
+  DEFAULT_ACCENT,
+  DEFAULT_PALETTE,
+  DEFAULT_TYPE_PAIRING,
+} from '../src/storefront/composition';
 
 interface SchemaProperty {
   maxItems?: number;
   maxLength?: number;
+  default?: unknown;
 }
 
 const document = JSON.parse(
@@ -44,6 +50,17 @@ describe('mirrored bounds equal the committed OpenAPI constraints', () => {
       document.components.schemas['GalleryProps']?.properties?.['images']
         ?.maxItems,
     ).toBe(MAX_GALLERY_IMAGES);
+  });
+
+  // M4G-A: the composer's create path must state the theme defaults,
+  // because the generated `Theme` makes every defaulted field required.
+  // They are contract facts, so they are pinned like the bounds above
+  // rather than trusted to stay in step with the backend registries.
+  test('theme defaults: Theme.{accent,palette,type_pairing} defaults', () => {
+    const theme = document.components.schemas['Theme']?.properties;
+    expect(theme?.['accent']?.default).toBe(DEFAULT_ACCENT);
+    expect(theme?.['palette']?.default).toBe(DEFAULT_PALETTE);
+    expect(theme?.['type_pairing']?.default).toBe(DEFAULT_TYPE_PAIRING);
   });
 
   test('no text-length bound is published for the mirror to claim', () => {

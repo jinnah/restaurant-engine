@@ -1,11 +1,50 @@
-import type { DraftPut, StorefrontConfig } from '@restaurant-engine/api-client';
+import type {
+  DraftPut,
+  PaletteId,
+  StorefrontConfig,
+  Theme,
+  TypePairingId,
+} from '@restaurant-engine/api-client';
 
 /** One section of the administrative composition (the config shape). */
 export type ConfigSection = NonNullable<StorefrontConfig['sections']>[number];
 export type SectionType = ConfigSection['type'];
 
+/**
+ * The theme of the loaded draft, carried verbatim through an edit.
+ *
+ * The draft PUT is a **full-document replacement** (ADR-020 D-5), so any
+ * theme field the composer does not re-send is reset to its schema default
+ * by the next ordinary save. Accent is the only token this form edits;
+ * palette, typography pairing, and the logo (M4G-A, ADR-024 §4) belong to
+ * controls that do not exist yet, and an owner fixing a typo in a heading
+ * must not silently discard them.
+ *
+ * The whole theme is carried and the edited accent is layered on top at
+ * serialization, rather than the untouched fields being enumerated: a
+ * future additive theme field is then preserved the moment the contract
+ * publishes it, with no change here. `theme.accent` inside this value is
+ * the *loaded* accent and is always superseded — {@link toDraftPut} is the
+ * single place that resolves the two.
+ */
+export type CarriedTheme = Theme;
+
 /** The backend's default accent token (storefront.policies.DEFAULT_ACCENT). */
 export const DEFAULT_ACCENT = '#a34b2a';
+
+/**
+ * The backend's default palette and typography pairing
+ * (`storefront.theme_registries`, ADR-024 §3).
+ *
+ * Mirrored for one narrow reason: the generated `Theme` type makes every
+ * field carrying a schema default *required*, so the create path — which
+ * has no stored configuration to carry — has to state them. All three
+ * theme defaults are published by the committed OpenAPI document and are
+ * pinned to it by a build-time test, the ADR-022 §7 mirror discipline, so
+ * drift fails CI rather than silently overriding the server.
+ */
+export const DEFAULT_PALETTE: PaletteId = 'warm';
+export const DEFAULT_TYPE_PAIRING: TypePairingId = 'humanist';
 
 /**
  * A staged section-image reference — the composer's normalized form of
@@ -35,7 +74,34 @@ export const SECTION_TYPES: readonly SectionType[] = [
  */
 export interface ComposerValues {
   accent: string;
+  /**
+   * The loaded draft's theme, held in the form so it travels with the
+   * editing baseline. Keeping it here rather than reading it from the
+   * overview cache at save time is deliberate: the form is seeded once per
+   * loaded draft and is structurally immune to background rebinding (§6),
+   * and a conflict deliberately leaves the cache stale without refetching —
+   * sourcing part of the payload from the cache would reintroduce exactly
+   * the silent merge those rules forbid.
+   */
+  carriedTheme: CarriedTheme;
   sections: ConfigSection[];
+}
+
+/**
+ * The loaded config's theme, or the platform defaults when composing the
+ * very first draft (there is nothing stored to carry).
+ */
+export function carriedThemeFromConfig(
+  config: StorefrontConfig | null,
+): CarriedTheme {
+  const theme = config?.theme;
+  return theme === undefined
+    ? {
+        accent: DEFAULT_ACCENT,
+        palette: DEFAULT_PALETTE,
+        type_pairing: DEFAULT_TYPE_PAIRING,
+      }
+    : structuredClone(theme);
 }
 
 export function composerValuesFromConfig(
@@ -43,6 +109,7 @@ export function composerValuesFromConfig(
 ): ComposerValues {
   return {
     accent: config?.theme?.accent ?? DEFAULT_ACCENT,
+    carriedTheme: carriedThemeFromConfig(config),
     sections: structuredClone(config?.sections ?? []),
   };
 }
@@ -58,7 +125,8 @@ export function toDraftPut(
 ): DraftPut {
   const config: StorefrontConfig = {
     schema_version: 1,
-    theme: { accent: values.accent },
+    // Carried fields first so the accent the composer owns always wins.
+    theme: { ...values.carriedTheme, accent: values.accent },
     sections: values.sections,
   };
   return expectedLockVersion === null

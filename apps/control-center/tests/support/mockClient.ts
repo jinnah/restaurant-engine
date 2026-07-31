@@ -127,7 +127,7 @@ export function storefrontConfig(
 ): StorefrontConfig {
   return {
     schema_version: 1,
-    theme: { accent: '#a34b2a' },
+    theme: { accent: '#a34b2a', palette: 'warm', type_pairing: 'humanist' },
     sections: [],
     ...overrides,
   };
@@ -208,7 +208,12 @@ export function previewProjection(
       currency: 'USD',
     },
     design_variant: 'classic',
-    theme: { accent: '#a34b2a' },
+    theme: {
+      accent: '#a34b2a',
+      palette: 'warm',
+      type_pairing: 'humanist',
+      logo: null,
+    },
     sections: [],
     ...overrides,
   };

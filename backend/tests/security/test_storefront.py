@@ -30,6 +30,7 @@ from app.core.errors import (
 )
 from app.domains.businesses.queries import lock_business_status
 from app.domains.identity.actor import ActorContext, AuthenticatedUser
+from app.domains.media import service as media_service
 from app.domains.storefront import service as storefront_service
 from app.domains.storefront.composition import StorefrontConfig, parse_config
 from app.domains.storefront.schemas import (
@@ -80,11 +81,21 @@ def _actor(user_id: uuid.UUID, *, is_platform_admin: bool = False) -> ActorConte
 
 
 def _config(
-    sections: list[dict[str, Any]] | None = None, accent: str = "#a34b2a"
+    sections: list[dict[str, Any]] | None = None,
+    accent: str = "#a34b2a",
+    *,
+    logo: uuid.UUID | None = None,
+    palette: str | None = None,
+    type_pairing: str | None = None,
 ) -> StorefrontConfig:
-    return parse_config(
-        {"schema_version": 1, "theme": {"accent": accent}, "sections": sections or []}
-    )
+    theme: dict[str, Any] = {"accent": accent}
+    if logo is not None:
+        theme["logo"] = {"media_id": str(logo)}
+    if palette is not None:
+        theme["palette"] = palette
+    if type_pairing is not None:
+        theme["type_pairing"] = type_pairing
+    return parse_config({"schema_version": 1, "theme": theme, "sections": sections or []})
 
 
 def _hero(media_id: uuid.UUID | None = None, heading: str = "Welcome") -> dict[str, Any]:
@@ -603,6 +614,417 @@ class TestDraftMediaClaiming:
         )
 
         assert _asset_status(migrated_engine, asset)[0] == "pending"
+
+
+class TestThemeLogoClaiming:
+    """The theme logo is claimed exactly like section media (ADR-024 §7).
+
+    The whole point of the document-level collection is that these cases
+    need no new rules: the logo travels the same validate-then-claim path,
+    so the failure matrix is the established one, proved here for the field
+    that lives outside every section.
+    """
+
+    def test_a_valid_pending_logo_is_claimed(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business = create_business()
+        owner_id = create_user(OWNER)
+        create_membership(business, owner_id)
+        logo = _insert_media_asset(migrated_engine, business)
+
+        storefront_service.put_draft(
+            db, _actor(owner_id), business, DraftPut(config=_config(logo=logo))
+        )
+
+        status, has_expiry = _asset_status(migrated_engine, logo)
+        assert status == "active"
+        assert has_expiry is False
+
+    def test_a_logo_and_section_media_are_claimed_in_one_pass(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business = create_business()
+        owner_id = create_user(OWNER)
+        create_membership(business, owner_id)
+        logo = _insert_media_asset(migrated_engine, business)
+        hero = _insert_media_asset(migrated_engine, business)
+        gallery = _insert_media_asset(migrated_engine, business)
+
+        storefront_service.put_draft(
+            db,
+            _actor(owner_id),
+            business,
+            DraftPut(config=_config([_hero(hero), _gallery([gallery])], logo=logo)),
+        )
+
+        for asset in (logo, hero, gallery):
+            assert _asset_status(migrated_engine, asset)[0] == "active"
+
+    def test_one_asset_used_as_both_logo_and_hero_is_claimed_once(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        """De-duplication spans theme and sections: nothing forbids reusing
+        one asset, and the claim must not run twice for it."""
+        business = create_business()
+        owner_id = create_user(OWNER)
+        create_membership(business, owner_id)
+        shared = _insert_media_asset(migrated_engine, business)
+
+        with mock.patch(
+            "app.domains.storefront.service.media_service.claim_for_attachment",
+            wraps=media_service.claim_for_attachment,
+        ) as claim:
+            storefront_service.put_draft(
+                db,
+                _actor(owner_id),
+                business,
+                DraftPut(config=_config([_hero(shared)], logo=shared)),
+            )
+
+        assert claim.call_count == 1
+        assert _asset_status(migrated_engine, shared)[0] == "active"
+
+    def test_an_unknown_logo_is_rejected_before_any_claim(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business = create_business()
+        owner_id = create_user(OWNER)
+        create_membership(business, owner_id)
+        hero = _insert_media_asset(migrated_engine, business)
+        missing = uuid.uuid4()
+
+        with pytest.raises(ApiError) as excinfo:
+            storefront_service.put_draft(
+                db,
+                _actor(owner_id),
+                business,
+                DraftPut(config=_config([_hero(hero)], logo=missing)),
+            )
+        db.rollback()
+
+        assert excinfo.value.status_code == 422
+        assert excinfo.value.code.value == "validation_error"
+        assert excinfo.value.details == {"media_ids": [str(missing)]}
+        # Validation precedes claiming (§10): the co-referenced hero asset
+        # was NOT promoted, and no draft row exists.
+        assert _asset_status(migrated_engine, hero)[0] == "pending"
+        assert _version_rows(migrated_engine, business) == []
+
+    def test_a_foreign_logo_is_indistinguishable_from_an_unknown_one(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        """Isolation: another tenant's asset id discloses nothing, and the
+        envelope is byte-identical to the unknown-id case."""
+        business = create_business()
+        other = create_business(slug="other-kitchen", name="Other Kitchen")
+        owner_id = create_user(OWNER)
+        create_membership(business, owner_id)
+        foreign = _insert_media_asset(migrated_engine, other)
+
+        with pytest.raises(ApiError) as excinfo:
+            storefront_service.put_draft(
+                db, _actor(owner_id), business, DraftPut(config=_config(logo=foreign))
+            )
+        db.rollback()
+
+        assert excinfo.value.status_code == 422
+        assert excinfo.value.code.value == "validation_error"
+        assert excinfo.value.details == {"media_ids": [str(foreign)]}
+        # The other tenant's asset is untouched: no promotion, no leak.
+        assert _asset_status(migrated_engine, foreign)[0] == "pending"
+        assert _version_rows(migrated_engine, business) == []
+
+    def test_an_expired_pending_logo_is_invalid_state(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        """The established 409 from the shared ``claim_for_attachment``
+        path (ADR-017 lifecycle), reached through the theme."""
+        business = create_business()
+        owner_id = create_user(OWNER)
+        create_membership(business, owner_id)
+        expired = _insert_media_asset(migrated_engine, business, expires_hours=-1)
+
+        with pytest.raises(ApiError) as excinfo:
+            storefront_service.put_draft(
+                db, _actor(owner_id), business, DraftPut(config=_config(logo=expired))
+            )
+        db.rollback()
+
+        assert excinfo.value.status_code == 409
+        assert excinfo.value.code.value == "invalid_state"
+        assert _asset_status(migrated_engine, expired)[0] == "pending"
+        assert _version_rows(migrated_engine, business) == []
+
+    def test_an_exact_noop_save_reclaims_no_logo(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business = create_business()
+        owner_id = create_user(OWNER)
+        create_membership(business, owner_id)
+        logo = _insert_media_asset(migrated_engine, business)
+        actor = _actor(owner_id)
+        config = _config(logo=logo)
+        storefront_service.put_draft(db, actor, business, DraftPut(config=config))
+        with migrated_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE media_assets SET status = 'pending',"
+                    " pending_expires_at = now() + interval '48 hours' WHERE id = :id"
+                ),
+                {"id": logo},
+            )
+
+        storefront_service.put_draft(
+            db, actor, business, DraftPut(config=config, expected_lock_version=0)
+        )
+
+        assert _asset_status(migrated_engine, logo)[0] == "pending"
+
+
+class TestPreM4gConfigurationCompatibility:
+    """What happens to configurations written before the theme extension."""
+
+    @staticmethod
+    def _rewrite_draft_config(engine: Engine, business_id: uuid.UUID, config: str) -> None:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE storefront_versions SET config = CAST(:config AS jsonb)"
+                    " WHERE business_id = :bid AND state = 'draft'"
+                ),
+                {"bid": business_id, "config": config},
+            )
+
+    def test_a_stored_pre_m4g_draft_reads_as_the_registry_defaults(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        """No migration and no backfill: the row is read, not rewritten."""
+        business = create_business()
+        owner_id = create_user(OWNER)
+        create_membership(business, owner_id)
+        actor = _actor(owner_id)
+        storefront_service.put_draft(db, actor, business, DraftPut(config=_config()))
+        self._rewrite_draft_config(
+            migrated_engine,
+            business,
+            '{"schema_version": 1, "theme": {"accent": "#123abc"}, "sections": []}',
+        )
+        db.expire_all()
+
+        overview = storefront_service.get_overview(db, actor, business)
+
+        assert overview.draft is not None
+        assert overview.draft.config.theme.accent == "#123abc"
+        assert overview.draft.config.theme.palette.value == "warm"
+        assert overview.draft.config.theme.type_pairing.value == "humanist"
+        assert overview.draft.config.theme.logo is None
+
+        # ...and the read changed nothing on disk. Defaults are supplied by
+        # parsing, not by canonicalizing the row: reads never create or
+        # rewrite state (ADR-020 §5.1), so the stored document is still
+        # exactly the legacy shape and the concurrency token has not moved.
+        # The canonical form is upgraded only by a deliberate save, which
+        # the next test pins.
+        stored = _version_rows(migrated_engine, business)[0]
+        assert stored["config"] == {
+            "schema_version": 1,
+            "theme": {"accent": "#123abc"},
+            "sections": [],
+        }
+        assert stored["lock_version"] == 0
+
+    def test_the_first_save_of_a_pre_m4g_draft_is_not_an_exact_noop(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        """A deliberate, one-off consequence, asserted rather than discovered.
+
+        The no-op check compares the raw stored document with the fresh
+        canonical dump, and the dump now carries three more theme keys. So
+        the first save after M4G-A of a configuration stored before it is a
+        real write: the canonical form is upgraded, ``lock_version``
+        advances, and the owner sees no difference. It happens once per
+        draft and changes no rendered output — every new key holds the
+        default that reproduces the stored row's current appearance.
+        """
+        business = create_business()
+        owner_id = create_user(OWNER)
+        create_membership(business, owner_id)
+        actor = _actor(owner_id)
+        storefront_service.put_draft(db, actor, business, DraftPut(config=_config()))
+        self._rewrite_draft_config(
+            migrated_engine,
+            business,
+            '{"schema_version": 1, "theme": {"accent": "#a34b2a"}, "sections": []}',
+        )
+        db.expire_all()
+
+        view = storefront_service.put_draft(
+            db, actor, business, DraftPut(config=_config(), expected_lock_version=0)
+        )
+
+        assert view.lock_version == 1
+        stored = _version_rows(migrated_engine, business)[0]["config"]
+        assert stored["theme"] == {
+            "accent": "#a34b2a",
+            "palette": "warm",
+            "type_pairing": "humanist",
+            "logo": None,
+        }
+        # And the save after that is an ordinary exact no-op again.
+        again = storefront_service.put_draft(
+            db, actor, business, DraftPut(config=_config(), expected_lock_version=1)
+        )
+        assert again.lock_version == 1
+
+
+class TestThemeSnapshotStability:
+    """Theme tokens travel with the version row (ADR-024 §10).
+
+    Palette, pairing, and logo live inside the configuration, so publication
+    and restore preserve them by the machinery that already exists — the
+    design-variant precedent extended to the whole visual surface. No new
+    lifecycle rule was needed, which is what these tests establish.
+    """
+
+    def test_publication_freezes_the_theme_into_the_published_version(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business = create_business()
+        owner_id = create_user(OWNER)
+        create_membership(business, owner_id)
+        actor = _actor(owner_id)
+        logo = _insert_media_asset(migrated_engine, business)
+        storefront_service.put_draft(
+            db,
+            actor,
+            business,
+            DraftPut(config=_config(logo=logo, palette="ember", type_pairing="geometric")),
+        )
+
+        storefront_service.publish(db, actor, business, PublishRequest(expected_lock_version=0))
+
+        rows = {row["state"]: row for row in _version_rows(migrated_engine, business)}
+        published_theme = rows["published"]["config"]["theme"]
+        assert published_theme["palette"] == "ember"
+        assert published_theme["type_pairing"] == "geometric"
+        assert published_theme["logo"] == {"media_id": str(logo)}
+        # Publication seeds the next draft from the published result, so the
+        # owner keeps editing the same theme rather than a reset one.
+        assert rows["draft"]["config"]["theme"] == published_theme
+
+    def test_an_archived_version_keeps_the_theme_it_was_published_with(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        """Changing the draft's theme and republishing must not rewrite how
+        an earlier version looked."""
+        business = create_business()
+        owner_id = create_user(OWNER)
+        create_membership(business, owner_id)
+        actor = _actor(owner_id)
+        storefront_service.put_draft(db, actor, business, DraftPut(config=_config(palette="slate")))
+        storefront_service.publish(db, actor, business, PublishRequest(expected_lock_version=0))
+        storefront_service.put_draft(
+            db,
+            actor,
+            business,
+            DraftPut(config=_config(palette="midnight"), expected_lock_version=0),
+        )
+        storefront_service.publish(db, actor, business, PublishRequest(expected_lock_version=1))
+
+        rows = {row["version_number"]: row for row in _version_rows(migrated_engine, business)}
+        assert rows[1]["state"] == "archived"
+        assert rows[1]["config"]["theme"]["palette"] == "slate"
+        assert rows[2]["config"]["theme"]["palette"] == "midnight"
+
+    def test_restore_copies_the_archived_theme_into_the_draft(
+        self,
+        db: Session,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business = create_business()
+        owner_id = create_user(OWNER)
+        create_membership(business, owner_id)
+        actor = _actor(owner_id)
+        logo = _insert_media_asset(migrated_engine, business)
+        storefront_service.put_draft(
+            db, actor, business, DraftPut(config=_config(logo=logo, palette="olive"))
+        )
+        storefront_service.publish(db, actor, business, PublishRequest(expected_lock_version=0))
+        storefront_service.put_draft(
+            db,
+            actor,
+            business,
+            DraftPut(config=_config(palette="midnight"), expected_lock_version=0),
+        )
+        storefront_service.publish(db, actor, business, PublishRequest(expected_lock_version=1))
+        v1_id = _version_row_id(migrated_engine, business, 1)
+
+        view = storefront_service.restore_version(
+            db, actor, business, v1_id, RestoreRequest(expected_lock_version=0)
+        )
+
+        assert view.config.theme.palette.value == "olive"
+        assert view.config.theme.logo is not None
+        assert view.config.theme.logo.media_id == logo
 
 
 class TestFirstDraftRace:

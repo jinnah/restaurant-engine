@@ -14,7 +14,7 @@ from pydantic import ValidationError
 
 from app.domains.catalog import policies as catalog_policies
 from app.domains.media import policies as media_policies
-from app.domains.storefront import composition, policies, sections
+from app.domains.storefront import composition, policies, sections, theme_registries
 from app.domains.storefront.composition import (
     default_config,
     dump_config,
@@ -277,6 +277,134 @@ def test_theme_accent_is_a_token_not_a_stylesheet() -> None:
             parse_config({**_config(), "theme": {"accent": rejected}})
 
 
+# --- Theme extension (M4G-A, ADR-024 §4) --------------------------------------
+
+
+def test_theme_defaults_reproduce_the_delivered_presentation() -> None:
+    """The additive fields default to what every storefront renders today."""
+    theme = composition.Theme()
+    assert theme.accent == policies.DEFAULT_ACCENT
+    assert theme.palette is theme_registries.PaletteId.WARM
+    assert theme.type_pairing is theme_registries.TypePairingId.HUMANIST
+    assert theme.logo is None
+
+
+def test_a_configuration_stored_before_m4g_parses_to_the_defaults() -> None:
+    """The whole compatibility argument for keeping ``schema_version`` at 1.
+
+    ``extra="forbid"`` rejects unknown keys on submission, but *missing*
+    keys parse to defaults — so a row written before M4G reads as
+    warm/humanist/no-logo, which is exactly its current appearance. No
+    migration, backfill, or adoption workflow exists because none is needed.
+    """
+    legacy = parse_config({"schema_version": 1, "theme": {"accent": "#123abc"}, "sections": []})
+    assert legacy.theme.accent == "#123abc"
+    assert legacy.theme.palette is theme_registries.PaletteId.WARM
+    assert legacy.theme.type_pairing is theme_registries.TypePairingId.HUMANIST
+    assert legacy.theme.logo is None
+
+    # A configuration with no theme key at all behaves identically.
+    absent = parse_config({"schema_version": 1, "sections": []})
+    assert absent.theme == legacy.theme.model_copy(update={"accent": policies.DEFAULT_ACCENT})
+
+
+def test_the_schema_version_is_unchanged_by_the_theme_extension() -> None:
+    """Additive-with-defaults was chosen precisely to avoid a v2 (§4)."""
+    assert composition.SCHEMA_VERSION == 1
+    assert parse_config(_config()).schema_version == 1
+    with pytest.raises(ValidationError):
+        parse_config({**_config(), "schema_version": 2})
+
+
+def test_registered_palettes_and_pairings_are_accepted() -> None:
+    for palette in theme_registries.PaletteId:
+        parsed = parse_config({**_config(), "theme": {"palette": palette.value}})
+        assert parsed.theme.palette is palette
+    for pairing in theme_registries.TypePairingId:
+        parsed = parse_config({**_config(), "theme": {"type_pairing": pairing.value}})
+        assert parsed.theme.type_pairing is pairing
+
+
+def test_unknown_palettes_and_pairings_are_rejected() -> None:
+    """Writes reject unregistered values; nothing is silently defaulted."""
+    for rejected in ("", "WARM", "crimson", "warm ", "url(evil)"):
+        with pytest.raises(ValidationError):
+            parse_config({**_config(), "theme": {"palette": rejected}})
+    for rejected in ("", "serif-display", "editorial_serif", "HUMANIST"):
+        with pytest.raises(ValidationError):
+            parse_config({**_config(), "theme": {"type_pairing": rejected}})
+
+
+def test_an_unknown_theme_key_is_still_forbidden() -> None:
+    """The registry keeps its teeth: additive does not mean permissive."""
+    with pytest.raises(ValidationError):
+        parse_config({**_config(), "theme": {"font_url": "https://example.test/f.woff2"}})
+
+
+def test_the_logo_is_a_bare_media_reference_with_no_alt_text() -> None:
+    """§7's decorative ruling, made structural rather than advisory.
+
+    A logo sits beside the business name, which stays the visible semantic
+    ``h1`` in every variant, so alt text would duplicate the accessible name
+    for the same fact. Accepting an ``alt_text`` here would invite owners to
+    write text the product then ignores — so the field does not exist, and
+    submitting one is a 422 like any other unknown key.
+    """
+    assert "alt_text" not in composition.ThemeLogo.model_fields
+    media_id = uuid.uuid4()
+    parsed = parse_config({**_config(), "theme": {"logo": {"media_id": str(media_id)}}})
+    assert parsed.theme.logo is not None
+    assert parsed.theme.logo.media_id == media_id
+
+    with pytest.raises(ValidationError):
+        parse_config(
+            {
+                **_config(),
+                "theme": {"logo": {"media_id": str(media_id), "alt_text": "Our logo"}},
+            }
+        )
+
+
+def test_a_malformed_logo_reference_is_rejected() -> None:
+    rejected: list[object] = [{}, {"media_id": "not-a-uuid"}, {"media_id": None}, "an-id", []]
+    for candidate in rejected:
+        with pytest.raises(ValidationError):
+            parse_config({**_config(), "theme": {"logo": candidate}})
+
+
+def test_the_canonical_dump_gains_the_new_keys_and_still_round_trips() -> None:
+    """The composition contract is preserved: the dump simply grows (§4).
+
+    Field order follows declaration order, so the stored bytes stay stable
+    for comparison, hashing, and diffing — the property the exact-no-op
+    suppression in the draft service depends on.
+    """
+    media_id = uuid.uuid4()
+    config = parse_config(
+        {
+            **_config(),
+            "theme": {
+                "accent": "#123abc",
+                "palette": "midnight",
+                "type_pairing": "geometric",
+                "logo": {"media_id": str(media_id)},
+            },
+        }
+    )
+    dumped = dump_config(config)
+    assert dumped["theme"] == {
+        "accent": "#123abc",
+        "palette": "midnight",
+        "type_pairing": "geometric",
+        "logo": {"media_id": str(media_id)},
+    }
+    assert list(dumped["theme"]) == ["accent", "palette", "type_pairing", "logo"]
+    # dump -> parse -> dump is byte-identical, with and without a logo.
+    assert dump_config(parse_config(dumped)) == dumped
+    without_logo = dump_config(parse_config(_config()))
+    assert dump_config(parse_config(without_logo)) == without_logo
+
+
 def test_markup_is_stored_as_literal_text_not_a_rich_text_field() -> None:
     """There is no HTML field; markup is inert text the renderer escapes."""
     raw = "<script>alert(1)</script>"
@@ -425,6 +553,61 @@ def test_referenced_media_ids_covers_every_image_bearing_field() -> None:
     dumped = dump_config(config)
     found = _media_ids_in(dumped)
     assert found == {str(hero_image), str(first), str(second)}
+
+
+def test_document_level_collection_reaches_every_media_id_in_the_dump() -> None:
+    """The completeness invariant, raised from sections to the document.
+
+    M4A pinned the *section* walk, which by construction could not have
+    caught ``theme.logo`` — a reference living outside every section. The
+    invariant that actually protects the claim path is document-level: every
+    ``media_id`` the canonical dump contains must be reachable by
+    ``composition.referenced_media_ids``. An image-bearing field added
+    anywhere in the registry, theme or section, now fails here.
+    """
+    logo, hero_image, first, second = (uuid.uuid4() for _ in range(4))
+    raw = _config(
+        _hero(image={"media_id": str(hero_image)}),
+        {
+            "id": "gallery",
+            "type": "gallery",
+            "props": {"images": [{"media_id": str(first)}, {"media_id": str(second)}]},
+        },
+    )
+    raw["theme"] = {"accent": "#a34b2a", "logo": {"media_id": str(logo)}}
+    config = parse_config(raw)
+
+    # Document order: the theme precedes the sections, and sections follow
+    # display order — the canonical field order, so a claim sequence is
+    # reproducible rather than incidental.
+    assert composition.referenced_media_ids(config) == [logo, hero_image, first, second]
+
+    dumped = dump_config(config)
+    assert _media_ids_in(dumped) == {
+        str(media_id) for media_id in composition.referenced_media_ids(config)
+    }
+
+
+def test_theme_media_ids_is_empty_without_a_logo() -> None:
+    config = parse_config(_config())
+    assert composition.theme_media_ids(config.theme) == []
+    assert composition.referenced_media_ids(config) == []
+
+
+def test_document_collection_preserves_a_reference_shared_by_theme_and_section() -> None:
+    """A faithful walk, not a set: callers de-duplicate explicitly.
+
+    Nothing forbids a business using one asset as both its logo and its hero
+    image, and the claim path's ``dict.fromkeys`` is what collapses them —
+    collapsing here would hide a genuine second occurrence from the
+    completeness invariant above.
+    """
+    shared = uuid.uuid4()
+    raw = _config(_hero(image={"media_id": str(shared)}))
+    raw["theme"] = {"logo": {"media_id": str(shared)}}
+    config = parse_config(raw)
+    assert composition.referenced_media_ids(config) == [shared, shared]
+    assert list(dict.fromkeys(composition.referenced_media_ids(config))) == [shared]
 
 
 def _media_ids_in(node: object) -> set[str]:

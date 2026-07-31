@@ -2317,6 +2317,18 @@ export interface components {
             updated_at: string;
         };
         /**
+         * PaletteId
+         * @description Platform-authored colour schemes (append-only, five permanent values).
+         *
+         *     A palette is a curated set of the existing ``.tenantPage`` custom
+         *     properties, not tenant input: contrast is a platform guarantee proved by
+         *     build-time tests, which is only possible because the set is closed
+         *     (ADR-024 §5). The tenant accent remains the single arbitrary token and
+         *     overrides only the accent — it never participates in these five colours.
+         * @enum {string}
+         */
+        PaletteId: "warm" | "ember" | "slate" | "olive" | "midnight";
+        /**
          * PasswordResetIssueRequest
          * @description Platform command: issue a reset token for an account (M2D).
          */
@@ -2709,11 +2721,54 @@ export interface components {
         };
         /**
          * PublicTheme
-         * @description The tenant-adjustable presentation tokens (one accent in M4).
+         * @description The tenant-adjustable presentation tokens of a rendered version.
+         *
+         *     `accent` is the tenant's single arbitrary token; `palette` and
+         *     `type_pairing` are selections from the closed platform registries, so a
+         *     renderer maps them to tokens through an exhaustive table and can never
+         *     receive an unregistered value from a 200 response (ADR-024 §3).
+         *
+         *     These tokens are stored inside the version row's configuration, so a
+         *     published or archived version projects the tokens it was published
+         *     with — the design-variant precedent extended to the whole visual
+         *     surface (ADR-024 §10).
+         *
+         *     `logo` is null when the version sets none, and also when its asset is no
+         *     longer renderable: a reference that cannot resolve degrades to absence
+         *     rather than a dead URL, and the business name is always present as text.
          */
         PublicTheme: {
             /** Accent */
             accent: string;
+            logo: components["schemas"]["PublicThemeLogo"] | null;
+            palette: components["schemas"]["PaletteId"];
+            type_pairing: components["schemas"]["TypePairingId"];
+        };
+        /**
+         * PublicThemeLogo
+         * @description The tenant logo: renditions and true dimensions, and **no alt text**.
+         *
+         *     ADR-024 §7 rules the logo permanently decorative: it renders `alt=""`
+         *     beside the business name, which stays the visible semantic `h1` in every
+         *     variant. Omitting `alt_text` here makes that ruling structural rather
+         *     than advisory — there is no value a renderer could pass through by
+         *     mistake, and a null one would produce an *unlabelled* image rather than
+         *     a decorative one. This is the projection-side counterpart of
+         *     `ThemeLogo` carrying no `alt_text`.
+         *
+         *     Intrinsic `width`/`height` are present for the same reason every other
+         *     image descriptor carries them: the box is reserved before the image
+         *     loads, so the header never shifts (no CLS).
+         */
+        PublicThemeLogo: {
+            /** Height */
+            height: number;
+            /** Url */
+            url: string;
+            /** Variants */
+            variants: components["schemas"]["PublicStorefrontImageVariant"][];
+            /** Width */
+            width: number;
         };
         /**
          * PublishRequest
@@ -2882,10 +2937,21 @@ export interface components {
          * Theme
          * @description The tenant-adjustable presentation tokens.
          *
-         *     Exactly one accent colour in M4 — the whole of the tenant's styling
-         *     surface. Blueprint §12.3 permits accent tokens and forbids tenant CSS,
-         *     JavaScript, and arbitrary HTML; anything richer than a token here would
-         *     cross that line.
+         *     Blueprint §12.3 permits curated tokens and forbids tenant CSS,
+         *     JavaScript, and arbitrary HTML; every field here is either a validated
+         *     token or a selection from a closed platform registry, so nothing a
+         *     tenant submits ever reaches a stylesheet as authored text.
+         *
+         *     ``accent`` remains the single arbitrary value — one validated
+         *     ``#rrggbb`` — and is grandfathered exactly as stored: it overrides only
+         *     the accent token and never participates in a palette's colours
+         *     (ADR-024 §5). ``palette`` and ``type_pairing`` select from the
+         *     code-owned registries; ``logo`` is an optional decorative image staged
+         *     and claimed exactly like section media (ADR-020 §10 as amended).
+         *
+         *     All three additions default to the delivered presentation, which is what
+         *     keeps ``schema_version`` at 1: a configuration written before M4G parses
+         *     to ``warm`` / ``humanist`` / ``null`` and renders unchanged.
          */
         Theme: {
             /**
@@ -2893,7 +2959,52 @@ export interface components {
              * @default #a34b2a
              */
             accent: string;
+            logo?: components["schemas"]["ThemeLogo"] | null;
+            /** @default warm */
+            palette: components["schemas"]["PaletteId"];
+            /** @default humanist */
+            type_pairing: components["schemas"]["TypePairingId"];
         };
+        /**
+         * ThemeLogo
+         * @description An optional tenant logo: one media asset id, and nothing else.
+         *
+         *     Deliberately carries **no ``alt_text`` field** (ADR-024 §4, §7). The
+         *     logo is permanently decorative — it renders ``alt=""`` beside the
+         *     business name, which every variant keeps as the visible semantic
+         *     ``h1`` — so alt text here would produce a duplicate accessible name for
+         *     the same fact, the redundancy screen-reader users report as noise.
+         *     Publishing a field whose value can never affect rendering would invite
+         *     owners to write alt text the product then ignores.
+         *
+         *     Contrast this with ``SectionImage``, which *does* carry contextual alt
+         *     text: a hero or gallery photograph conveys something the surrounding
+         *     text does not.
+         */
+        ThemeLogo: {
+            /**
+             * Media Id
+             * Format: uuid
+             */
+            media_id: string;
+        };
+        /**
+         * TypePairingId
+         * @description Curated heading/body font pairings (append-only, three permanent values).
+         *
+         *     Every pairing is a pair of **system** font stacks plus a bounded scale —
+         *     ADR-024 §6 ships no webfont, so each stack keeps the complex-script
+         *     fallbacks the delivered stack carries and costs no request, no CLS, and
+         *     no licensing or subsetting surface.
+         *
+         *     ``serif_display`` is snake_case deliberately: no hyphenated enum value
+         *     exists anywhere in the backend domains (the convention is ``view_menu``,
+         *     ``online_ordering``), and naming it after the ``editorial`` design
+         *     variant would imply a coupling that does not exist — variant and pairing
+         *     are independent axes chosen by different actors (ADR-024 §3).
+         * @enum {string}
+         */
+        TypePairingId: "humanist" | "serif_display" | "geometric";
         /** UserSummary */
         UserSummary: {
             /** Display Name */

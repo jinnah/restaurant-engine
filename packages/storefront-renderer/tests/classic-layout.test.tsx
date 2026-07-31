@@ -4,7 +4,12 @@ import { describe, expect, test } from 'vitest';
 import { SectionList } from '../src/sections/SectionList';
 import { VariantLayout } from '../src/variants/registry';
 import type { PublicStorefront } from '../src/contract';
-import { heroSection, storefrontFixture, storySection } from '../src/fixtures';
+import {
+  heroSection,
+  storefrontFixture,
+  storySection,
+  themeFixture,
+} from '../src/fixtures';
 
 function renderClassic(
   storefront = storefrontFixture([heroSection(), storySection()]),
@@ -46,7 +51,7 @@ describe('classic layout', () => {
 
   test('applies the accent pair as CSS custom properties', () => {
     const { container } = renderClassic(
-      storefrontFixture([], { theme: { accent: '#112244' } }),
+      storefrontFixture([], { theme: themeFixture({ accent: '#112244' }) }),
     );
     const page = container.firstElementChild as HTMLElement;
     expect(page.style.getPropertyValue('--accent')).toBe('#112244');
@@ -56,7 +61,9 @@ describe('classic layout', () => {
 
   test('an invalid runtime accent falls closed to the platform default', () => {
     const { container } = renderClassic(
-      storefrontFixture([], { theme: { accent: 'expression(alert(1))' } }),
+      storefrontFixture([], {
+        theme: themeFixture({ accent: 'expression(alert(1))' }),
+      }),
     );
     const page = container.firstElementChild as HTMLElement;
     expect(page.style.getPropertyValue('--accent')).toBe('#a34b2a');

@@ -96,7 +96,11 @@ describe('publishing (owner only, saved non-dirty draft, explicit confirmation)'
                 lock_version: 2,
                 config: {
                   schema_version: 1,
-                  theme: { accent: '#a34b2a' },
+                  theme: {
+                    accent: '#a34b2a',
+                    palette: 'warm',
+                    type_pairing: 'humanist',
+                  },
                   sections: [
                     {
                       id: 'hero',
