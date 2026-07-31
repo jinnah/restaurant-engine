@@ -41,12 +41,25 @@ export {
   relativeLuminance,
   safeAccent,
 } from './accent';
+export { themeStyle } from './theme/theme-style';
+export {
+  PALETTE_IDS,
+  paletteTokens,
+  type PaletteTokens,
+} from './theme/palettes';
+export {
+  DELIVERED_BODY_STACK,
+  TYPE_PAIRING_IDS,
+  typePairingTokens,
+  type TypePairingTokens,
+} from './theme/type-pairings';
 export { formatMinorUnits, minorUnitsToDecimalString } from './money';
 export { mailtoHref, telHref } from './contact-links';
 export { assertNever } from './assert-never';
 export type {
   DesignVariant,
   HeroAction,
+  PaletteId,
   PublicContactSection,
   PublicGallerySection,
   PublicHeroSection,
@@ -56,4 +69,6 @@ export type {
   PublicStorefrontImage,
   PublicStorySection,
   PublicTheme,
+  PublicThemeLogo,
+  TypePairingId,
 } from './contract';

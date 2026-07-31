@@ -49,24 +49,18 @@ describe('classic layout', () => {
     expect(document.body.textContent).not.toMatch(/restaurant engine/i);
   });
 
-  test('applies the accent pair as CSS custom properties', () => {
+  test('theme tokens live at the tenant-page boundary, not the variant root', () => {
+    // M4G-B (ADR-024 §5): `themeStyle()` is applied once, on the element
+    // carrying `tenantPageClass` (the public <body> and the preview
+    // container), so the painted browser canvas and every descendant read
+    // one typed source. A layout arm no longer owns the accent pair;
+    // theme-style.test.ts owns the token assertions.
     const { container } = renderClassic(
       storefrontFixture([], { theme: themeFixture({ accent: '#112244' }) }),
     );
     const page = container.firstElementChild as HTMLElement;
-    expect(page.style.getPropertyValue('--accent')).toBe('#112244');
-    // Dark accent → white foreground, the computed accessibility floor.
-    expect(page.style.getPropertyValue('--accent-contrast')).toBe('#ffffff');
-  });
-
-  test('an invalid runtime accent falls closed to the platform default', () => {
-    const { container } = renderClassic(
-      storefrontFixture([], {
-        theme: themeFixture({ accent: 'expression(alert(1))' }),
-      }),
-    );
-    const page = container.firstElementChild as HTMLElement;
-    expect(page.style.getPropertyValue('--accent')).toBe('#a34b2a');
+    expect(page.getAttribute('style')).toBeNull();
+    expect(page).toHaveAttribute('data-variant', 'classic');
   });
 
   test('an empty published configuration renders coherent chrome', () => {

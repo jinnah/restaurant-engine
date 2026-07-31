@@ -6,8 +6,20 @@
    its preview container. Every descendant rule is wrapped in :where(),
    which contributes zero specificity — the effective cascade against the
    component modules is exactly what the original element selectors had.
-   The tenant's one styling token (--accent, with its computed
-   --accent-contrast foreground) is set per page by the variant layout. */
+
+   M4G-B (ADR-024 §5): `themeStyle()` sets the palette, the typography
+   pairing, and the accent pair as inline custom properties on THIS very
+   element, from one typed registry — so the tokens reach the painted
+   browser canvas as well as every descendant, and an inline declaration
+   simply wins over the class declarations below. No palette identifier
+   and no palette-specific block exists in CSS.
+
+   The declarations below are therefore the single untokened baseline,
+   not a second registry. They exist because the neutral platform
+   surfaces — the 404 and the generic error document — deliberately carry
+   no tenant theme. `tests/palettes.test.ts` and
+   `tests/type-pairings.test.ts` pin them equal to `warm` / `humanist`,
+   so the baseline can never drift from the delivered presentation. */
 
 .tenantPage {
   --color-bg: #faf8f5;
@@ -24,8 +36,11 @@
   box-sizing: border-box;
   /* Universal system stack first; complex-script system fonts (Bengali
      among them) appear as later fallbacks so any script renders with
-     correct shaping at zero network cost. No webfont is loaded. */
-  font-family:
+     correct shaping at zero network cost. No webfont is loaded. The
+     pairing registry supplies `--font-body`; the fallback below is the
+     delivered stack, used by the unthemed platform surfaces. */
+  font-family: var(
+    --font-body,
     system-ui,
     -apple-system,
     'Segoe UI',
@@ -35,7 +50,8 @@
     'Noto Sans',
     'Noto Sans Bengali',
     'Nirmala UI',
-    sans-serif;
+    sans-serif
+  );
   /* Generous line height so stacked diacritics and conjunct clusters
      (matras, hasanta sequences) never clip. */
   line-height: 1.6;
@@ -65,8 +81,19 @@
   outline-offset: 2px;
 }
 
+/* Heading typography from the pairing registry (ADR-024 §6). Type
+   selectors inside :where() keep this at (0,0,1), so every component
+   module's class rule still wins on the properties it sets; these are
+   properties no component sets. The fallbacks reproduce the user-agent
+   defaults the delivered presentation relied on. */
+:where(.tenantPage) :is(h1, h2, h3) {
+  font-family: var(--font-heading, inherit);
+  font-weight: var(--heading-weight, bold);
+  letter-spacing: var(--heading-tracking, normal);
+}
+
 :where(.tenantPage) h1 {
-  font-size: 1.75rem;
+  font-size: calc(1.75rem * var(--type-scale, 1));
   line-height: 1.25;
 }
 

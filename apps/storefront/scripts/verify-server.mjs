@@ -35,7 +35,15 @@ const STOREFRONT_PAYLOAD = {
     currency: 'USD',
   },
   design_variant: 'classic',
-  theme: { accent: '#0f2f4f' },
+  // M4G-B: a deliberately NON-default palette and pairing, so the
+  // delivered HTML proves the theme tokens reach the tenant-page
+  // element itself (the canvas), not merely a descendant.
+  theme: {
+    accent: '#0f2f4f',
+    palette: 'midnight',
+    type_pairing: 'serif_display',
+    logo: null,
+  },
   sections: [
     {
       id: 'hero-main',
@@ -257,6 +265,35 @@ async function main() {
     console.log(
       `verify: INFO home render backend requests: ${homeRenderRequests.join(', ')}`,
     );
+    // M4G-B (ADR-024 section 5): the theme's custom properties are set on
+    // the element carrying the tenant-page baseline class - <body> - so
+    // the browser paints the canvas from the selected palette. Asserted
+    // on the wire, from the built server, not inferred from a component.
+    const bodyTag = /<body[^>]*>/.exec(home.body)?.[0] ?? '';
+    check(
+      'home: the tenant-page element carries the palette tokens',
+      bodyTag.includes('--color-bg:#14171c') &&
+        bodyTag.includes('--color-text:#f2f4f7'),
+      bodyTag.slice(0, 200),
+    );
+    check(
+      'home: the tenant-page element carries the typography tokens',
+      bodyTag.includes('--font-heading:ui-serif') &&
+        bodyTag.includes('--type-scale:1.05'),
+    );
+    check(
+      'home: the tenant-page element carries the tenant accent',
+      bodyTag.includes('--accent:#0f2f4f'),
+    );
+    // ADR-021 section 3: the measured render cost is TWO backend reads
+    // (projection + menu). The root layout reads the same argument-less
+    // React.cache loader the page body and generateMetadata already call,
+    // so it must deduplicate rather than add a third request.
+    check(
+      'home: render cost is exactly two backend reads',
+      homeRenderRequests.length === 2,
+      `${String(homeRenderRequests.length)}: ${homeRenderRequests.join(', ')}`,
+    );
 
     // --- Static assets keep the framework's immutable caching.
     const assetMatch = home.body.match(/\/_next\/static\/[^"]+\.js/);
@@ -284,10 +321,20 @@ async function main() {
       menu.headers['cache-control'] === 'no-store',
       String(menu.headers['cache-control']),
     );
+    const menuRenderRequests = tenantRequests.map((r) => r.url);
     console.log(
-      `verify: INFO menu render backend requests: ${tenantRequests
-        .map((r) => r.url)
-        .join(', ')}`,
+      `verify: INFO menu render backend requests: ${menuRenderRequests.join(', ')}`,
+    );
+    const menuBodyTag = /<body[^>]*>/.exec(menu.body)?.[0] ?? '';
+    check(
+      'menu: the tenant-page element carries the palette tokens',
+      menuBodyTag.includes('--color-bg:#14171c'),
+      menuBodyTag.slice(0, 200),
+    );
+    check(
+      'menu: render cost is exactly two backend reads',
+      menuRenderRequests.length === 2,
+      `${String(menuRenderRequests.length)}: ${menuRenderRequests.join(', ')}`,
     );
 
     // --- Neutral 404 for an unresolved host.

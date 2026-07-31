@@ -23,6 +23,33 @@ const classic = readFileSync(
   'utf-8',
 );
 
+/**
+ * Split a selector list on its TOP-LEVEL commas only.
+ *
+ * A naive `split(',')` tears functional pseudo-classes apart —
+ * `:where(.tenantPage) :is(h1, h2, h3)` becomes three fragments, two of
+ * which look unscoped — which would report a false violation for a
+ * selector that is in fact correctly scoped. Depth tracking keeps the
+ * policy exactly as strict while judging whole compound selectors.
+ */
+function selectorList(selector: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const character of selector) {
+    if (character === '(') depth += 1;
+    if (character === ')') depth -= 1;
+    if (character === ',' && depth === 0) {
+      parts.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += character;
+  }
+  parts.push(current.trim());
+  return parts.filter((part) => part !== '');
+}
+
 describe('tenant-page baseline policy', () => {
   test('wrapping floor: unbroken strings wrap instead of overflowing', () => {
     expect(base).toMatch(/overflow-wrap:\s*break-word/);
@@ -30,7 +57,12 @@ describe('tenant-page baseline policy', () => {
   });
 
   test('universal font stack with complex-script fallbacks, no webfont', () => {
-    expect(base).toMatch(/font-family:\s*\n?\s*system-ui/);
+    // M4G-B: the stack is now the `--font-body` fallback (the pairing
+    // registry supplies the token). The delivered families, their order,
+    // and the no-webfont rule are unchanged; type-pairings.test.ts pins
+    // this fallback equal to the `humanist` stack.
+    expect(base).toMatch(/font-family:\s*var\(\s*\n?\s*--font-body,/);
+    expect(base).toMatch(/--font-body,\s*\n?\s*system-ui/);
     expect(base).toContain("'Noto Sans Bengali'");
     expect(base).toContain("'Nirmala UI'");
     expect(base).not.toMatch(/@font-face/);
@@ -43,6 +75,16 @@ describe('tenant-page baseline policy', () => {
 
   test('line height accommodates stacked diacritics and conjuncts', () => {
     expect(base).toMatch(/line-height:\s*1\.6/);
+  });
+
+  test('heading typography reads the pairing tokens at zero specificity', () => {
+    expect(base).toMatch(
+      /:where\(\.tenantPage\) :is\(h1, h2, h3\)[^}]*font-family:\s*var\(--font-heading/s,
+    );
+    // The delivered heading size survives as the scale's base term.
+    expect(base).toMatch(
+      /font-size:\s*calc\(1\.75rem \* var\(--type-scale, 1\)\)/,
+    );
   });
 
   test('reduced-motion floor exists', () => {
@@ -69,8 +111,8 @@ describe('tenant-page baseline policy', () => {
       );
     expect(selectors.length).toBeGreaterThan(0);
     for (const selector of selectors) {
-      for (const part of selector.split(',')) {
-        expect(part.trim()).toMatch(/^:where\(\.tenantPage\)/);
+      for (const part of selectorList(selector)) {
+        expect(part).toMatch(/^:where\(\.tenantPage\)/);
       }
     }
   });
