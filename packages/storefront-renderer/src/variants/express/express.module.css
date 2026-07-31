@@ -1,0 +1,97 @@
+/* Express variant chrome (M4G-B, ADR-024 §1/§8): compact, dense, and
+   action-led. The primary action carries visual weight so the menu is the
+   obvious next step.
+
+   No animation is declared anywhere in this file - express ships zero
+   motion by ruling (ADR-024 §9), and the motion policy suite asserts it.
+   As with every variant, no section renderer is forked and no palette or
+   typography value appears here. */
+
+.page {
+  /* Denser than classic at every step; the shared section stylesheets
+     consume these tokens unchanged. */
+  --space-1: 0.375rem;
+  --space-2: 0.75rem;
+  --space-3: 1.25rem;
+  --space-4: 2rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.header {
+  align-items: center;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  justify-content: space-between;
+  padding: var(--space-1) var(--space-2);
+}
+
+.identity {
+  align-items: center;
+  display: flex;
+  gap: var(--space-1);
+}
+
+.logo {
+  display: block;
+  height: auto;
+  max-height: 2rem;
+  width: auto;
+}
+
+.name {
+  font-size: calc(1.125rem * var(--type-scale, 1));
+  line-height: 1.25;
+  margin: 0;
+}
+
+.nav {
+  display: flex;
+  gap: var(--space-1);
+}
+
+/* The primary action is a filled control here, not a text link - the
+   accent fill with its computed foreground, the same platform floor the
+   shared call to action uses. Padding keeps it past 44x44 CSS pixels. */
+.navLink {
+  background: var(--accent);
+  border-radius: 0.25rem;
+  color: var(--accent-contrast);
+  display: inline-block;
+  font-weight: 600;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.625rem 1rem;
+  text-decoration: none;
+}
+
+.navLink:hover {
+  filter: brightness(1.08);
+}
+
+.main {
+  flex: 1;
+  padding: var(--space-3) 0 var(--space-4);
+}
+
+/* Variant-scoped section presentation: a tighter measure, applied to the
+   SHARED section renderers without forking them. */
+.main > section {
+  max-width: 42rem;
+}
+
+.footer {
+  border-top: 1px solid var(--color-border);
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  padding: var(--space-2);
+  text-align: center;
+}
+
+.footerName {
+  margin: 0;
+}

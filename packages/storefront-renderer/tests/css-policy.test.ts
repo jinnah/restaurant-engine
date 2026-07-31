@@ -18,9 +18,15 @@ const sections = readFileSync(
   join(__dirname, '..', 'src', 'sections', 'sections.module.css'),
   'utf-8',
 );
-const classic = readFileSync(
-  join(__dirname, '..', 'src', 'variants', 'classic', 'classic.module.css'),
-  'utf-8',
+function variantStylesheet(variant: string): string {
+  return readFileSync(
+    join(__dirname, '..', 'src', 'variants', variant, `${variant}.module.css`),
+    'utf-8',
+  );
+}
+
+const VARIANT_STYLESHEETS = ['classic', 'editorial', 'express'].map(
+  (variant) => [variant, variantStylesheet(variant)] as const,
 );
 
 /**
@@ -119,9 +125,18 @@ describe('tenant-page baseline policy', () => {
 });
 
 describe('interactive target floor (44px minimum)', () => {
-  test('the call-to-action and navigation targets declare the floor', () => {
+  test('the shared call to action declares the floor', () => {
     expect(sections).toMatch(/\.cta[^}]*min-height:\s*44px/s);
     expect(sections).toMatch(/\.cta[^}]*min-width:\s*44px/s);
-    expect(classic).toMatch(/\.navLink[^}]*min-height:\s*44px/s);
   });
+
+  // The floor is variant-independent: a variant may restyle its
+  // navigation freely but may not shrink the target below the platform
+  // minimum (ADR-021 §10).
+  for (const [variant, stylesheet] of VARIANT_STYLESHEETS) {
+    test(`${variant}: the navigation target declares the floor`, () => {
+      expect(stylesheet).toMatch(/\.navLink[^}]*min-height:\s*44px/s);
+      expect(stylesheet).toMatch(/\.navLink[^}]*min-width:\s*44px/s);
+    });
+  }
 });

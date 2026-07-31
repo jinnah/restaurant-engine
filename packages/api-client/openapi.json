@@ -671,7 +671,9 @@
       "DesignVariant": {
         "description": "Platform-curated structural design variants (append-only).",
         "enum": [
-          "classic"
+          "classic",
+          "editorial",
+          "express"
         ],
         "title": "DesignVariant",
         "type": "string"

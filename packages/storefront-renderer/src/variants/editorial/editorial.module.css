@@ -1,0 +1,105 @@
+/* Editorial variant chrome (M4G-B, ADR-024 §1/§8): spacious, centred,
+   typographically led.
+
+   Everything variant-specific is expressed the three permitted ways: the
+   root's own token values, this file's chrome classes, and rules scoped
+   under the variant root. No section renderer is forked, and no palette
+   or typography value appears here - those arrive as inherited custom
+   properties from the tenant-page boundary. */
+
+.page {
+  /* The variant's own spacing scale: roomier than classic at every step
+     (ADR-024 §8 - a variant sets its own tokens, and the shared section
+     stylesheets consume them unchanged). */
+  --space-1: 0.75rem;
+  --space-2: 1.5rem;
+  --space-3: 3rem;
+  --space-4: 4.5rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.header {
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-2) var(--space-2);
+  text-align: center;
+}
+
+.masthead {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.logo {
+  display: block;
+  height: auto;
+  max-height: 4rem;
+  width: auto;
+}
+
+.name {
+  /* The editorial display size sits above the shared scale, and still
+     multiplies by the pairing's own scale. */
+  font-size: calc(2.25rem * var(--type-scale, 1));
+  line-height: 1.15;
+  margin: 0;
+}
+
+.nav {
+  display: flex;
+  gap: var(--space-1);
+  justify-content: center;
+}
+
+/* Navigation target: block padding keeps the target at the 44px floor. */
+.navLink {
+  color: var(--accent-text);
+  display: inline-block;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.625rem 0.75rem;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.navLink:hover {
+  text-decoration: underline;
+}
+
+.main {
+  flex: 1;
+  padding: var(--space-4) 0;
+}
+
+/* Variant-scoped section presentation: a wider measure and larger media,
+   applied to the SHARED section renderers without forking them. The
+   descendant type selector outranks the shared `.section` class rule on
+   exactly the properties named here, and nothing else. */
+.main > section {
+  max-width: 58rem;
+}
+
+.main > section img {
+  border-radius: 0.75rem;
+}
+
+.footer {
+  border-top: 1px solid var(--color-border);
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
+  padding: var(--space-3) var(--space-2);
+  text-align: center;
+}
+
+.footerName {
+  margin: 0;
+}
