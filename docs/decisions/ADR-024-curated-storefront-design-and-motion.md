@@ -1,8 +1,8 @@
 # ADR-024: M4G Curated Storefront Design and Motion
 
 - **Status:** Accepted (architecture); delivery records filled per slice
-  — **M4G-A, M4G-B, and M4G-C delivered (2026-07-31); M4G-D not
-  started**, and still requiring its own explicit authorization
+  — **all four slices delivered (M4G-A–C 2026-07-31; M4G-D 2026-08-01);
+  M4G is complete**
 - **Date:** 2026-07-30
 - **Deciders:** Product owner, principal architect
 
@@ -830,3 +830,128 @@ loop, webfont, page builder, ordering, checkout, campaign, CRM,
 Facebook-publishing, UAT, or M5+ behavior exists. **M4G-D remains the
 boundary and is not started**, M4G overall remains in progress, Milestone
 4 remains complete and is not reopened, and Milestone 5 has not begun.
+
+### M4G-D — E2E and close-out: delivered, 2026-08-01
+
+**Delivered behavior.** The §12 acceptance scope is implemented as a
+test-only change: nine files under `e2e/`, nothing else. `pnpm e2e` grows
+from **13** to **23** Playwright tests. Three support modules land beside
+the existing fixtures — a design-assignment helper driving the real
+platform command through an authenticated administrator session (the §2
+governance split, exercised rather than bypassed), curated-theme and
+staged-logo options on the published-storefront fixture, and a browser
+hygiene watcher that fails a test on console errors, uncaught page
+errors, transport failures, or unexpected 4xx/5xx responses.
+
+The §11 bars are covered per variant, in a real browser:
+
+- **One representative journey per variant** — classic (warm ×
+  humanist), editorial (midnight × serif_display), express (ember ×
+  geometric): platform assignment → saved draft carrying palette,
+  pairing, accent, and staged logo → authenticated preview rendering the
+  saved draft with the same variant and painted palette → publication →
+  a fresh anonymous visitor under the tenant host receiving exactly that
+  design. The rendered `h1` is asserted as the variant's own base size
+  multiplied by the pairing scale, and the stored accent is asserted
+  delivered unrewritten.
+- **Zero-violation axe gates** on published `/` and `/menu` for all
+  three variants (the ADR-023 WCAG 2.0/2.1 A/AA boundary and its
+  non-certification language apply verbatim), with the §7 rules
+  axe-refereed alongside structural assertions: exactly one visible
+  `h1`, the logo beside it with a literal empty `alt` and no accessible
+  name, intrinsic dimensions present, real bytes delivered.
+- **Per-variant responsive acceptance**: editorial and express run both
+  public routes at the six ADR-023 viewports through the same geometric
+  floors as the delivered classic matrix — the floors moved verbatim
+  into `e2e/support/layout.ts` so both matrices assert one definition —
+  and classic's own six-viewport matrix is unchanged and still passes.
+- **Real-browser reduced motion** per variant: under
+  `prefers-reduced-motion: reduce` every section's animation duration is
+  collapsed and its scroll timeline detached, and content is fully
+  visible — the unenhanced state the M4G-B keyframes terminate at,
+  proved where jsdom could not.
+- **Target and focus floors** per variant: the 44 px navigation target
+  measured from real geometry, and keyboard reachability with the focus
+  indicator asserted actually painted, not merely declared.
+- **The pairwise palette × pairing selection**: five combinations cover
+  all five palettes and all three pairings — never the fifteen-cell
+  product — including `midnight` seeded with an accent that cannot clear
+  AA unadjusted, so the §5 `--accent-text` derivation is genuinely
+  exercised, and both §7 logo-absence branches: no logo renders
+  name-only chrome; a logo whose bytes are refused at the transport
+  layer costs nothing informational.
+- **Assignment, authorization, and isolation**: the platform UI journey
+  proves assignment is not publication and the same-variant exact no-op
+  is never described as a change; a non-administrator never reaches the
+  panel and the command is proved never called; two tenants assigned
+  different variants render only their own design from one context.
+
+**Implementation decisions recorded because a later reader will meet
+them.** The suite's palette, pairing, and scale expectations are
+**deliberately restated as literals** rather than imported from the
+renderer: acceptance that read the registry it verifies would follow a
+drifted value instead of catching it (and importing the renderer would
+also be a dependency change). The rendered heading is asserted as the
+**variant base × pairing scale product**, because §8 gives each variant
+its own type scale and §6 multiplies it — a shared base is wrong by
+design. The themed element is located by the inline custom properties
+`themeStyle()` writes, because the token boundary is `<body>` on the
+public storefront and the preview container in the workspace (the
+recorded M4G-B two-site application); the painted-canvas assertion is
+therefore public-only. Computed CSS durations are compared numerically —
+Chromium serialises the floor's `0.01ms` as `1e-05s`. Hygiene recording
+is explicitly cleared after sign-in, because the control center's
+pre-authentication session probe legitimately answers 401; the sole
+standing exclusion is the exact path `/favicon.ico`, which Chromium
+requests speculatively and nothing in the application references. And
+the seeding fixture reads the draft's lock version before saving,
+because a design assignment creates the first draft (ADR-020 §5.7) —
+callers that pass no design selection keep the original create-intent
+request byte-identically.
+
+**Verification at delivery.** Locally, first attempt each: the four
+M4G-D specs (10 passed), the complete suite (23 passed), the E2E
+typecheck, formatting, lint, and the orchestrator regression suite (42
+passed, one Windows-symlink skip). Visual acceptance reviewed
+twenty-eight distinct per-variant captures individually as disposable
+per-run evidence — never committed baselines (ADR-023). One capture
+artifact is recorded plainly: editorial's full-page home captures show
+below-viewport sections at their pre-entry reveal state, because
+scroll-driven animation holds never-entered sections at their first
+keyframe while the capture photographs beyond the viewport; the suite
+asserts the content's presence, order, and geometry directly, and the
+reduced-motion checks prove the fully visible unenhanced state.
+
+Delivery evidence: implementation PR #39; reviewed head
+`0baeb35ff0e11921e8f3336865a9e6075187dd18` (sole parent `613287c0`, nine
+files, +1,904/−140); exact-head PR CI run `30698457002` green with all
+five jobs and zero artifacts; merged SHA-bound as
+`300a548832a0ee8026c00b7eb71b248dd1eed581` with ordered parents
+`613287c0` then the reviewed head and the **merge tree equal to the
+reviewed head tree**; exact-merge push CI run `30698873815` green with
+all five jobs and zero artifacts on attempt 1 — backend **1,132**,
+orchestrator **43**, Playwright **23** including all ten M4G-D tests,
+api-client **95**, storefront-renderer **146**, storefront **70**,
+control-center **439**, first-load JavaScript 456,629 bytes against the
+unchanged 502,201-byte ceiling, delivered CSS 10,493 bytes per route.
+Only disposable test infrastructure was used; the preserved development
+and UAT databases were neither contacted nor modified.
+
+**Retained unresolved risks, none characterised as benign.** (1) The
+dirty-navigation failure from run `30652179044` attempt 1 remains
+unexplained; §11/§12 assign it no browser coverage, so M4G-D
+deliberately adds none, and the vitest-level test remains its only
+coverage. (2) The earlier local E2E non-zero exit remains unidentified;
+later clean runs do not explain it. (3) The accent-sweep 15-second
+allowance remains unexercised — a Vitest unit test unreachable from the
+browser suite; successful runs since establish nothing about proximity
+to that allowance.
+
+**Boundary.** With this record **M4G is complete**: all four §12 slices
+are delivered and the §11 bars are covered by committed, passing
+verification. Owner-facing UAT of the M4G surface has not been
+conducted. Milestone 4 remains historically complete and was not
+reopened; Milestone 5 has not begun. The §13 non-goals stand — no
+webfont, video, hero loop, page builder, client-JS animation, or M5+
+behavior exists — and the §9 hero-loop candidate remains a recorded
+future decision.

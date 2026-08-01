@@ -2,7 +2,88 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M4G-C — delivered 2026-07-31)
+## Current state (M4G-D — delivered 2026-08-01)
+
+M4G-D adds the per-variant browser and visual acceptance layer (ADR-024
+§11/§12) as a test-only change: `pnpm e2e` grows from **13** to **23**
+Playwright tests through four new specs and three new support modules,
+all under `e2e/`. Every other suite is unchanged — backend (**1,132**),
+api-client (**95**), storefront-renderer (**146**), storefront (**70**),
+control-center (**439**), E2E orchestrator (**43** tests, 0 failed, one
+Windows-symlink skip) — because M4G-D changes no application behavior.
+
+- **One representative journey per variant.** classic (warm × humanist),
+  editorial (midnight × serif_display), and express (ember × geometric)
+  each travel the governance split end to end: the platform assigns the
+  structural variant through the documented command, the owner saves a
+  draft carrying palette, pairing, accent, and a staged logo, the
+  authenticated preview renders the saved draft with the same variant
+  and painted palette, publication makes it public, and a fresh
+  anonymous visitor under the tenant host receives exactly that design.
+  The rendered `h1` is asserted as the variant's own base multiplied by
+  the pairing scale, and the stored accent is delivered unrewritten.
+- **The `--accent-text` derivation, observed.** The token is asserted to
+  clear the AA body floor against the palette background and surface on
+  every journey — `midnight` deliberately seeded with an accent that
+  cannot pass unadjusted, so the derivation is genuinely exercised.
+- **Per-variant accessibility floors.** Blocking zero-violation axe
+  scans (the ADR-023 WCAG 2.0/2.1 A/AA boundary, no exclusions) on
+  published `/` and `/menu` for all three variants; the four landmarks;
+  the business name as the single visible `h1` with the decorative logo
+  beside it carrying a literal empty `alt` and no accessible name;
+  keyboard reachability with the focus indicator asserted actually
+  painted; and the 44 px navigation target measured per variant. A pass
+  remains engineering evidence within the stated boundary — not WCAG
+  certification, not complete accessibility compliance, and not proof
+  that no defect exists.
+- **Real-browser reduced motion, per variant.** Under
+  `prefers-reduced-motion: reduce`, every section's animation duration
+  is collapsed and its scroll timeline detached, and the content is
+  fully visible — the unenhanced state the M4G-B keyframes terminate
+  at, now proved where jsdom could not.
+- **Per-variant responsive acceptance.** editorial and express run both
+  public routes at the six ADR-023 viewports through the same geometric
+  floors as the delivered classic matrix — the floors moved verbatim to
+  `e2e/support/layout.ts` so both matrices assert one definition — with
+  the capture subset recorded as disposable per-run evidence, never a
+  committed baseline or pixel gate. classic's six-viewport matrix is
+  unchanged and still passes.
+- **The pairwise palette × typography selection.** Five combinations
+  cover all five palettes and all three pairings (the §12 selection,
+  never the fifteen-cell product), including both §7 logo-absence
+  branches: no logo renders name-only chrome, and a logo whose bytes
+  are refused at the transport layer costs nothing informational.
+- **Assignment, authorization, and isolation in the browser.** The
+  design-assignment UI journey proves assignment is not publication —
+  the public site changes only after the owner publishes — and the
+  same-variant exact no-op is never described as a change; a
+  non-administrator never reaches the panel and the command is proved
+  never called; two tenants assigned different variants render only
+  their own design from one browser context.
+- **Hygiene as a gate.** Console errors, uncaught page errors,
+  transport failures, and unexpected 4xx/5xx responses recorded per
+  navigation fail the affected test. The sole standing exclusion is the
+  exact path `/favicon.ico`, which Chromium requests speculatively and
+  nothing in the application references; recording is explicitly
+  cleared after sign-in because the control center's pre-authentication
+  session probe legitimately answers 401.
+
+Deliberate limits, recorded plainly. Screenshots are disposable per-run
+evidence; passing this matrix is evidence for these widths, themes, and
+content, not proof of every device, composition, or browser behavior.
+Editorial's full-page home captures photograph below-viewport sections
+at their pre-entry reveal state (scroll-driven animation holds
+never-entered sections at their first keyframe while the capture
+photographs beyond the viewport); the suite asserts the content's
+presence, order, and geometry directly, and the reduced-motion checks
+prove the fully visible unenhanced state. The three retained risks
+stand: the dirty-navigation failure from run `30652179044` remains
+unexplained and still has no browser coverage (ADR-024 assigns none to
+M4G-D); the earlier local E2E non-zero exit remains unidentified; and
+the accent-sweep 15-second allowance — a Vitest unit test unreachable
+from the browser suite — remains unexercised.
+
+## Earlier state (M4G-C — delivered 2026-07-31)
 
 M4G-C adds the control-center and platform slice's coverage (ADR-024) at
 the component and integration layers, through the real route table and an
