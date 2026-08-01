@@ -18,16 +18,16 @@ initial architecture-contract commit.
 
 ## Status
 
-| Milestone                                                      | State                                                                          |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                                                      |
-| M1 — Platform foundation                                       | **Complete** (2026-07-15)                                                      |
-| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                                                      |
-| M3 — Catalog and media                                         | **Complete** (2026-07-23)                                                      |
-| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                                                      |
-| M4G — Curated storefront design and motion (extension)         | **In progress** (M4G-A, M4G-B, M4G-C complete 2026-07-31; M4G-D next, ADR-024) |
-| M5 – M8 — Hours, ordering, operations, pilot                   | Not started                                                                    |
-| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23)                               |
+| Milestone                                                      | State                                            |
+| -------------------------------------------------------------- | ------------------------------------------------ |
+| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                        |
+| M1 — Platform foundation                                       | **Complete** (2026-07-15)                        |
+| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                        |
+| M3 — Catalog and media                                         | **Complete** (2026-07-23)                        |
+| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                        |
+| M4G — Curated storefront design and motion (extension)         | **Complete** (2026-08-01; M4G-A–M4G-D, ADR-024)  |
+| M5 – M8 — Hours, ordering, operations, pilot                   | Not started                                      |
+| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23) |
 
 ## Milestone 3 delivery decision (2026-07-19)
 
@@ -261,7 +261,68 @@ Milestone 5.
 | **M4G-A** — Backend theme foundation     | palette and typography registries, additive `Theme` extension, document-level media collection, §10 theme-logo authorization, contract regeneration                  | **Complete** (2026-07-31, ADR-024) |
 | **M4G-B** — Renderer variants and motion | `editorial` and `express` layout arms, palette/pairing token application, `--accent-text`, logo chrome, CSS scroll-driven motion, per-variant CSS-weight measurement | **Complete** (2026-07-31, ADR-024) |
 | **M4G-C** — Control center and platform  | composer palette/pairing pickers, logo staging, preview parity, the first platform design-assignment UI                                                              | **Complete** (2026-07-31, ADR-024) |
-| **M4G-D** — E2E and close-out            | one journey per variant, per-variant responsive/accessibility/reduced-motion acceptance, visual acceptance, close-out                                                | Not started (next slice)           |
+| **M4G-D** — E2E and close-out            | one journey per variant, per-variant responsive/accessibility/reduced-motion acceptance, visual acceptance, close-out                                                | **Complete** (2026-08-01, ADR-024) |
+
+### M4G-D close-out (2026-08-01)
+
+**M4G is complete.** M4G-D delivered the last ADR-024 §12 slice — the
+per-variant browser and visual acceptance suite, plus this close-out —
+so all four slices are delivered, each through its own reviewed PR with
+green exact-head and exact-merge CI. The extension neither reopened the
+historically complete Milestone 4 nor started Milestone 5.
+
+**What M4G-D added.** A test-only change: nine files under `e2e/`
+(+1,904/−140), growing `pnpm e2e` from thirteen to **twenty-three**
+Playwright tests. A design-assignment fixture drives the real platform
+command through an authenticated administrator session; the seeding
+fixture gains curated palette, typography, accent, and staged-logo
+selections (callers that pass none submit exactly the document they
+always did); and a hygiene watcher fails a test on console errors,
+uncaught page errors, transport failures, or unexpected 4xx/5xx. Four
+specs cover the ADR-024 §11 bars per variant: one representative
+journey each for classic, editorial, and express (assignment → saved
+draft → preview parity → publication → anonymous tenant-host
+rendering); blocking zero-violation axe on published `/` and `/menu`;
+the six-viewport responsive matrix for the two new variants through the
+same geometric floors as the delivered classic matrix; real-browser
+reduced motion (durations collapsed, scroll timelines detached, content
+fully visible); the measured 44 px target and painted focus-indicator
+floors; the single-`h1` and decorative-logo rules; a pairwise palette ×
+typography selection covering all five palettes and all three pairings
+in five combinations, including both logo-absence branches; and
+assignment-versus-publication, non-administrator denial with the
+command proved never called, and cross-tenant isolation with differing
+variants.
+
+**Verification.** Locally all gates passed on first attempt (focused
+specs 10, complete suite 23, typecheck, formatting, lint, orchestrator
+regression 42 with the one known Windows-symlink skip), and visual
+acceptance reviewed twenty-eight distinct per-variant captures as
+disposable per-run evidence — no committed baselines, no pixel gates
+(ADR-023). Implementation PR #39, reviewed head `0baeb35f`, merged
+SHA-bound as `300a548832a0ee8026c00b7eb71b248dd1eed581` with ordered
+parents `613287c0` then the reviewed head and the merge tree equal to
+the reviewed head tree. Exact-head PR CI run `30698457002` and
+exact-merge push CI run `30698873815` both completed successfully with
+all five jobs green and zero artifacts on attempt 1; the merge run
+executed the full twenty-three-test browser suite on Linux (backend
+1,132; orchestrator 43; api-client 95; storefront-renderer 146;
+storefront 70; control-center 439; first-load JavaScript 456,629 bytes
+against the unchanged 502,201-byte ceiling; delivered CSS 10,493 bytes
+per route).
+
+**Retained risks, none benign.** (1) The dirty-navigation failure from
+run `30652179044` attempt 1 remains unexplained; ADR-024 assigns it no
+browser coverage, so M4G-D deliberately added none. (2) The earlier
+local E2E non-zero exit remains unidentified; later clean runs do not
+explain it. (3) The accent-sweep 15-second allowance remains
+unexercised — successful runs since establish nothing about proximity
+to it.
+
+**Boundary.** Owner-facing UAT of the M4G surface has not been
+conducted. Milestone 5 remains unstarted and follows M4G. No
+hero-video pipeline, ordering, checkout, campaign, CRM, or
+Facebook-publishing work began.
 
 ### M4G-C close-out (2026-07-31)
 
