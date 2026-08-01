@@ -12,6 +12,7 @@
 import { readFileSync } from 'node:fs';
 import { request, type APIRequestContext } from '@playwright/test';
 import { ADMIN, ORIGIN, type SpecNamespace } from './namespace';
+import type { DesignVariantId, PaletteId, TypePairingId } from './theme';
 
 async function newApiContext(): Promise<APIRequestContext> {
   return request.newContext({
@@ -203,6 +204,94 @@ export async function seedPhotographedItem(
 }
 
 /**
+ * The platform design-assignment command (M4G-D, ADR-024 §2).
+ *
+ * The structural variant is platform authority — the M4B command is its
+ * only write path and owners never submit one — so a spec that needs a
+ * non-default variant must go through a real platform-administrator
+ * session exactly as the Control Center does. Assigning when no draft
+ * exists creates the first draft from the platform defaults (ADR-020
+ * §5.7), which is why callers read the draft's lock version afterwards
+ * instead of assuming create-intent.
+ */
+export async function assignDesign(
+  businessId: string,
+  variant: DesignVariantId,
+): Promise<{
+  design_variant: DesignVariantId;
+  previous_variant: DesignVariantId | null;
+}> {
+  const admin = await adminApi();
+  try {
+    const response = await admin.api.put(
+      `/api/v1/platform/businesses/${businessId}/design`,
+      {
+        data: { design_variant: variant },
+        headers: { 'X-CSRF-Token': admin.csrf },
+      },
+    );
+    await expectOk(response, `assign the ${variant} design to ${businessId}`);
+    return (await response.json()) as {
+      design_variant: DesignVariantId;
+      previous_variant: DesignVariantId | null;
+    };
+  } finally {
+    await admin.dispose();
+  }
+}
+
+/**
+ * Upload the committed fixture image as a fresh **pending** asset and
+ * return its id (M4G-D).
+ *
+ * A theme logo is staged, not attached: nothing promotes it, and the
+ * draft save is what claims it (ADR-020 §10, widened by ADR-024 §7). A
+ * separate upload rather than the catalog item's asset keeps the claim
+ * genuinely distinct, and reusing the one committed PNG adds no binary
+ * to the repository.
+ */
+export async function uploadPendingMedia(
+  ns: SpecNamespace,
+  businessId: string,
+): Promise<string> {
+  const owner = await ownerApi(ns);
+  try {
+    const upload = await owner.api.post(
+      `/api/v1/businesses/${businessId}/media`,
+      {
+        multipart: {
+          file: {
+            name: 'menu-item.png',
+            mimeType: 'image/png',
+            buffer: readFileSync('fixtures/menu-item.png'),
+          },
+        },
+        headers: { 'X-CSRF-Token': owner.csrf },
+      },
+    );
+    await expectOk(upload, `upload pending media for ${ns.slug}`);
+    return ((await upload.json()) as { id: string }).id;
+  } finally {
+    await owner.dispose();
+  }
+}
+
+/**
+ * The curated theme selections a spec may make (ADR-024 §3).
+ *
+ * Every field is optional and omitted keys are simply absent from the
+ * submitted document, so the backend's registered defaults apply — which
+ * is what keeps the pre-M4G fixture shape byte-identical for the M4F
+ * specs that pass no selection at all.
+ */
+export interface ThemeSelection {
+  accent?: string;
+  palette?: PaletteId;
+  typePairing?: TypePairingId;
+  logoMediaId?: string;
+}
+
+/**
  * The storefront composition seeded for the responsive and accessibility
  * specs (M4F, ADR-023): all five registered section types, realistic
  * tenant copy, and the library image referenced from the hero and the
@@ -210,17 +299,32 @@ export async function seedPhotographedItem(
  * through the UI is the functional journey's subject, not theirs — so it
  * travels the documented administrative HTTP contract with the owner's
  * own session and CSRF token, exactly like the menu fixtures above.
+ *
+ * M4G-D adds the optional curated theme selections. They are spread in
+ * only when supplied, so an existing caller submits exactly the document
+ * it submitted before.
  */
-export function storefrontConfigFixture(content: {
-  heroHeading: string;
-  heroSubheading: string;
-  storyBody: string;
-  mediaId: string;
-  imageAlt: string;
-}): Record<string, unknown> {
+export function storefrontConfigFixture(
+  content: {
+    heroHeading: string;
+    heroSubheading: string;
+    storyBody: string;
+    mediaId: string;
+    imageAlt: string;
+  } & ThemeSelection,
+): Record<string, unknown> {
   return {
     schema_version: 1,
-    theme: { accent: '#7a1f2b' },
+    theme: {
+      accent: content.accent ?? '#7a1f2b',
+      ...(content.palette === undefined ? {} : { palette: content.palette }),
+      ...(content.typePairing === undefined
+        ? {}
+        : { type_pairing: content.typePairing }),
+      ...(content.logoMediaId === undefined
+        ? {}
+        : { logo: { media_id: content.logoMediaId } }),
+    },
     sections: [
       {
         id: 'hero',
@@ -277,6 +381,12 @@ export function storefrontConfigFixture(content: {
  * An ACTIVE business with a populated menu, a featured photographed item,
  * and a PUBLISHED five-section storefront. Draft save claims the media
  * reference (ADR-020 §10); publication is what makes anything public.
+ *
+ * M4G-D adds the optional `design` argument. Supplying a `variant` runs
+ * the real platform command first, which creates the draft — so the save
+ * then presents that draft's exact lock version instead of claiming
+ * create-intent. Omitting `design` entirely leaves the original
+ * create-intent path exactly as the M4F specs exercise it.
  */
 export async function seedPublishedStorefront(
   ns: SpecNamespace,
@@ -288,13 +398,26 @@ export async function seedPublishedStorefront(
     heroSubheading: string;
     storyBody: string;
   },
-): Promise<{ businessId: string; mediaId: string }> {
+  design?: {
+    variant?: DesignVariantId;
+    theme?: ThemeSelection;
+    logo?: boolean;
+  },
+): Promise<{ businessId: string; mediaId: string; logoMediaId?: string }> {
   const { businessId } = await provisionActiveBusinessWithOwner(ns);
   const { itemId, mediaId } = await seedPhotographedItem(ns, businessId, {
     category: content.category,
     item: content.item,
     altText: content.imageAlt,
   });
+
+  if (design?.variant !== undefined) {
+    await assignDesign(businessId, design.variant);
+  }
+  const logoMediaId =
+    design?.logo === true
+      ? await uploadPendingMedia(ns, businessId)
+      : undefined;
 
   const owner = await ownerApi(ns);
   try {
@@ -308,8 +431,15 @@ export async function seedPublishedStorefront(
     });
     await expectOk(feature, `feature item for ${ns.slug}`);
 
-    // Create-intent draft save (omitted expected_lock_version), then
-    // publish with the saved draft's exact lock version (D-3/D-5).
+    // Intent is read, never guessed (ADR-020 §5.4): the overview is the
+    // only administrative draft read, and a design assignment above has
+    // already created the row this save must claim to know about.
+    const overview = await owner.api.get(`${base}/storefront`);
+    await expectOk(overview, `read storefront overview for ${ns.slug}`);
+    const existing = (
+      (await overview.json()) as { draft: { lock_version: number } | null }
+    ).draft;
+
     const draft = await owner.api.put(`${base}/storefront/draft`, {
       data: {
         config: storefrontConfigFixture({
@@ -318,7 +448,12 @@ export async function seedPublishedStorefront(
           storyBody: content.storyBody,
           mediaId,
           imageAlt: content.imageAlt,
+          ...design?.theme,
+          ...(logoMediaId === undefined ? {} : { logoMediaId }),
         }),
+        ...(existing === null
+          ? {}
+          : { expected_lock_version: existing.lock_version }),
       },
       headers,
     });
@@ -330,7 +465,11 @@ export async function seedPublishedStorefront(
       headers,
     });
     await expectOk(publish, `publish storefront for ${ns.slug}`);
-    return { businessId, mediaId };
+    return {
+      businessId,
+      mediaId,
+      ...(logoMediaId === undefined ? {} : { logoMediaId }),
+    };
   } finally {
     await owner.dispose();
   }
