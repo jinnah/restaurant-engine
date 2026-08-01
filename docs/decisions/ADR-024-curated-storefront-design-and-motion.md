@@ -1,8 +1,8 @@
 # ADR-024: M4G Curated Storefront Design and Motion
 
 - **Status:** Accepted (architecture); delivery records filled per slice
-  — **M4G-A and M4G-B delivered (2026-07-31); M4G-C and M4G-D not
-  started**, each still requiring its own explicit authorization
+  — **M4G-A, M4G-B, and M4G-C delivered (2026-07-31); M4G-D not
+  started**, and still requiring its own explicit authorization
 - **Date:** 2026-07-30
 - **Deciders:** Product owner, principal architect
 
@@ -678,3 +678,155 @@ M4G-D. No video, hero loop, webfont, page builder, or M5+ behavior
 exists. **M4G-C and M4G-D remain the boundary and are not started**,
 M4G overall remains in progress, Milestone 4 remains complete and is not
 reopened, and Milestone 5 has not begun.
+
+### M4G-C — Control center and platform: delivered, 2026-07-31
+
+**Delivered behavior.** The §2 governance split is now something a human
+can act on. The composer gained a "Brand and appearance" group holding
+the curated palette picker, the curated typography-pairing picker, the
+delivered accent control moved in unchanged, and an optional logo — the
+four tenant-controlled fields §2 assigns to owners **and** managers. The
+platform business detail page gained the **first design-assignment UI**
+for the M4B command, the ADR-016-style API-without-UI gap §2 named. No
+owner-facing path submits a structural variant, and the workspace still
+shows the assigned variant as read-only metadata.
+
+Both pickers are populated from the renderer's own registries and every
+swatch and type sample is painted from its exported tokens, so the
+control center restates no palette colour and no font stack; exhaustive
+`Record<PaletteId, …>` and `Record<TypePairingId, …>` metadata make a new
+registry member a compile error until it is named, and a build-time pin
+ties the offered sets to the published contract enums.
+
+All four fields travel through the delivered **full-document draft save**
+(ADR-020 D-5) — no autosave and no second write path — so they are
+versioned, published, archived, restored, and snapshot-preserved by
+machinery that already existed. The M4G-A carried-theme mechanism stays
+in place even though the composer now owns four of the theme's fields:
+it is what preserves a theme field this form does **not** own, so a
+future additive field survives an unrelated edit the moment the contract
+publishes it. A configuration stored before M4G still reads as the
+registry defaults, and the create path states them explicitly because the
+generated `Theme` makes defaulted fields required.
+
+The §7 logo is staged through the **existing** media-library primitive.
+One optional, default-preserving mode was added to that shared component:
+a placement may declare itself decorative, in which case the
+describe/decorative choice and the description field are absent entirely
+rather than disabled. That is not a styling switch — it is the honest
+consequence of §7 ruling the logo permanently decorative, and offering a
+description the product then discards would invite exactly the alt text
+`ThemeLogo` deliberately cannot store. Every other consumer keeps the
+description step unchanged, pinned by a regression test. Selection only
+stages the reference; the draft save performs the existing §10 claim; and
+publication alone makes the asset publicly deliverable. Removing the logo
+clears the reference and deletes or unclaims nothing.
+
+Preview is unchanged in kind and now proved in substance: it remains the
+server projection of the **saved** draft rendered through the shared
+renderer, carrying palette, pairing, accent, logo, content, and the
+platform-assigned structural variant, with the logo served from the
+authenticated member media route. **No unsaved live preview mechanism was
+introduced** — §13 forbids a new preview surface and ADR-022 §3 defines
+preview as the saved draft — so a picker changes the storefront only
+after Save draft, and the page still says so.
+
+**Two implementation decisions are recorded because a later reader will
+meet them, and neither revises the architecture above.**
+
+First, **the platform assignment UI deliberately does not display a
+current variant, and preselects nothing.** The platform business
+representation does not carry the variant, and ADR-020 §7 denies platform
+administrators every storefront read — so no value exists that could be
+shown honestly. Rather than infer one, guess the default, or reach for a
+read this role is denied, the panel presents itself as a command and
+states plainly where the current design _is_ visible. Its
+acknowledgements report only what the server said, and they distinguish
+the three real outcomes §6 of ADR-020 defines: a first draft created
+(`previous_variant: null`), an actual variant change, and the command's
+**exact no-op** when the requested variant is already assigned — which is
+never described as a change, because no mutation, lock increment, or
+audit event occurred.
+
+Second, **a stale-write conflict and an expired staged asset are no
+longer the same 409.** The composer previously routed every 409 into the
+ADR-022 §6 stale-draft state; that is correct for `ErrorCode.CONFLICT`
+and false for the claim path's `invalid_state`, which the media domain
+answers when a staged asset expired before the save reached it. The
+narrowed predicate keeps the §6 state for the backend's own conflict code
+only, so an expired logo no longer claims the draft changed elsewhere and
+does not strand the editor in a state whose only exit discards the very
+reference that needs replacing. Exactly addressed theme field errors
+reach the control that owns them; the service-level media rejection — a
+general 422 carrying `media_ids` and no field error — stays in the form
+summary, because inferring which reference was refused is precisely what
+that indistinguishable response is designed to prevent (ADR-020 §10).
+
+**Authorization boundaries, unchanged.** No capability, role, lifecycle,
+publication, restoration, tenancy, session, or CSRF rule changed.
+`business.storefront.write` already covered palette, pairing, and logo as
+draft content; publication and restoration remain owner-only; staff hold
+no storefront capability; and the platform command remains behind
+`platform.businesses.manage` with the API as the authority. Palette and
+pairing are closed enums, so no tenant string reaches a stylesheet.
+
+**Verification at delivery.** Control-center **439** tests (398 at the
+M4G-B head, +41 for M4G-C). Backend **1,132**, api-client **95**,
+storefront-renderer **146**, storefront **70**, E2E orchestrator **43**
+tests with 0 failed and one Windows-symlink skip, and Playwright **13**
+are all unchanged — M4G-C adds no browser-level acceptance. Lint,
+formatting, strict typing, contract and generated-client byte-currency,
+both production builds, the first-load JavaScript budget, built-server
+verification, the CSS regression suite, and the repository-contract
+checks all passed. **No backend, endpoint, generated contract, schema,
+migration, dependency, lockfile, renderer-production, or CI-workflow
+change**; `schema_version` stays 1 and the Alembic head stays
+`a41d9c7e5b30`. Every changed path was under `apps/control-center`.
+
+**Delivery evidence, including the failed first merge run.**
+Implementation PR #36; reviewed head
+`4ab5b9dc569b386f9085ca67fb1c717e204e19f0`; merged to `main` as
+`549b3b55acd89ae6f84652e0d7a61e1cb301ab49` with ordered parents
+`f933ec25c97fde7c19961c2cf8de5af1918fcae2` then the reviewed head, the
+merge tree equal to the reviewed feature-head tree. Exact-head PR CI run
+`30671382912` succeeded with five green jobs and zero artifacts. The
+first exact-merge-SHA run `30671894681` **failed**, and only because a
+pre-existing M4G-B test — the exhaustive 140,608-point `midnight` accent
+sweep, untouched by M4G-C and byte-identical across both runs — exceeded
+Vitest's default 5,000 ms per-test limit. It was a timeout, not an
+assertion failure.
+
+**The corrective change's exact scope.** PR #37 modified one file,
+`packages/storefront-renderer/tests/accent-text.test.ts`, adding an
+explanatory comment and a **15-second timeout attached to that single
+test**. The property was not weakened: the 140,608-point input space,
+the loop bounds, the production calls, and the AA assertion are
+unchanged, and the sweep was not sampled, split, retried, skipped, or
+quarantined. The allowance is per-test rather than global, so every other
+test in the package keeps the 5,000 ms default and a genuine hang there
+still fails. Its exact-head run `30673935509` succeeded, it merged as
+`49aa17e89b51b99a1fb72f9fc9ea04daadd3f52c`, and the final exact-merge run
+`30674669713` succeeded. Both successful runs had five green jobs and
+zero artifacts.
+
+**Retained unresolved risks, none characterised as benign.**
+
+1. Attempt 1 of run `30652179044` failed in the dirty-navigation test in
+   `apps/control-center/tests/storefront-dialogs-a11y.test.tsx`. Its
+   cause remains **unproven**; M4G-C neither modified nor attempted to
+   fix that test, and its own tests avoid the pattern.
+2. An earlier local E2E invocation reported passed tests but returned a
+   non-zero exit. Its cause remains **unidentified**.
+3. **Neither successful corrective run exercised the new 15-second
+   allowance** — the sweep finished under the old limit on both runners.
+   The correction passed both required CI gates, but runner variability
+   and latent nondeterminism are **not excluded**.
+
+**Boundary.** M4G-C shipped no browser-level acceptance. The complete
+per-variant matrix — real-browser journeys, the responsive viewports,
+axe, real-browser reduced motion, target geometry — plus visual
+acceptance and the M4G overall close-out remain **M4G-D**. No video, hero
+loop, webfont, page builder, ordering, checkout, campaign, CRM,
+Facebook-publishing, UAT, or M5+ behavior exists. **M4G-D remains the
+boundary and is not started**, M4G overall remains in progress, Milestone
+4 remains complete and is not reopened, and Milestone 5 has not begun.

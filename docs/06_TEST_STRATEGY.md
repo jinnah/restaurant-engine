@@ -2,7 +2,103 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M4G-B — delivered 2026-07-31)
+## Current state (M4G-C — delivered 2026-07-31)
+
+M4G-C adds the control-center and platform slice's coverage (ADR-024) at
+the component and integration layers, through the real route table and an
+injected client. The control-center suite grows from **398** to **439**.
+The backend (**1,132**), api-client (**95**), storefront-renderer
+(**146**), storefront (**70**), E2E orchestrator (**43** tests, 0 failed,
+one Windows-symlink skip), and Playwright (**13**) suites are unchanged —
+M4G-C adds no browser-level acceptance, which is deliberately M4G-D.
+
+- **Brand controls, driven through the real composer.** First-use
+  defaults and a stored non-default theme both initialize the palette,
+  typography, accent, and logo controls; every registered palette and
+  pairing is offered, each described in words so colour is never the only
+  cue; and changing a picker marks the draft dirty and blocks publishing.
+- **The whole theme on every save.** The full-document draft PUT is
+  asserted to carry `accent`, `palette`, `type_pairing`, and `logo`
+  together, including several changed in one session. A stored logo
+  survives an unrelated brand change, a legacy accent-only configuration
+  still round-trips, and a successful save resets to the
+  server-normalized pristine baseline.
+- **Registry equality, pinned to the contract.** The palette and
+  typography choices the composer offers are asserted equal to the
+  published `PaletteId` and `TypePairingId` enums, in the renderer's
+  registration order, so a registry member added to the backend but never
+  surfaced — or offered but not published — fails here.
+- **Logo staging reuses the delivered media behaviour.** Choosing stages
+  the reference and performs no draft write; replacing swaps it; removing
+  clears it without deleting or unclaiming the asset; cancelling leaves
+  the draft untouched; an upload failure is reported inside the dialog
+  and can be retried. Pending honesty and the claim-on-save contract are
+  asserted in the logo's own wording.
+- **The logo placement is permanently decorative.** Its picker is
+  asserted to offer no describe/decorative choice, no description field,
+  and no radio at all, and to confirm on a selected asset alone; the
+  staged thumbnail carries a literal empty `alt`. A companion regression
+  proves the section-image picker still _requires_ the description
+  choice, so the shared primitive did not change for its other consumers.
+- **Expired staged media is not a stale write.** A `409 invalid_state`
+  from the claim path is asserted to render the server's message in the
+  form summary while preserving every brand value and the staged
+  reference, and explicitly **not** to enter the stale-draft conflict
+  state — which a genuine `409 conflict` still does, with all values
+  preserved.
+- **Error routing by exact path.** A field error at
+  `body.config.theme.palette` and one at `body.config.theme.logo.media_id`
+  each land on the control that owns it and are asserted absent from the
+  persistent summary, while the service-level media rejection — a general
+  422 carrying `media_ids` and no field error — stays in the summary and
+  is attributed to nothing, because that response is indistinguishable by
+  design.
+- **Saved-draft preview parity.** A projection carrying a non-default
+  palette, pairing, accent, logo, and an `editorial` structural variant is
+  asserted to reach the shared renderer with the tokens the renderer
+  itself resolved, the platform-assigned layout arm, and the logo served
+  from the authenticated member media route with a literal empty `alt`; a
+  null logo renders name-only chrome. The caption stating that preview
+  shows only the **saved** draft is pinned, because **no unsaved live
+  preview exists**.
+- **Platform design assignment.** The three variants are offered with
+  none preselected and the action disabled until one is chosen; the
+  confirmation states its three conditions; exactly one command is sent
+  with the CSRF token and no lock version; and the three acknowledgements
+  are asserted separately — first-draft creation, an actual variant
+  change, and the **same-variant exact no-op, which is asserted never to
+  be described as a change**.
+- **Capability, role, and failure boundaries.** A closed business gets
+  readable values with no editable control; a manager may edit but has no
+  publish action; staff never reach the composer and no storefront
+  request is made for them; a non-administrator never reaches the design
+  panel and the assignment command is never called. 403, 404, and
+  `409 invalid_state` on assignment are each rendered through the page's
+  focused error panel, and double submission is prevented while pending.
+
+Deliberate limits: M4G-C claims no browser-level evidence. The complete
+per-variant real-browser responsive, axe, reduced-motion, target-geometry,
+and visual-acceptance matrix — and the M4G overall close-out — remain
+**M4G-D**.
+
+**The exhaustive accent sweep's timeout, recorded plainly.** The first
+exact-merge-SHA run of the M4G-C implementation failed on the
+pre-existing M4G-B `midnight` 140,608-point sweep, which exceeded
+Vitest's default 5,000 ms per-test limit — a timeout, not an assertion
+failure, on a tree byte-identical to the one that had just passed. The
+property was **not** weakened: it was not sampled, split, retried,
+skipped, or quarantined, and the input space, loop bounds, production
+calls, and assertion are unchanged. Only that one test received a
+15-second allowance, so every other test in the package keeps the 5,000 ms
+default and a genuine hang there still fails. PR #37 carried that single
+change and restored a green `main`. **Neither successful corrective run
+exercised the new allowance** — the sweep finished under the old limit on
+both runners — so runner variability and latent nondeterminism remain
+retained risks rather than excluded explanations. The separate
+dirty-navigation failure and the earlier local E2E non-zero exit likewise
+remain unresolved and unexplained.
+
+## Earlier state (M4G-B — delivered 2026-07-31)
 
 M4G-B adds the renderer slice's coverage (ADR-024) at the unit,
 component, policy, and build-measurement layers. The storefront-renderer
