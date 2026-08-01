@@ -102,6 +102,17 @@ describe('the emitted token conforms across the sRGB input space', () => {
     });
   }
 
+  // The one test in this repository that carries its own timeout, and it
+  // is a duration allowance rather than a change of subject: 52^3 =
+  // 140,608 exhaustive derivations, each a search, run close enough to
+  // Vitest's 5,000 ms default that ordinary CI-runner variance decides the
+  // outcome. It passed the pull-request run at 5,366 ms for this file and
+  // crossed the limit at 6,253 ms on the merge commit, with a byte-
+  // identical tree and no assertion failure. Sampling fewer points, or
+  // splitting the sweep to fit, would quietly weaken the property this
+  // suite exists to prove, so the budget moves instead. The limit stays
+  // per-test rather than global, so every other test in this package keeps
+  // the 5,000 ms default and a genuine hang here still fails.
   test('midnight: 140,608-point dense sweep (the hardest palette)', () => {
     const palette = paletteTokens('midnight');
     for (let r = 0; r <= 255; r += 5) {
@@ -113,7 +124,7 @@ describe('the emitted token conforms across the sRGB input space', () => {
         }
       }
     }
-  });
+  }, 15_000);
 
   test('a full hue sweep at maximum saturation conforms for every palette', () => {
     for (const id of PALETTE_IDS) {
