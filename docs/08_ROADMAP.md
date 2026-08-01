@@ -18,16 +18,16 @@ initial architecture-contract commit.
 
 ## Status
 
-| Milestone                                                      | State                                                          |
-| -------------------------------------------------------------- | -------------------------------------------------------------- |
-| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                                      |
-| M1 — Platform foundation                                       | **Complete** (2026-07-15)                                      |
-| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                                      |
-| M3 — Catalog and media                                         | **Complete** (2026-07-23)                                      |
-| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                                      |
-| M4G — Curated storefront design and motion (extension)         | **In progress** (M4G-A and M4G-B complete 2026-07-31, ADR-024) |
-| M5 – M8 — Hours, ordering, operations, pilot                   | Not started                                                    |
-| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23)               |
+| Milestone                                                      | State                                                                          |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                                                      |
+| M1 — Platform foundation                                       | **Complete** (2026-07-15)                                                      |
+| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                                                      |
+| M3 — Catalog and media                                         | **Complete** (2026-07-23)                                                      |
+| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                                                      |
+| M4G — Curated storefront design and motion (extension)         | **In progress** (M4G-A, M4G-B, M4G-C complete 2026-07-31; M4G-D next, ADR-024) |
+| M5 – M8 — Hours, ordering, operations, pilot                   | Not started                                                                    |
+| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23)                               |
 
 ## Milestone 3 delivery decision (2026-07-19)
 
@@ -260,8 +260,117 @@ Milestone 5.
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 | **M4G-A** — Backend theme foundation     | palette and typography registries, additive `Theme` extension, document-level media collection, §10 theme-logo authorization, contract regeneration                  | **Complete** (2026-07-31, ADR-024) |
 | **M4G-B** — Renderer variants and motion | `editorial` and `express` layout arms, palette/pairing token application, `--accent-text`, logo chrome, CSS scroll-driven motion, per-variant CSS-weight measurement | **Complete** (2026-07-31, ADR-024) |
-| **M4G-C** — Control center and platform  | composer palette/pairing pickers, logo staging, preview parity, the first platform design-assignment UI                                                              | Not started (next slice)           |
-| **M4G-D** — E2E and close-out            | one journey per variant, per-variant responsive/accessibility/reduced-motion acceptance, visual acceptance, close-out                                                | Not started                        |
+| **M4G-C** — Control center and platform  | composer palette/pairing pickers, logo staging, preview parity, the first platform design-assignment UI                                                              | **Complete** (2026-07-31, ADR-024) |
+| **M4G-D** — E2E and close-out            | one journey per variant, per-variant responsive/accessibility/reduced-motion acceptance, visual acceptance, close-out                                                | Not started (next slice)           |
+
+### M4G-C close-out (2026-07-31)
+
+M4G-C delivered the **control-center and platform** slice over the M4G-A
+theme foundation and the M4G-B renderer. It is the first slice that lets
+a human choose any of it.
+
+**Governance, unchanged and now visible.** Platform administrators remain
+the only actors who assign a structural design variant; the M4B command
+is still the sole write path, and M4G-C simply gives it the UI it never
+had. Owners see the assigned variant as read-only information in their
+workspace and never submit one. Owners **and managers** may edit the
+palette, the typography pairing, the accent, and the logo, because those
+are tenant content rather than structure. Publication and restoration
+remain owner-only, and staff hold no storefront capability at all.
+
+**Brand editing inside the delivered save path.** The composer gained a
+"Brand and appearance" group holding the palette picker, the typography
+picker, the accent control moved in unchanged, and the optional logo. All
+four travel through the existing full-document draft save — no autosave,
+no second write path — so they are versioned, published, archived,
+restored, and snapshot-preserved by machinery that already existed. The
+loaded draft's whole theme is still carried through an edit, so a theme
+field this form does not own survives an unrelated change, and a
+configuration stored before M4G still reads as the registry defaults.
+Both pickers are populated from the renderer's own registries and every
+swatch and type sample is painted from its exported tokens, so no palette
+colour and no font stack is restated in the control center; a build-time
+pin ties the offered sets to the published contract enums.
+
+**Logo staging.** Choosing a logo stages an existing or newly uploaded
+media reference in the editor; the draft save performs the existing claim
+operation; and only publication can make the asset publicly deliverable.
+The placement is permanently decorative — the shared media dialog runs in
+a mode that offers no describe/decorative choice and no description
+field, and no alt text is stored — because the business name is always
+present as text beside it. Every other consumer of that dialog keeps the
+description step unchanged, pinned by a regression test.
+
+**Preview.** Preview remains the server projection of the **saved** draft
+rendered through the shared renderer, now proved to carry the palette,
+pairing, accent, logo, content, and platform-assigned structural variant
+faithfully. **No unsaved live preview was introduced**: a picker changes
+the storefront only after Save draft, and the page still says so.
+
+**Platform assignment.** The new Design section on the platform business
+detail page offers the three variants with **nothing preselected** and
+**does not display a current value**, because the platform business
+representation does not carry the variant and a platform administrator
+holds no storefront read — the panel says plainly where the current
+design _is_ visible instead of fabricating one. Its acknowledgements
+distinguish the three real outcomes: a first draft created, an actual
+variant change, and the command's exact same-variant no-op, which is
+never described as a change.
+
+**Error routing.** A stale-write conflict and an expired staged-media
+`409 invalid_state` are now distinct: only the backend's own conflict
+code enters the stale-draft state, so an expired logo no longer claims
+the draft changed elsewhere and the editor stays usable for a retry.
+Exactly addressed theme field errors reach the control that owns them,
+while the service-level media rejection stays in the form summary,
+because that response is indistinguishable by design.
+
+**Verification.** Backend **1,132**; api-client **95**;
+storefront-renderer **146**; storefront **70**; control-center **439**
+(from 398); E2E orchestrator **43** tests with 0 failed and one
+Windows-symlink skip; Playwright **13**, unchanged. Production builds,
+built-server verification, contract and generated-client byte-currency,
+budgets, lint, formatting, strict typing, and the repository-contract
+checks all passed. **No backend, endpoint, generated contract, schema,
+migration, dependency, lockfile, publication, restoration, authorization,
+tenancy, lifecycle, session, CSRF, renderer-production, or CI-workflow
+behavior changed in M4G-C**; every changed path was under
+`apps/control-center`.
+
+**Delivery evidence, including the failed first merge run.**
+Implementation PR #36; reviewed head
+`4ab5b9dc569b386f9085ca67fb1c717e204e19f0`; merged to `main` as
+`549b3b55acd89ae6f84652e0d7a61e1cb301ab49`. Exact-head PR CI run
+`30671382912` succeeded with all five jobs green and zero artifacts. The
+first exact-merge-SHA run `30671894681` **failed**, and only because a
+pre-existing M4G-B test — the exhaustive 140,608-point `midnight` accent
+sweep, untouched by M4G-C and byte-identical across both runs — exceeded
+Vitest's default 5,000 ms per-test limit. It was a timeout, not an
+assertion failure. Corrective PR #37 changed exactly one test's local
+timeout and nothing else; its exact-head run `30673935509` succeeded, it
+merged as `49aa17e89b51b99a1fb72f9fc9ea04daadd3f52c`, and the final
+exact-merge run `30674669713` succeeded. Both successful corrective runs
+had five green jobs and zero artifacts, and **neither exercised the
+15-second allowance** — the sweep finished under the old limit on those
+runners.
+
+**Retained risks, none benign.** (1) Attempt 1 of run `30652179044`
+failed in the dirty-navigation test in
+`apps/control-center/tests/storefront-dialogs-a11y.test.tsx`; its cause
+remains unproven and M4G-C did not modify that test. (2) An earlier local
+E2E invocation reported passed tests but returned a non-zero exit; its
+cause remains unidentified. (3) The accent-sweep timeout correction
+passed both required CI gates, but because neither successful run
+exercised the new allowance, **runner variability and latent
+nondeterminism are not excluded**.
+
+**Boundary.** M4G-D owns the complete per-variant browser-acceptance
+matrix — real-browser journeys, responsive viewports, axe, reduced
+motion, target geometry — plus visual acceptance and the M4G overall
+close-out. No hero-video pipeline, ordering, checkout, campaign, CRM,
+Facebook-publishing, or UAT work began. **M4G remains in progress**,
+Milestone 4 remains historically complete and is not reopened, and
+Milestone 5 remains unstarted.
 
 ### M4G-B close-out (2026-07-31)
 
