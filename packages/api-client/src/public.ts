@@ -52,6 +52,14 @@ export type PublicSection = PublicStorefront['sections'][number];
 export type HeroAction = components['schemas']['HeroAction'];
 // M5B (ADR-025): the host-resolved availability projection.
 export type PublicAvailability = components['schemas']['PublicAvailability'];
+// M6A (ADR-026): guest order placement.
+export type OrderPlace = components['schemas']['OrderPlace'];
+export type CartLineIn = components['schemas']['CartLineIn'];
+export type OrderPlacedResponse = components['schemas']['OrderPlacedResponse'];
+export type PublicOrderView = components['schemas']['PublicOrderView'];
+export type PublicOrderLine = components['schemas']['PublicOrderLine'];
+export type PublicOrderLineOption =
+  components['schemas']['PublicOrderLineOption'];
 export type PublicWeeklyInterval =
   components['schemas']['PublicWeeklyInterval'];
 export type PublicScheduleException =
@@ -77,6 +85,14 @@ export interface PublicApi {
    * store it beyond the render that requested it.
    */
   getAvailability(): Promise<ApiResult<PublicAvailability>>;
+  /**
+   * Place a pickup order with the Host-resolved Business (M6A,
+   * ADR-026). Idempotent: the caller supplies `idempotency_key`, a
+   * retry returns the same order, and the tracking token appears only
+   * in the creating response. Ineligible ordering (no entitlement,
+   * pickup disabled, any resolution failure) is the one neutral 404.
+   */
+  placeOrder(payload: OrderPlace): Promise<ApiResult<OrderPlacedResponse>>;
 }
 
 export function createPublicApi(client: Client<paths>): PublicApi {
@@ -118,6 +134,18 @@ export function createPublicApi(client: Client<paths>): PublicApi {
       try {
         const { data, error, response } = await client.GET(
           '/api/v1/public/availability',
+        );
+        return toResult(data, error, response);
+      } catch {
+        return { ok: false, status: null, envelope: null };
+      }
+    },
+
+    async placeOrder(payload) {
+      try {
+        const { data, error, response } = await client.POST(
+          '/api/v1/public/orders',
+          { body: payload },
         );
         return toResult(data, error, response);
       } catch {

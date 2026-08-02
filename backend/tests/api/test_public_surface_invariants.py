@@ -22,6 +22,7 @@ from typing import Annotated, Any
 from fastapi import Depends, FastAPI
 from fastapi.dependencies.models import Dependant
 
+from app.core.browser_context import require_browser_context
 from app.core.host_guard import PUBLIC_EXEMPT_METHODS, PUBLIC_PATH_PREFIX
 from app.core.openapi import iter_route_contracts
 from app.domains.businesses.resolution import resolve_public_business
@@ -150,15 +151,35 @@ class TestPublicExemptionIsMethodScoped:
     def test_only_safe_methods_are_exempt(self) -> None:
         assert PUBLIC_EXEMPT_METHODS == {"GET", "HEAD"}
 
-    def test_public_routes_serve_only_exempt_methods(self) -> None:
-        # If an unsafe public route is ever added, it would sit behind the
-        # host guard while its siblings do not — a contract split that must
-        # be an explicit, reviewed decision rather than an accident.
+    def test_unsafe_public_routes_are_the_reviewed_set_with_both_guards(self) -> None:
+        """Unsafe public routes exist by explicit decision only (M6A).
+
+        The M3D contract split — an unsafe public route sits behind the
+        known-host branch of the guard rather than the exemption — became
+        deliberate with ADR-026: guest placement is an anonymous POST from
+        a *tenant* host (which the guard recognizes as a direct subdomain
+        of the base domain), and the resolver still owns every tenant-
+        level neutral 404 behind it. The reviewed set is pinned exactly,
+        and every member must carry BOTH the Host resolver and the
+        fail-closed browser-context check (ADR-010/ADR-026 D9) in its
+        effective dependency graph.
+        """
         app = create_app(make_settings())
         unsafe = [
-            (route.path, sorted(set(route.methods or set()) - PUBLIC_EXEMPT_METHODS))
+            route
             for route in iter_route_contracts(app)
             if route.path.startswith(PUBLIC_PATH_PREFIX)
             and set(route.methods or set()) - PUBLIC_EXEMPT_METHODS
         ]
-        assert unsafe == []
+        assert {(route.path, route.operation_id) for route in unsafe} == {
+            (f"{PUBLIC_PATH_PREFIX}orders", "public_order_place"),
+        }
+        for route in unsafe:
+            calls = _effective_calls(route.dependant)
+            assert resolve_public_business in calls, (
+                f"unsafe public route '{route.path}' does not resolve the Business from the Host"
+            )
+            assert require_browser_context in calls, (
+                f"unsafe public route '{route.path}' does not carry the fail-closed"
+                " browser-context check"
+            )

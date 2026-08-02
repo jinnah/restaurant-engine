@@ -60,6 +60,10 @@ class FulfillmentPolicy:
     slot_interval_minutes: int
     last_order_before_close_minutes: int
     max_days_ahead: int
+    # M6A (ADR-026 D3): the per-slot order cap; None = unlimited. Carried
+    # on the effective policy so checkout reads one object, but never used
+    # by the pure availability computations in this module.
+    max_orders_per_slot: int | None = None
 
 
 @dataclass(frozen=True)

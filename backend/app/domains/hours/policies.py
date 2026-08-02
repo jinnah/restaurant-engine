@@ -59,6 +59,12 @@ MIN_LAST_ORDER_MINUTES = 0
 MAX_LAST_ORDER_MINUTES = 240
 MIN_MAX_DAYS_AHEAD = 0
 MAX_MAX_DAYS_AHEAD = 30
+# M6A (ADR-026 D3): the per-slot order cap. NULL means unlimited — a cap
+# is an explicit operational choice, so there is deliberately no numeric
+# default. The setting lives here because hours owns throttling (docs/03
+# domain map); counting and enforcement are the orders checkout's.
+MIN_MAX_ORDERS_PER_SLOT = 1
+MAX_MAX_ORDERS_PER_SLOT = 100
 
 # --- Fulfillment defaults ----------------------------------------------------
 # The registry defaults an absent ``fulfillment_settings`` row projects on

@@ -99,6 +99,9 @@ EXPECTED_OPERATION_IDS = {
     "platform_business_timezone_set",
     # M5B (ADR-025): the public availability projection.
     "public_availability_get",
+    # M6A (ADR-026): guest order placement — the first unsafe public
+    # operation (browser-context-checked, idempotent, neutral-404).
+    "public_order_place",
 }
 
 
@@ -132,11 +135,11 @@ def test_exported_operation_ids_are_expected_and_unique() -> None:
     # administration operations and the platform design assignment (64);
     # M4C added the public storefront projection and the authenticated
     # draft preview (66); M5A added the six hours administration
-    # operations and the platform timezone correction (73); M5B adds the
-    # public availability projection: the contract is exactly 74
-    # operations. The four schema-hidden HEAD companions add none (see
-    # below).
-    assert len(EXPECTED_OPERATION_IDS) == 74
+    # operations and the platform timezone correction (73); M5B added the
+    # public availability projection (74); M6A adds guest order
+    # placement: the contract is exactly 75 operations. The four
+    # schema-hidden HEAD companions add none (see below).
+    assert len(EXPECTED_OPERATION_IDS) == 75
 
 
 def test_public_media_documents_no_validation_error() -> None:

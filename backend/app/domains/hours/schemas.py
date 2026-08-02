@@ -146,9 +146,14 @@ class ScheduleExceptionSet(BaseModel):
 class FulfillmentSet(BaseModel):
     """The complete desired fulfillment policy (full-document, idempotent).
 
-    Every field is required: partial updates would reintroduce the
+    Every M5A field is required: partial updates would reintroduce the
     lost-update shape the full-document convention exists to avoid.
-    Throttling is deliberately absent (ruling D3 — M6).
+    ``max_orders_per_slot`` (M6A, ADR-026 D3) is additive with a default
+    — the M4G-A compatibility mechanism: a document from a client
+    predating the field (the delivered M5C form, until M6D adds its
+    control) omits it, and omission is the null it defaults to, which
+    means unlimited. Nothing stored is silently changed by an old
+    client's save, because null is exactly what every row holds today.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -165,6 +170,11 @@ class FulfillmentSet(BaseModel):
         ge=policies.MIN_LAST_ORDER_MINUTES, le=policies.MAX_LAST_ORDER_MINUTES
     )
     max_days_ahead: int = Field(ge=policies.MIN_MAX_DAYS_AHEAD, le=policies.MAX_MAX_DAYS_AHEAD)
+    max_orders_per_slot: int | None = Field(
+        default=None,
+        ge=policies.MIN_MAX_ORDERS_PER_SLOT,
+        le=policies.MAX_MAX_ORDERS_PER_SLOT,
+    )
 
 
 class WeeklyIntervalOut(BaseModel):
@@ -194,6 +204,7 @@ class FulfillmentOut(BaseModel):
     slot_interval_minutes: int
     last_order_before_close_minutes: int
     max_days_ahead: int
+    max_orders_per_slot: int | None
     is_configured: bool
 
 

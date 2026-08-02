@@ -329,3 +329,101 @@ describe('public.getAvailability', () => {
     expect(result).toEqual({ ok: false, status: null, envelope: null });
   });
 });
+
+describe('public.placeOrder', () => {
+  const PLACE = {
+    idempotency_key: '3e0d8a4e-6f3c-4b12-9a67-2c1d5e8f0a4b',
+    lines: [
+      {
+        item_id: '00000000-0000-0000-0000-000000000101',
+        quantity: 2,
+        option_ids: [],
+        item_instructions: null,
+      },
+    ],
+    customer_name: 'Amina Rahman',
+    customer_phone: '(716) 555-0142',
+    customer_email: null,
+    order_instructions: null,
+    consent_updates: true,
+    consent_marketing: false,
+    pickup_kind: 'asap' as const,
+    requested_pickup_at: null,
+    expected_total_minor: 2500,
+  };
+
+  const PLACED = {
+    tracking_token: 'the-one-time-token',
+    order: {
+      business: SITE,
+      order_number: 1,
+      status: 'submitted',
+      placed_at: '2026-08-02T16:00:00Z',
+      business_timezone: 'America/New_York',
+      pickup_kind: 'asap',
+      promised_pickup_at: '2026-08-02T16:20:00Z',
+      currency: 'USD',
+      subtotal_minor: 2500,
+      tax_minor: 0,
+      total_minor: 2500,
+      lines: [
+        {
+          display_name: 'Clay-oven lamb',
+          quantity: 2,
+          base_price_minor: 1250,
+          options: [],
+          line_total_minor: 2500,
+        },
+      ],
+    },
+  };
+
+  it('POSTs the placement with no tenant-selection input (M6A)', async () => {
+    const requests: Request[] = [];
+    const client = clientCapturing(jsonResponse(201, PLACED), requests);
+
+    const result = await client.public.placeOrder(PLACE);
+
+    const url = new URL(requests[0]!.url);
+    expect(url.pathname).toBe('/api/v1/public/orders');
+    expect(requests[0]?.method).toBe('POST');
+    // Anonymous placement: no synchronizer token, no tenant header — the
+    // Host (and the browser-context evidence) is transport, not facade.
+    expect(requests[0]?.headers.get('X-CSRF-Token')).toBeNull();
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.tracking_token).toBe('the-one-time-token');
+      expect(result.data.order.order_number).toBe(1);
+      expect(result.data.order.total_minor).toBe(2500);
+    }
+  });
+
+  it('narrows the typed 409s (cart_stale and friends)', async () => {
+    const client = clientCapturing(
+      jsonResponse(409, {
+        error: {
+          code: 'price_changed',
+          message: 'Prices changed while you were ordering.',
+          field_errors: [],
+          correlation_id: 'x',
+          details: { total_minor: 2600, expected_total_minor: 2500 },
+        },
+      }),
+    );
+    const result = await client.public.placeOrder(PLACE);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(409);
+      expect(result.envelope?.error.code).toBe('price_changed');
+    }
+  });
+
+  it('reports a network failure without throwing', async () => {
+    const client = createApiClient({
+      baseUrl: BASE_URL,
+      fetch: () => Promise.reject(new Error('offline')),
+    });
+    const result = await client.public.placeOrder(PLACE);
+    expect(result).toEqual({ ok: false, status: null, envelope: null });
+  });
+});

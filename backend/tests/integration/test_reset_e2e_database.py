@@ -155,8 +155,8 @@ def test_recreate_then_drop_lifecycle(test_database_url: str) -> None:
             ).scalar()
             # M2 core (8) + alembic_version + M3A catalog core (3) +
             # M3B modifiers (2) + M3C media (2) + M4A storefront (1) +
-            # M5A hours (3).
-            assert tables == 20
+            # M5A hours (3) + M6A orders/idempotency/outbox (6).
+            assert tables == 26
     finally:
         engine.dispose()
 

@@ -22,6 +22,7 @@ from app.domains.catalog import models as _catalog_models  # noqa: F401
 from app.domains.hours import models as _hours_models  # noqa: F401
 from app.domains.identity import models as _identity_models  # noqa: F401
 from app.domains.media import models as _media_models  # noqa: F401
+from app.domains.orders import models as _orders_models  # noqa: F401
 from app.domains.storefront import models as _storefront_models  # noqa: F401
 
 config = context.config

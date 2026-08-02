@@ -124,7 +124,10 @@ export type {
   VersionSummary,
 } from './storefront';
 export type {
+  CartLineIn,
   HeroAction,
+  OrderPlace,
+  OrderPlacedResponse,
   PublicApi,
   PublicAvailability,
   PublicContactSection,
@@ -139,6 +142,9 @@ export type {
   PublicMenuSection,
   PublicModifierGroup,
   PublicModifierOption,
+  PublicOrderLine,
+  PublicOrderLineOption,
+  PublicOrderView,
   PublicPickup,
   PublicScheduleException,
   PublicSection,

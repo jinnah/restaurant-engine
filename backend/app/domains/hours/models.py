@@ -146,8 +146,10 @@ class FulfillmentSettings(Base):
     **No row means the documented defaults** (``hours.policies``),
     projected on read and materialized on the first write — the M4G-A
     compatibility mechanism, so no backfill migration touches existing
-    tenants. Order throttling is deliberately absent (ruling D3): it
-    cannot be enforced before orders exist, and M6 owns it.
+    tenants. ``max_orders_per_slot`` discharges the D3 deferral (M6A,
+    ADR-026): hours owns the throttling *setting* per the docs/03 domain
+    map; the orders checkout owns counting and enforcement. NULL means
+    unlimited — existing rows gain no cap.
     """
 
     __tablename__ = "fulfillment_settings"
@@ -165,6 +167,7 @@ class FulfillmentSettings(Base):
     slot_interval_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     last_order_before_close_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     max_days_ahead: Mapped[int] = mapped_column(Integer, nullable=False)
+    max_orders_per_slot: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -180,5 +183,9 @@ class FulfillmentSettings(Base):
             name="last_order_bounds",
         ),
         CheckConstraint("max_days_ahead BETWEEN 0 AND 30", name="max_days_ahead_bounds"),
+        CheckConstraint(
+            "max_orders_per_slot IS NULL OR max_orders_per_slot BETWEEN 1 AND 100",
+            name="max_orders_per_slot_bounds",
+        ),
         CheckConstraint("updated_at >= created_at", name="updated_after_creation"),
     )

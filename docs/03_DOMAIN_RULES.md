@@ -489,6 +489,41 @@ stores item/option/price/tax/display-name snapshots; totals are integer minor
 units; an idempotency key prevents duplicates; order creation and outbox
 notification commit together; public tracking uses a high-entropy token.
 
+**Implemented in M6A (ADR-026):** orders owns `orders`, `order_lines`,
+`order_line_options`, `order_status_events`, `idempotency_keys`, and the
+platform-global `outbox_messages` (documented as such; a future worker
+claims across tenants). Placement is the one public unsafe route —
+host-resolved, browser-context-checked (ADR-010 extended by D9:
+self-origin evidence for tenant hosts), and gated on the
+`online_ordering` entitlement **and** `pickup_enabled`, with every
+ineligible cause the one neutral 404 (D10 — the gate applies to
+placement and slot listing only; tracking and cancellation, M6B, are
+authorized by token possession plus Host). The pure pricing core
+revalidates the projection's own orderability formula authoritatively
+and reprices everything from the current catalog through the explicit
+`catalog.checkout_view` interface; a required `expected_total_minor`
+mismatch is `409 price_changed` (D8), stale menu state is
+`409 cart_stale` with every problem named, and nothing the client sent
+enters arithmetic. The checkout transaction runs under the Business row
+lock (D5): dense per-business order numbering, the ADR-025 D3 per-slot
+throttle (`max_orders_per_slot` on `fulfillment_settings`, hours-owned
+setting, orders-owned count of non-cancelled orders), a promise from
+the pure slot service (ASAP's next slot, or a scheduled instant
+**recomputed** as valid — never trusted from a list shown earlier), and
+the order, snapshot lines/options, `→ submitted` event, `order.placed`
+outbox message, idempotency row, and NULL-actor audit event committed
+together. Snapshots carry display names, prices, and bare provenance
+UUIDs with **no** catalog FK (D1). Tracking tokens are 256-bit,
+digest-stored, disclosed exactly once in the placement response (D4);
+consents are two independent booleans and the M9 promotion snapshot
+columns exist CHECK-frozen (D7); `tax_minor` exists CHECK-frozen at
+zero (D6). Order timestamps are the ADR-025 pair: `placed_at` UTC plus
+`business_timezone` at placement. A replay returns the current
+representation of the same order (one order per key is the invariant);
+key reuse with a different payload is `409 idempotency_key_reused`. No
+outbox worker exists (D14): rows accumulate `pending` until the first
+channel milestone.
+
 ## Audit
 
 Append-only events capturing actor, tenant, action, target, timestamp,

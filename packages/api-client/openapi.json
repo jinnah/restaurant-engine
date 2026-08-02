@@ -66,7 +66,8 @@
           "business.schedule_exception_set",
           "business.schedule_exception_removed",
           "business.fulfillment_updated",
-          "business.timezone_changed"
+          "business.timezone_changed",
+          "order.placed"
         ],
         "title": "AuditAction",
         "type": "string"
@@ -404,6 +405,49 @@
           "timezone"
         ],
         "title": "BusinessTimezoneSet",
+        "type": "object"
+      },
+      "CartLineIn": {
+        "additionalProperties": false,
+        "description": "One submitted cart line: references plus quantity, never prices.",
+        "properties": {
+          "item_id": {
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "item_instructions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Instructions"
+          },
+          "option_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Option Ids",
+            "type": "array"
+          },
+          "quantity": {
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Quantity",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "item_id",
+          "quantity"
+        ],
+        "title": "CartLineIn",
         "type": "object"
       },
       "CategoryCreate": {
@@ -907,7 +951,11 @@
           "permission_denied",
           "conflict",
           "invalid_state",
-          "payload_too_large"
+          "payload_too_large",
+          "cart_stale",
+          "price_changed",
+          "slot_unavailable",
+          "idempotency_key_reused"
         ],
         "title": "ErrorCode",
         "type": "string"
@@ -1027,6 +1075,17 @@
             "title": "Max Days Ahead",
             "type": "integer"
           },
+          "max_orders_per_slot": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Orders Per Slot"
+          },
           "pickup_enabled": {
             "title": "Pickup Enabled",
             "type": "boolean"
@@ -1043,6 +1102,7 @@
           "slot_interval_minutes",
           "last_order_before_close_minutes",
           "max_days_ahead",
+          "max_orders_per_slot",
           "is_configured"
         ],
         "title": "FulfillmentOut",
@@ -1050,7 +1110,7 @@
       },
       "FulfillmentSet": {
         "additionalProperties": false,
-        "description": "The complete desired fulfillment policy (full-document, idempotent).\n\nEvery field is required: partial updates would reintroduce the\nlost-update shape the full-document convention exists to avoid.\nThrottling is deliberately absent (ruling D3 — M6).",
+        "description": "The complete desired fulfillment policy (full-document, idempotent).\n\nEvery M5A field is required: partial updates would reintroduce the\nlost-update shape the full-document convention exists to avoid.\n``max_orders_per_slot`` (M6A, ADR-026 D3) is additive with a default\n— the M4G-A compatibility mechanism: a document from a client\npredating the field (the delivered M5C form, until M6D adds its\ncontrol) omits it, and omission is the null it defaults to, which\nmeans unlimited. Nothing stored is silently changed by an old\nclient's save, because null is exactly what every row holds today.",
         "properties": {
           "asap_enabled": {
             "title": "Asap Enabled",
@@ -1073,6 +1133,19 @@
             "minimum": 0.0,
             "title": "Max Days Ahead",
             "type": "integer"
+          },
+          "max_orders_per_slot": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Orders Per Slot"
           },
           "pickup_enabled": {
             "title": "Pickup Enabled",
@@ -2607,6 +2680,129 @@
         "title": "ModifierOptionView",
         "type": "object"
       },
+      "OrderPlace": {
+        "additionalProperties": false,
+        "description": "The idempotent placement command (blueprint §7.7; rulings D2/D7/D8).\n\n``expected_total_minor`` is the client's displayed total — compared,\nnever used in arithmetic. The two consents are independent required\nbooleans (never a blended opt-in). ``requested_pickup_at`` is\nrequired exactly when ``pickup_kind`` is ``scheduled``.",
+        "properties": {
+          "consent_marketing": {
+            "title": "Consent Marketing",
+            "type": "boolean"
+          },
+          "consent_updates": {
+            "title": "Consent Updates",
+            "type": "boolean"
+          },
+          "customer_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Email"
+          },
+          "customer_name": {
+            "title": "Customer Name",
+            "type": "string"
+          },
+          "customer_phone": {
+            "title": "Customer Phone",
+            "type": "string"
+          },
+          "expected_total_minor": {
+            "maximum": 4000000000.0,
+            "minimum": 0.0,
+            "title": "Expected Total Minor",
+            "type": "integer"
+          },
+          "idempotency_key": {
+            "format": "uuid",
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/CartLineIn"
+            },
+            "maxItems": 30,
+            "minItems": 1,
+            "title": "Lines",
+            "type": "array"
+          },
+          "order_instructions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Instructions"
+          },
+          "pickup_kind": {
+            "$ref": "#/components/schemas/PickupKind"
+          },
+          "requested_pickup_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested Pickup At"
+          }
+        },
+        "required": [
+          "idempotency_key",
+          "lines",
+          "customer_name",
+          "customer_phone",
+          "consent_updates",
+          "consent_marketing",
+          "pickup_kind",
+          "expected_total_minor"
+        ],
+        "title": "OrderPlace",
+        "type": "object"
+      },
+      "OrderPlacedResponse": {
+        "description": "The placement answer: the order plus its tracking token.\n\nThe token appears here and nowhere else, ever (ruling D4): it is not\nstored in clear, not logged, not audited, and not returned by the\ntracking route it authorizes.",
+        "properties": {
+          "order": {
+            "$ref": "#/components/schemas/PublicOrderView"
+          },
+          "tracking_token": {
+            "title": "Tracking Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tracking_token",
+          "order"
+        ],
+        "title": "OrderPlacedResponse",
+        "type": "object"
+      },
+      "OrderStatus": {
+        "description": "The closed §7.7 status vocabulary (append-only).",
+        "enum": [
+          "submitted",
+          "accepted",
+          "preparing",
+          "ready",
+          "completed",
+          "rejected",
+          "cancelled"
+        ],
+        "title": "OrderStatus",
+        "type": "string"
+      },
       "PaletteId": {
         "description": "Platform-authored colour schemes (append-only, five permanent values).\n\nA palette is a curated set of the existing ``.tenantPage`` custom\nproperties, not tenant input: contrast is a platform guarantee proved by\nbuild-time tests, which is only possible because the set is closed\n(ADR-024 §5). The tenant accent remains the single arbitrary token and\noverrides only the accent — it never participates in these five colours.",
         "enum": [
@@ -2698,6 +2894,15 @@
         ],
         "title": "PasswordResetRedeemResponse",
         "type": "object"
+      },
+      "PickupKind": {
+        "description": "How the pickup promise was chosen at placement.",
+        "enum": [
+          "asap",
+          "scheduled"
+        ],
+        "title": "PickupKind",
+        "type": "string"
       },
       "PublicAvailability": {
         "description": "The structured hours of the host-resolved active Business.\n\nEvery active business has one — a business with no configured hours\nis honestly closed with nothing upcoming, not a 404, because absence\nof a schedule is a real operational state the storefront must render.\n`exceptions` is the bounded forward window only (today onward in the\ntenant's local calendar); past overrides are history, not display.",
@@ -3360,6 +3565,137 @@
           "price_delta_minor"
         ],
         "title": "PublicModifierOption",
+        "type": "object"
+      },
+      "PublicOrderLine": {
+        "properties": {
+          "base_price_minor": {
+            "title": "Base Price Minor",
+            "type": "integer"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "line_total_minor": {
+            "title": "Line Total Minor",
+            "type": "integer"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/PublicOrderLineOption"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "display_name",
+          "quantity",
+          "base_price_minor",
+          "options",
+          "line_total_minor"
+        ],
+        "title": "PublicOrderLine",
+        "type": "object"
+      },
+      "PublicOrderLineOption": {
+        "description": "One snapshotted option, as stored — never re-read from catalog.",
+        "properties": {
+          "group_name": {
+            "title": "Group Name",
+            "type": "string"
+          },
+          "option_name": {
+            "title": "Option Name",
+            "type": "string"
+          },
+          "price_delta_minor": {
+            "title": "Price Delta Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "group_name",
+          "option_name",
+          "price_delta_minor"
+        ],
+        "title": "PublicOrderLineOption",
+        "type": "object"
+      },
+      "PublicOrderView": {
+        "description": "The customer-facing order projection (tracking and placement).\n\nCarries the snapshot and the promise — and no customer PII (review\namendment): a tracking URL is shareable by design, so the name,\ncontact, consents, and instructions the order stores never appear\nhere.",
+        "properties": {
+          "business": {
+            "$ref": "#/components/schemas/PublicSiteSummary"
+          },
+          "business_timezone": {
+            "title": "Business Timezone",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PublicOrderLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "order_number": {
+            "title": "Order Number",
+            "type": "integer"
+          },
+          "pickup_kind": {
+            "$ref": "#/components/schemas/PickupKind"
+          },
+          "placed_at": {
+            "format": "date-time",
+            "title": "Placed At",
+            "type": "string"
+          },
+          "promised_pickup_at": {
+            "format": "date-time",
+            "title": "Promised Pickup At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus"
+          },
+          "subtotal_minor": {
+            "title": "Subtotal Minor",
+            "type": "integer"
+          },
+          "tax_minor": {
+            "title": "Tax Minor",
+            "type": "integer"
+          },
+          "total_minor": {
+            "title": "Total Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "business",
+          "order_number",
+          "status",
+          "placed_at",
+          "business_timezone",
+          "pickup_kind",
+          "promised_pickup_at",
+          "currency",
+          "subtotal_minor",
+          "tax_minor",
+          "total_minor",
+          "lines"
+        ],
+        "title": "PublicOrderView",
         "type": "object"
       },
       "PublicPickup": {
@@ -10591,6 +10927,88 @@
           }
         },
         "summary": "Public Menu Get",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/api/v1/public/orders": {
+      "post": {
+        "description": "Place a pickup order (idempotent — blueprint §7.7, ruling D2).\n\n201 with the order and its tracking token on creation; 200 with the\nstored order (and an empty token — the token is disclosed exactly\nonce) when the idempotency key replays. Typed 409s carry the honest\nreason: ``cart_stale``, ``price_changed``, ``slot_unavailable``, or\n``idempotency_key_reused``.",
+        "operationId": "public_order_place",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderPlace"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderPlacedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderPlacedResponse"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Public Order Place",
         "tags": [
           "public"
         ]
