@@ -27,7 +27,7 @@ initial architecture-contract commit.
 | M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                              |
 | M4G — Curated storefront design and motion (extension)         | **Complete** (2026-08-01; M4G-A–M4G-D, ADR-024)        |
 | M5 — Hours and pickup readiness                                | **Complete** (2026-08-02; M5A–M5E, ADR-025)            |
-| M6 — Cart and guest pickup ordering                            | **In progress** (M6A–M6B complete 2026-08-02, ADR-026) |
+| M6 — Cart and guest pickup ordering                            | **In progress** (M6A–M6C complete 2026-08-02, ADR-026) |
 | M7 – M8 — Order operations, pilot                              | Not started                                            |
 | M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23)       |
 
@@ -42,8 +42,84 @@ M6D depends on all of them.
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 | **M6A** — Orders domain foundation     | order/idempotency/outbox tables + migration, pure pricing core over the catalog checkout view, transactional idempotent placement with D3 throttling, `POST /public/orders`, D9 self-origin, contract | **Complete** (2026-08-02, ADR-026) |
 | **M6B** — Public tracking and the gate | tracking GET + customer cancel + pickup-slots endpoint, `ordering_enabled` on the availability projection, `HeroAction.ORDER_ONLINE` + renderer arm, isolation matrix                                 | **Complete** (2026-08-02, ADR-026) |
-| **M6C** — Storefront ordering UI       | cart island + persisted schema, modifier picker, `/order` checkout (consents, slots, honest failure states), confirmation + tracker, dev-forwarder POST, allowlist/budget updates                     | Not started                        |
+| **M6C** — Storefront ordering UI       | cart island + persisted schema, modifier picker, `/order` checkout (consents, slots, honest failure states), confirmation + tracker, dev-forwarder POST, allowlist/budget updates                     | **Complete** (2026-08-02, ADR-026) |
 | **M6D** — E2E and close-out            | the CC fulfillment-throttle field, blueprint journey 4 (order despite a simulated retry) + cancellation and stale-item journeys, responsive/a11y acceptance, exit-criteria verification               | Not started                        |
+
+### M6C close-out (2026-08-02)
+
+M6C delivered **the storefront ordering surface** — the third
+Milestone 6 slice and the storefront's first client JavaScript beyond
+the error boundary. No backend change; the contract stays at 78
+operations; **zero new runtime dependencies** (D13).
+
+**The five named islands.** The cart is a pure, versioned client value
+persisted in localStorage under the tenant origin (isolation is
+structural — no tenant key exists; anything unrecognized drops cleanly
+to empty), with identical choices merged and the contract bounds
+mirrored. The modifier picker is a native `<dialog>` enforcing the
+projection's own selection rules locally while the server stays
+authoritative. `/menu` reads the availability projection for the D12
+gate — three backend reads now, the home route's M5D precedent — and
+renders the add-to-order affordance on orderable items
+(`is_orderable` finally renders) plus the cart link only while
+ordering is on; off, the page is byte-identical to the pre-ordering
+menu. `/order` is the checkout surface, server-gated on
+`ordering_enabled` with the one neutral 404 (D10): the two independent
+never-pre-checked consents (D7), the required `expected_total_minor`
+(D8), ASAP-or-scheduled from the public slot listing, and honest
+renderings of all four typed 409s — `cart_stale` marks lines,
+`price_changed` adopts the authoritative total for a deliberate retry,
+`slot_unavailable` refreshes the listing, `idempotency_key_reused`
+mints a fresh key (D2: the key is held per submission content).
+`/order/track/{token}` is published-chrome-gated only — deliberately
+NOT entitlement-gated (D10 as amended), noindex — polling at 15 s,
+stopping on terminal statuses, with the two-step D11 cancellation.
+
+**Transport and SEO.** Islands fetch relative same-origin paths; the
+dev-only forwarder gains POST for `/api/v1/public/` only, forwarding
+the body and browser-context evidence verbatim through its own
+`node:http` leg — the read-only SSR tenant transport is untouched and
+production stays disabled. Decision recorded: the ordering routes are
+transactional and their existence is a live entitlement fact, so they
+are noindex, robots-disallowed (the `/order` prefix), and never in the
+sitemap, which stays exactly `/` and `/menu`.
+
+**Budget, and a measurement discovery.** The ADR-021 ceiling method is
+unchanged and green (456,694 B vs 502,201 B, all four routes).
+Discovered while extending the measurement: `rootMainFiles` omits the
+app-router client-components chunk (~58 KB) every route has always
+loaded — the recorded baseline under-measured the real first load by
+that constant on every route, before and after M6C alike. The ceiling
+keeps its recorded meaning; the budget script now additionally
+measures and reports each route's marginal island JavaScript (the
+ADR-024 §11 precedent, no threshold): `/menu` 9,703 B, `/order`
+16,332 B, `/order/track` 7,429 B, home 0. A corrected-baseline ADR-021
+amendment is the recorded candidate, for review.
+
+**Verification.** Storefront **143** (from 78); renderer **165** (from
+163 — the `MenuListing.itemAction` seam, absent → byte-identical);
+api-client 115, control-center 480, backend 1,301 unchanged and green;
+contract byte-current; builds green; built-server verification
+extended to the ordering surface (the hero "Order online" CTA on the
+wire, menu at exactly three reads, `/order` at two, track at one with
+no entitlement read, robots Disallow, sitemap unchanged); `pnpm e2e`
+green with full disposable cleanup.
+
+Merge evidence (PR #56): reviewed head
+`7e7db449188210f145bef287cd3649fc3a1c77f9` (the first pushed head
+`44217c85` failed exact-head CI run `30766259767` on the CSS
+regression suite — its fixtures needed the new routes; the follow-up
+commit extended them), merged to `main` as
+`84a533cf28c7886ed25fe4b5dde3cb69549cf80a` (ordered parents `385ac2b1`
+then the reviewed head; merge tree `164ea191` equal to the reviewed
+head tree). Exact-head CI run `30766483548` and exact-merge push CI
+run `30766673037` both completed successfully — five jobs green, zero
+artifacts, attempt 1.
+
+**Boundary.** No ordering e2e journeys, no CC fulfillment-throttle
+field, no responsive/a11y acceptance for the ordering surfaces (M6D);
+no outbox worker (D14). Milestone 6 is not complete until the §19 exit
+criteria are proven at M6D. The four retained risks stand unchanged.
 
 ### M6B close-out (2026-08-02)
 
