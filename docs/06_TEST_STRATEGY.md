@@ -2,7 +2,64 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M5A — delivered 2026-08-01)
+## Current state (M5B — delivered 2026-08-02)
+
+M5B adds the public availability projection's coverage (ADR-025) at the
+API and isolation layers. The backend suite grows from **1,228** to
+**1,240** and the api-client suite from **106** to **109**; every other
+suite is unchanged — M5B ships no UI, so no browser-level coverage was
+added (deliberately M5C–M5E).
+
+- **The public contract, host-first.** The neutral-404 matrix covers
+  unknown hosts, every non-active lifecycle state, reserved labels, the
+  apex, deep subdomains, IP literals, and malformed hosts — one
+  indistinguishable answer. The public-surface invariant test covers the
+  new route automatically (every registered public GET/HEAD route must
+  carry the resolver dependency).
+- **The honest empty state.** An active business with no configured
+  hours answers 200 with `is_open_now: false`, an empty weekly schedule,
+  no upcoming exceptions, and disabled pickup — and the read provably
+  writes no fulfillment row.
+- **Derived from structured settings.** An around-the-clock schedule is
+  open now with a real close instant; a closed-today exception (seeded
+  for today _and_ tomorrow in the tenant-local calendar, so the
+  assertion cannot flip at local midnight) defeats the weekly schedule
+  and surfaces the D6 note; pickup facts follow the stored policy;
+  the exception window is forward-only and bounded (past overrides and
+  far-future ones are absent). Every fixture is time-robust by
+  construction — instant-exact DST facts stay at the unit layer and the
+  member preview probe, never re-derived from the wall clock here.
+- **Never cacheable (ruling D4).** `Cache-Control: no-store` is pinned
+  on the success and the neutral 404 alike; the HEAD companion answers
+  bodiless.
+- **Isolation.** Two hosts answer only their own schedules (asserted in
+  the table as well as through the API); suspension hides availability
+  publicly while the rows survive intact.
+- **Facade coverage.** `public.getAvailability()` with an injected
+  fetch: no tenant-selection input of any kind, the typed payload, the
+  neutral 404 narrowing, and network failure.
+
+**The failed M5B merge run, recorded plainly.** Exact-merge CI run
+`30732209402` failed twice (attempts 1 and 2) in the pre-existing
+storefront-design-assignment isolation journey — a connection-level SSR
+fetch failure before any request reached the backend, on the same
+runner image and Node version as the passing exact-head run of the
+identical tree. The best-supported cause (stated as such, not proven)
+is the undici idle-socket reuse window racing uvicorn's default
+5-second keep-alive timeout after a quiet gap in SSR traffic.
+Corrective PR #44 gives the orchestrated E2E backend
+`--timeout-keep-alive 75` — no assertion weakened, no retry added, no
+production change — and the suite passed on the corrective's exact-head
+and exact-merge runs. **Fourth retained risk:** if the signature
+reappears with the flag in place, that reading is falsified and the
+investigation reopens.
+
+The other three retained risks stand unchanged: the dirty-navigation
+failure from run `30652179044` remains unexplained; the earlier local
+E2E non-zero exit remains unidentified; the accent-sweep 15-second
+allowance remains unexercised.
+
+## Earlier state (M5A — delivered 2026-08-01)
 
 M5A adds the hours domain's coverage (ADR-025) at the unit, service,
 API, and isolation layers. The backend suite grows from **1,132** to

@@ -1,6 +1,6 @@
 # ADR-025: Hours, exceptions, and fulfillment settings (Milestone 5)
 
-- **Status:** Accepted — M5A delivered (2026-08-01); M5B–M5E not started
+- **Status:** Accepted — M5A delivered (2026-08-01), M5B delivered (2026-08-02); M5C–M5E not started
 - **Date:** 2026-08-01
 - **Deciders:** Jinnah (product owner / principal architect), Claude (senior engineer)
 
@@ -345,3 +345,31 @@ endpoint (M5B), the hours workspace UI (M5C), the `hours` storefront
 section (M5D), browser-level acceptance (M5E), and order throttling
 (D3 — M6). The pickup-slot service ships without a consumer; M6's
 checkout is its first genuine exercise.
+
+### M5B — Public availability: delivered, 2026-08-02
+
+Delivered exactly the §12 M5B scope: `GET /api/v1/public/availability`
+(plus a schema-hidden `HEAD` companion) — host-resolved, active
+businesses only, one neutral 404 for every other cause, every active
+business answering (an empty schedule is honestly closed, never a 404),
+the projection derived from structured settings through the pure core,
+exceptions bounded to a 60-day forward window, minimal pickup facts,
+and **no cache grant** (ruling D4 upheld; `no-store` pinned on success
+and failure). Contract **73 → 74**; the public facade gains
+`getAvailability()`; `effective_policy()` shared between the member
+preview and the public projection.
+
+Verification: backend 1,240 (from 1,228), api-client 109 (from 106),
+every other gate unchanged and green. Merge evidence: PR #43, reviewed
+head `2bcd0899`, SHA-bound merge
+`b9e21c66a7cd6cecbf9555e53d5a050048f12cca` (tree equal to the reviewed
+head tree); exact-head CI run `30732083089` green 5/5, zero artifacts.
+The exact-merge push run `30732209402` **failed twice** in the
+pre-existing storefront-design-assignment isolation journey on a
+connection-level SSR fetch failure (diagnosis and full record in
+docs/08's M5B close-out); corrective PR #44 (merge `4836e693`, its
+exact-head run `30732731236` and exact-merge run `30732874509` both
+green 5/5) widened the orchestrated E2E backend's keep-alive window —
+no assertion weakened, no production change. If the signature ever
+reappears with the flag in place, the keep-alive reading is falsified
+and the investigation must reopen.

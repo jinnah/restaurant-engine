@@ -40,10 +40,82 @@ them.
 | Slice                         | Scope                                                                                                                                                                                                                   | State                              |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 | **M5A** — Hours foundation    | `business_hours` / `schedule_exceptions` / `fulfillment_settings` + migration, pure DST-safe timekeeping/availability core, admin API, platform timezone command (D2), capability, audit actions, contract regeneration | **Complete** (2026-08-01, ADR-025) |
-| **M5B** — Public availability | `GET /api/v1/public/availability`, neutral failure semantics, `no-store` (D4), isolation tests                                                                                                                          | Not started                        |
+| **M5B** — Public availability | `GET /api/v1/public/availability`, neutral failure semantics, `no-store` (D4), isolation tests                                                                                                                          | **Complete** (2026-08-02, ADR-025) |
 | **M5C** — Hours workspace UI  | `/businesses/:id/hours`: weekly editor with DST-gap warning, exceptions, fulfillment settings                                                                                                                           | Not started                        |
 | **M5D** — Storefront display  | `hours` section + three renderer arms + composer control (one slice), JSON-LD hours, request-cost assertion update                                                                                                      | Not started                        |
 | **M5E** — E2E and close-out   | journeys, per-variant acceptance for the new section, documentation, exit-criteria verification                                                                                                                         | Not started                        |
+
+### M5B close-out (2026-08-02)
+
+M5B delivered the **public availability projection** —
+`GET /api/v1/public/availability` (`public_availability_get`, plus a
+schema-hidden `HEAD` companion), host-resolved through the established
+resolver so only the Host selects a Business, only an **active**
+Business answers, and unknown, provisioning, suspended, closed,
+reserved, and malformed hosts are one indistinguishable neutral 404.
+Every active business answers: no configured hours is honestly closed
+(`is_open_now: false`, empty weekly, nothing upcoming), because an
+empty schedule is a real operational state the storefront must render.
+The projection derives entirely from structured settings through the
+pure core — the weekly schedule and upcoming exceptions in the D1
+minute encoding plus the tenant timezone, and the instant facts
+(`is_open_now`, `closes_at`, `next_opens_at`, `next_pickup_at`) as UTC
+instants. Exceptions are listed for a bounded 60-day forward window;
+pickup facts are deliberately minimal (`enabled`, `asap_enabled`,
+`next_pickup_at`) until M6 needs more. **No cache grant was added
+(ruling D4)**: the global `no-store` default applies to successes and
+errors alike, pinned by test on both paths. Contract **73 → 74**; the
+public client facade gains `getAvailability()`; `effective_policy()` is
+shared by the member preview and this projection so both derive from
+one fallback.
+
+**Verification.** Backend **1,240** (from 1,228; twelve new public
+contract tests — the neutral-404 matrix, the honest-empty projection,
+exception precedence with the D6 note, pickup facts, the bounded
+window, `no-store` on success and failure, the HEAD companion,
+cross-host isolation, and suspension-preserves-rows — all time-robust
+by construction); api-client **109** (from 106); every other suite,
+budget, and build gate unchanged and green; the public-surface
+invariant test covers the new route automatically.
+
+Merge evidence (PR #43):
+
+- Reviewed feature head `2bcd0899dcf3b9b1575a970b9c310191c0e8ba66`,
+  merged to `main` as `b9e21c66a7cd6cecbf9555e53d5a050048f12cca`
+  (ordered parents `02f59e5651b52a3bd19ad887bd94fb3f0aa8d689` then the
+  reviewed head; the merge tree equals the reviewed feature-head tree).
+- Exact-head PR CI run `30732083089` completed successfully — five
+  jobs green, zero artifacts, attempt 1.
+
+**The failed merge run, recorded plainly.** Exact-merge push CI run
+`30732209402` **failed twice** — attempts 1 and 2 — in the e2e job, in
+the pre-existing storefront-design-assignment isolation journey
+(untouched by M5B): the first anonymous SSR render after a quiet gap in
+storefront-to-backend traffic got a connection-level fetch failure (no
+request reached the backend; requests 40 ms either side returned 200),
+the page honestly rendered its 500 boundary, and the 200 assertion
+failed; 22 of 23 tests passed on both attempts. The identical tree had
+passed the complete suite on the exact-head run and twice locally the
+same day, on the same runner image (ubuntu-24.04 `20260720.247.2`) and
+Node (24.18.0), excluding environment drift. The best-supported cause —
+stated as such, not proven — is uvicorn's default 5-second keep-alive
+idle timeout sitting barely above undici's ~4-second idle-socket reuse
+window, a race that CI load can close. Corrective PR #44 (the M4G-C
+pattern) added `--timeout-keep-alive 75` to the **orchestrated E2E
+backend only** — no assertion weakened, no retry added, no production
+runtime change (production keep-alive is a deployment concern behind
+nginx, M8). Its exact-head run `30732731236` and the exact-merge push
+run `30732874509` on merge `4836e6939d2cc2d5e6190e0f296ff6ba77d8c795`
+(parents `b9e21c66` then reviewed head `03e8bdf9`, tree equal) both
+completed successfully with five green jobs, zero artifacts, attempt 1
+— `main` is green again. **A fourth retained risk is recorded:** if
+this failure signature ever reappears with the flag in place, the
+keep-alive reading is falsified and the investigation must reopen
+rather than escalate the tolerance.
+
+**Boundary.** No UI (M5C), no `hours` storefront section or renderer
+change (M5D), no browser-level hours coverage (M5E), no ordering
+behavior (M6). M5C and M5D each need their own review.
 
 ### M5A close-out (2026-08-01)
 
