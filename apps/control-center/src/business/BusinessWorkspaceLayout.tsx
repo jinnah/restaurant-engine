@@ -24,8 +24,9 @@ function statusNote(status: string): string | null {
  * navigation, and the lifecycle note when the state changes what the user
  * can do. Renders under RequireBusinessMembership, so a membership exists.
  *
- * M3E registers exactly one section. Storefront, hours, orders, and team
- * arrive in later milestones and slot into the same navigation.
+ * M3E registered the first section (Menu); M4 added Storefront and M5
+ * added Hours. Orders and team arrive in later milestones and slot into
+ * the same navigation.
  */
 export function BusinessWorkspaceLayout() {
   const session = useSession();
@@ -73,6 +74,17 @@ export function BusinessWorkspaceLayout() {
             Storefront
           </NavLink>
         )}
+        {/* Hours, by contrast, is offered to EVERY role: hours reads ride
+            on `business.view` (ADR-025 ruling D7 — staff see the schedule
+            they work), so there is no permission gate here. */}
+        <NavLink
+          to={`/businesses/${membership.business_id}/hours`}
+          className={({ isActive }) =>
+            isActive ? styles.linkActive : styles.link
+          }
+        >
+          Hours
+        </NavLink>
       </nav>
       {note !== null && (
         <p className={styles.note}>

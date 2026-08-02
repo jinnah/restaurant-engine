@@ -10,10 +10,13 @@ import type {
   CategoryWithItems,
   DraftView,
   ErrorEnvelope,
+  FulfillmentOut,
+  HoursSettings,
   ItemSummary,
   MediaAssetView,
   MembershipSummary,
   PublicStorefront,
+  ScheduleExceptionOut,
   SessionView,
   StorefrontConfig,
   StorefrontOverview,
@@ -119,6 +122,53 @@ export interface ClientOverrides {
   catalog?: Partial<ApiClient['catalog']>;
   media?: Partial<ApiClient['media']>;
   storefront?: Partial<ApiClient['storefront']>;
+  hours?: Partial<ApiClient['hours']>;
+}
+
+// --- Hours fixtures (M5C, ADR-025) ---------------------------------------
+
+/**
+ * The effective fulfillment policy. Defaults mirror the backend registry
+ * (`hours.policies`) with `is_configured: false` — the honest first-read
+ * state before any row exists.
+ */
+export function fulfillmentOut(
+  overrides: Partial<FulfillmentOut> = {},
+): FulfillmentOut {
+  return {
+    pickup_enabled: false,
+    asap_enabled: true,
+    lead_time_minutes: 20,
+    slot_interval_minutes: 15,
+    last_order_before_close_minutes: 30,
+    max_days_ahead: 0,
+    is_configured: false,
+    ...overrides,
+  };
+}
+
+export function scheduleException(
+  overrides: Partial<ScheduleExceptionOut> = {},
+): ScheduleExceptionOut {
+  return {
+    exception_date: '2026-12-25',
+    intervals: [],
+    note: null,
+    ...overrides,
+  };
+}
+
+/** The complete operating configuration one hours read returns. */
+export function hoursSettings(
+  overrides: Partial<HoursSettings> = {},
+): HoursSettings {
+  return {
+    timezone: 'America/New_York',
+    weekly: [],
+    exceptions: [],
+    fulfillment: fulfillmentOut(),
+    ...overrides,
+  };
 }
 
 // --- Storefront fixtures (M4E, ADR-022) ---------------------------------
@@ -390,6 +440,15 @@ export function makeClient(overrides: ClientOverrides = {}): ApiClient {
       getVersion: vi.fn(async () => neutralNotFound()),
       restoreVersion: vi.fn(async () => neutralNotFound()),
       ...overrides.storefront,
+    },
+    hours: {
+      get: vi.fn(async () => neutralNotFound()),
+      preview: vi.fn(async () => neutralNotFound()),
+      setWeekly: vi.fn(async () => neutralNotFound()),
+      setException: vi.fn(async () => neutralNotFound()),
+      deleteException: vi.fn(async () => neutralNotFound()),
+      setFulfillment: vi.fn(async () => neutralNotFound()),
+      ...overrides.hours,
     },
     // A surface the control center never touches; present so accidental use
     // fails loudly rather than silently returning undefined.
