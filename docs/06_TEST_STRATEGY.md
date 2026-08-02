@@ -2,7 +2,47 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M5B — delivered 2026-08-02)
+## Current state (M5C — delivered 2026-08-02)
+
+M5C adds the hours workspace's coverage (ADR-025) at the component and
+integration layers, through the real route table and the injected
+client. The control-center suite grows from **439** to **478**; every
+other suite is unchanged — M5C adds no browser-level acceptance, which
+is deliberately M5E.
+
+- **Pure time helpers, proven directly.** Minute↔time-input round-trips
+  at the edges (0, 1439), the 12-hour labels, and the Intl gap
+  detection: the New York spring-forward minutes do not exist while the
+  gap edges do; the fall-back repeat exists (ambiguity is not a gap);
+  Phoenix never gaps; the weekly scan finds the exact gap date for a
+  Sunday small-hours boundary from a frozen `from` and returns null for
+  daytime values.
+- **The role-by-lifecycle matrix (ruling D7 made visible).** Staff see
+  the Hours navigation (asserted in contrast with the absent Storefront
+  entry), a read-only schedule, and no Save/Add/Remove control at all;
+  owners and managers edit; a closed business shows the closed note
+  with no mutating control for an owner.
+- **Exact payloads, the house discipline.** The weekly save is asserted
+  as the exact full-week set the facade received — canonical
+  day/opens/closes with the next-day choice encoding closes + 1440; the
+  exception save carries `intervals: []` plus the note for a closure;
+  the fulfillment save is the exact full document. Client-side same-day
+  overlap and an inverted interval block Save with visible messages
+  while typing stays free.
+- **Errors where they were caused.** The editable-window 422 renders
+  inside the exception dialog with the window bounds from the
+  envelope's details; the save button disables while pending and the
+  dirty baseline resets on success.
+- **The DST warning, rendered.** Under a frozen clock, a Sunday 02:30
+  weekly boundary in America/New_York renders the non-blocking warning
+  naming the actual gap date — authored-time visibility for the
+  silent-shift failure mode.
+
+Deliberate limits: no browser-level evidence (M5E owns the hours
+journeys and per-variant acceptance); the storefront still renders no
+hours (M5D). The four retained risks stand unchanged.
+
+## Earlier state (M5B — delivered 2026-08-02)
 
 M5B adds the public availability projection's coverage (ADR-025) at the
 API and isolation layers. The backend suite grows from **1,228** to

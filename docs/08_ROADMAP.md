@@ -41,9 +41,53 @@ them.
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 | **M5A** — Hours foundation    | `business_hours` / `schedule_exceptions` / `fulfillment_settings` + migration, pure DST-safe timekeeping/availability core, admin API, platform timezone command (D2), capability, audit actions, contract regeneration | **Complete** (2026-08-01, ADR-025) |
 | **M5B** — Public availability | `GET /api/v1/public/availability`, neutral failure semantics, `no-store` (D4), isolation tests                                                                                                                          | **Complete** (2026-08-02, ADR-025) |
-| **M5C** — Hours workspace UI  | `/businesses/:id/hours`: weekly editor with DST-gap warning, exceptions, fulfillment settings                                                                                                                           | Not started                        |
+| **M5C** — Hours workspace UI  | `/businesses/:id/hours`: weekly editor with DST-gap warning, exceptions, fulfillment settings                                                                                                                           | **Complete** (2026-08-02, ADR-025) |
 | **M5D** — Storefront display  | `hours` section + three renderer arms + composer control (one slice), JSON-LD hours, request-cost assertion update                                                                                                      | Not started                        |
 | **M5E** — E2E and close-out   | journeys, per-variant acceptance for the new section, documentation, exit-criteria verification                                                                                                                         | Not started                        |
+
+### M5C close-out (2026-08-02)
+
+M5C delivered the **hours workspace** at the blueprint-reserved
+`/businesses/:businessId/hours` route, entirely inside
+`apps/control-center` (no backend, contract, schema, generated-client,
+or dependency change). The weekly editor speaks the D1 minute encoding
+through time inputs plus an explicit "closes next day" choice; saves
+are full-document and explicit with exact-payload semantics and dirty
+tracking; client-side same-day overlap and encoding validation blocks
+Save but never typing, and the server's 422s are surfaced where they
+were caused (the exception window renders its bounds inside the
+dialog). **Spring-forward gaps are flagged where they are authored**:
+an Intl round-trip detects a nonexistent wall time on its actual
+upcoming occurrence date and warns non-blockingly, stating the server's
+gap-end rule — the silent-shift failure mode this milestone exists to
+prevent, made visible at authoring time. Exceptions are edited per date
+(special hours, or closed-all-day with the D6 note) and removed through
+the confirm pattern; the fulfillment form presents the registry
+defaults honestly (`is_configured`) before the first write
+materializes them. **Ruling D7 is visible in navigation**: Hours is
+offered to every role — staff read the schedule they work with no
+mutating controls, owners and managers edit, and a closed business
+stays readable while every mutation is withheld.
+
+**Verification.** Control-center **478** (from 439; +39 covering the
+pure time helpers including Intl gap detection across New York and
+Phoenix and the fall-back fold, the role-by-lifecycle matrix, exact
+weekly/exception/fulfillment payloads including the next-day encoding,
+the in-dialog window 422, and the DST warning under a frozen clock);
+every other suite unchanged; the full gate green including the
+23-test browser suite.
+
+Merge evidence (PR #46): reviewed feature head
+`27360dc101f9f2131c21471044f0a83aa1019a8c`, merged to `main` as
+`d682080cb6c25bd80c609a1e4500fbb61722a680` (ordered parents
+`1a7ee053805e` then the reviewed head; merge tree equal to the
+reviewed feature-head tree). Exact-head PR CI run `30734340536` and
+exact-merge push CI run `30734468224` both completed successfully —
+five jobs green, zero artifacts, attempt 1 (the first two merge-CI
+e2e runs since the PR #44 keep-alive correction, both clean).
+
+**Boundary.** No `hours` storefront section or renderer change (M5D),
+no browser-level hours coverage (M5E), no ordering behavior (M6).
 
 ### M5B close-out (2026-08-02)
 

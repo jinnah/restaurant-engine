@@ -1,6 +1,6 @@
 # ADR-025: Hours, exceptions, and fulfillment settings (Milestone 5)
 
-- **Status:** Accepted — M5A delivered (2026-08-01), M5B delivered (2026-08-02); M5C–M5E not started
+- **Status:** Accepted — M5A delivered (2026-08-01), M5B and M5C delivered (2026-08-02); M5D–M5E not started
 - **Date:** 2026-08-01
 - **Deciders:** Jinnah (product owner / principal architect), Claude (senior engineer)
 
@@ -373,3 +373,24 @@ green 5/5) widened the orchestrated E2E backend's keep-alive window —
 no assertion weakened, no production change. If the signature ever
 reappears with the flag in place, the keep-alive reading is falsified
 and the investigation must reopen.
+
+### M5C — Hours workspace UI: delivered, 2026-08-02
+
+Delivered exactly the §12 M5C scope, entirely inside
+`apps/control-center`: the hours workspace at the reserved
+`/businesses/:businessId/hours` route — the D1 weekly editor with the
+explicit next-day choice and full-document explicit saves, per-date
+exception editing (special hours or closed-all-day with the D6 note)
+with the editable-window 422 rendered in place, the fulfillment form
+presenting the registry defaults honestly before first write, the
+authored-time DST-gap warning (Intl round-trip naming the actual
+upcoming gap date, non-blocking, stating the server's gap-end rule),
+and ruling D7 visible in navigation (Hours offered to every role;
+staff read-only; closed businesses readable and immutable).
+
+Verification: control-center 478 (from 439); every other suite and
+gate unchanged and green, including the 23-test browser suite. Merge
+evidence: PR #46, reviewed head `27360dc1`, SHA-bound merge
+`d682080cb6c25bd80c609a1e4500fbb61722a680` (tree equal to the reviewed
+head tree); exact-head run `30734340536` and exact-merge run
+`30734468224` both green 5/5, zero artifacts, attempt 1.
