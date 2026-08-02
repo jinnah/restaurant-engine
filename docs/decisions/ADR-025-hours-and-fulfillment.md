@@ -1,6 +1,6 @@
 # ADR-025: Hours, exceptions, and fulfillment settings (Milestone 5)
 
-- **Status:** Accepted
+- **Status:** Accepted — M5A delivered (2026-08-01); M5B–M5E not started
 - **Date:** 2026-08-01
 - **Deciders:** Jinnah (product owner / principal architect), Claude (senior engineer)
 
@@ -310,3 +310,38 @@ standing verification gates.
   (would reopen the separate-endpoint decision).
 - Adoption of `btree_gist` elsewhere (would make the EXCLUDE backstop
   cheap to add).
+
+---
+
+## Delivery record
+
+### M5A — Hours domain foundation: delivered, 2026-08-01
+
+Delivered exactly the §12 M5A scope: the three tables on migration
+`c3d8f5a21e47` (from `a41d9c7e5b30`), the pure
+`hours.timekeeping`/`hours.availability` core with the injected clock
+and the §"Timekeeping rules" DST contract proven exhaustively (New York
+gap and fold, Phoenix, Sydney, Lord Howe, overnight-across-transition,
+bounded scans), the six-operation hours administration API with
+full-set-replacement semantics and exact no-op suppression, the D2
+platform timezone command, `business.hours.write` (D7: reads on
+`business.view`), five audit actions with typed details and read-time
+projections (the D6 note's content never recorded), and the regenerated
+contract — **66 → 73 operations** — with the `hours` client facade
+group and `platform.setTimezone`.
+
+Verification: backend 1,228 (from 1,132), api-client 106 (from 95),
+every other suite unchanged; ruff, strict mypy (193 files), workspace
+lint/format/typecheck, `contract:check`, both builds, the storefront
+budget/verification, and the 23-test Playwright suite all green. Merge
+evidence: PR #41, reviewed head `dc156ed1`, SHA-bound merge
+`0f46640a7548402a878bc7c2e4da134906740971` (parents `37ff016f` then the
+reviewed head; merge tree equal to the reviewed head tree); exact-head
+CI run `30730811615` and exact-merge push CI run `30730938069` both
+green 5/5 with zero artifacts on attempt 1.
+
+Deliberately not delivered (their own slices): the public availability
+endpoint (M5B), the hours workspace UI (M5C), the `hours` storefront
+section (M5D), browser-level acceptance (M5E), and order throttling
+(D3 — M6). The pickup-slot service ships without a consumer; M6's
+checkout is its first genuine exercise.

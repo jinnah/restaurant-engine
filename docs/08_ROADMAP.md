@@ -18,16 +18,105 @@ initial architecture-contract commit.
 
 ## Status
 
-| Milestone                                                      | State                                            |
-| -------------------------------------------------------------- | ------------------------------------------------ |
-| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                        |
-| M1 — Platform foundation                                       | **Complete** (2026-07-15)                        |
-| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                        |
-| M3 — Catalog and media                                         | **Complete** (2026-07-23)                        |
-| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                        |
-| M4G — Curated storefront design and motion (extension)         | **Complete** (2026-08-01; M4G-A–M4G-D, ADR-024)  |
-| M5 – M8 — Hours, ordering, operations, pilot                   | Not started                                      |
-| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23) |
+| Milestone                                                      | State                                              |
+| -------------------------------------------------------------- | -------------------------------------------------- |
+| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                          |
+| M1 — Platform foundation                                       | **Complete** (2026-07-15)                          |
+| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                          |
+| M3 — Catalog and media                                         | **Complete** (2026-07-23)                          |
+| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                          |
+| M4G — Curated storefront design and motion (extension)         | **Complete** (2026-08-01; M4G-A–M4G-D, ADR-024)    |
+| M5 — Hours and pickup readiness                                | **In progress** (M5A complete 2026-08-01, ADR-025) |
+| M6 – M8 — Ordering, operations, pilot                          | Not started                                        |
+| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23)   |
+
+## Milestone 5 delivery decision (2026-08-01)
+
+The approved M5 architecture (ADR-025, with binding rulings D1–D7)
+subdivides M5 into five independently reviewed slices, one PR each. M5B
+and M5C depend on M5A; M5D depends on M5A and M5B; M5E depends on all of
+them.
+
+| Slice                         | Scope                                                                                                                                                                                                                   | State                              |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| **M5A** — Hours foundation    | `business_hours` / `schedule_exceptions` / `fulfillment_settings` + migration, pure DST-safe timekeeping/availability core, admin API, platform timezone command (D2), capability, audit actions, contract regeneration | **Complete** (2026-08-01, ADR-025) |
+| **M5B** — Public availability | `GET /api/v1/public/availability`, neutral failure semantics, `no-store` (D4), isolation tests                                                                                                                          | Not started                        |
+| **M5C** — Hours workspace UI  | `/businesses/:id/hours`: weekly editor with DST-gap warning, exceptions, fulfillment settings                                                                                                                           | Not started                        |
+| **M5D** — Storefront display  | `hours` section + three renderer arms + composer control (one slice), JSON-LD hours, request-cost assertion update                                                                                                      | Not started                        |
+| **M5E** — E2E and close-out   | journeys, per-variant acceptance for the new section, documentation, exit-criteria verification                                                                                                                         | Not started                        |
+
+### M5A close-out (2026-08-01)
+
+M5A delivered the **hours domain foundation** — the first Milestone 5
+slice and the first schema change since M4A. Three additive tenant-owned
+tables land on one migration (`c3d8f5a21e47`, from `a41d9c7e5b30`):
+`business_hours`, `schedule_exceptions`, and `fulfillment_settings`,
+with the D1 minute encoding (`closes_minute` above 1440 ends the
+interval on the following local day), CHECK-bounded values everywhere, a
+partial unique index allowing at most one closed-all-day exception row
+per date, and a per-business fulfillment singleton whose **absence
+projects the documented defaults** and materializes only on first write
+(the M4G-A mechanism — no backfill, existing tenants gain no rows).
+
+**The pure core is the milestone's substance.** `hours.timekeeping` and
+`hours.availability` take `now` as an argument and touch neither the
+database nor the ambient clock, so the DST exit criteria are met
+deterministically at the unit layer: spring-forward gap boundaries move
+forward to the gap's end (proven for every minute of the New York gap);
+fall-back openings take the earlier occurrence and closings the later,
+so the open window is the union; overnight intervals convert end-to-end
+and one entirely inside a gap contributes nothing; exceptions replace
+their date's weekly schedule while an overnight interval still belongs
+to the service day that opened it; the next-opening scan is bounded so
+a business with no hours terminates. The matrix covers America/New_York,
+America/Phoenix (no DST), Australia/Sydney (southern hemisphere), and
+Australia/Lord_Howe (a thirty-minute shift), plus year-boundary and
+multi-day-closure searches and the pickup-slot rules (real-time
+stepping, lead time, cut-off, service-day horizon).
+
+**The API surface.** Six business-scoped operations (the established
+capability → Business `FOR UPDATE` → lifecycle preamble; closed
+businesses readable, mutations 409 `invalid_state`; both write commands
+exact full-set replacements with the exact no-op suppressed) plus the
+platform timezone correction (ruling D2, audited with both values — the
+first repair path for a creation-time tenancy fact). Contract **66 →
+73** operations, regenerated through the pinned generator; the client
+gains the `hours` facade group and `platform.setTimezone`. Reads ride on
+`business.view` (ruling D7 — staff see the schedule they work); writes
+require the new `business.hours.write` (owner/manager). Five audit
+actions ship with typed detail schemas and read-time projections; the
+D6 exception note's content never enters an audit payload.
+
+**Verification.** Backend **1,228** (from 1,132; the migration walker
+covers the new revision stepwise including downgrade); api-client
+**106** (from 95); storefront-renderer 146, storefront 70,
+control-center 439, Playwright 23, and the E2E orchestrator unchanged.
+Ruff lint/format clean, mypy strict clean (193 files), workspace
+lint/format/typecheck clean, `contract:check` byte-current, both
+production builds green, first-load JS 456,547 B against the unchanged
+502,201 B ceiling, built-server verification green, and `pnpm e2e` 23
+passed with full disposable cleanup. Only the disposable test databases
+were touched; dev and UAT databases and media roots are untouched.
+
+Merge evidence (PR #41):
+
+- Reviewed feature head `dc156ed173510f17c3cbc0bc705c0c0bb1cf2a0e`,
+  merged to `main` as `0f46640a7548402a878bc7c2e4da134906740971`
+  (ordered parents `37ff016f455f4881d8342cb1d7ef22f2259b3dcf` then the
+  reviewed head; the merge tree `80f6e39c` equals the reviewed
+  feature-head tree).
+- Exact-head PR CI run `30730811615` and exact-merge-SHA push CI run
+  `30730938069` both completed successfully — all five jobs
+  (repository-contract, backend, frontend, contract, e2e) green, zero
+  artifacts, attempt 1.
+
+**Boundary.** No public availability endpoint (M5B), no UI (M5C), no
+`hours` storefront section or renderer change (M5D), no browser-level
+coverage of hours (M5E), and no order throttling (ruling D3 — it cannot
+be enforced before orders exist; M6 owns it). The pickup-slot service
+deliberately has **no consumer until M6**: it is proven by its unit
+suite and the member preview probe, not by a checkout. M5B–M5E each need
+their own review.
 
 ## Milestone 3 delivery decision (2026-07-19)
 

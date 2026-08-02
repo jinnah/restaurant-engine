@@ -2,7 +2,83 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M4G-D — delivered 2026-08-01)
+## Current state (M5A — delivered 2026-08-01)
+
+M5A adds the hours domain's coverage (ADR-025) at the unit, service,
+API, and isolation layers. The backend suite grows from **1,132** to
+**1,228** and the api-client suite from **95** to **106**. The
+storefront-renderer (146), storefront (70), control-center (439), E2E
+orchestrator (43 tests, one Windows-symlink skip), and Playwright (23)
+suites are unchanged — M5A ships no UI and no public endpoint, so no
+browser-level coverage was added (deliberately M5C–M5E).
+
+- **The DST contract, proven exhaustively at the pure layer.** The
+  timekeeping and availability modules take `now` as an argument, so
+  every case is deterministic: every minute of the New York
+  spring-forward gap resolves to the gap's end for both boundary kinds;
+  fall-back openings take the earlier occurrence and closings the later
+  (the whole repeated hour asserted one hour apart); overnight intervals
+  spanning each transition have their real length; an interval entirely
+  inside a gap never exists, and its next real occurrence is found; the
+  matrix runs the same rules through America/Phoenix (no transitions),
+  Australia/Sydney (southern-hemisphere dates), and Australia/Lord_Howe
+  (a thirty-minute shift), so no hour-granularity or northern-calendar
+  assumption survives.
+- **Precedence and the calendar.** An exception replaces its date's
+  weekly schedule entirely (closure over an open weekday, special hours
+  over a closed one, replace-not-merge); an overnight interval survives
+  the _next_ day's closure and dies with its own service day's; "today"
+  is the tenant-local date, asserted on both sides of a UTC midnight;
+  next-opening searches cross multi-day closures, week wraps, and the
+  year boundary, and a business with no hours terminates with none.
+- **Pickup-slot rules.** Lead time pushes the first slot onto the grid;
+  before opening the first slot is the opening; the cut-off blocks the
+  end of service exactly (a slot landing on the boundary is valid);
+  `max_days_ahead` counts service days; slots step evenly in real time
+  across a fall-back transition; enumeration honours its limit.
+- **Full-set replacement semantics through the API.** The weekly PUT
+  round-trips canonically from a scrambled payload, replaces exactly,
+  accepts the empty schedule, rejects same-day and cross-midnight
+  overlaps (a Sunday overnight is checked against Monday) while touching
+  intervals pass, enforces the per-day limit and the minute bounds, and
+  suppresses the exact no-op — asserted by audit-row count, not by
+  response shape. The per-date exception PUT stores special hours and
+  closed-all-day distinctly, normalizes and bounds the D6 note, enforces
+  the tenant-local editable window as a service-level 422 with the
+  window in `details`, and deletes to a 404 when nothing exists.
+- **Fulfillment defaults, materialization, and bounds.** A read without
+  a stored row projects the documented defaults with
+  `is_configured: false` and provably writes no row; the first write
+  materializes; the second identical write audits nothing; every bound
+  is schema-enforced and partial documents are rejected.
+- **Authorization, lifecycle, and isolation.** Every member role reads
+  (ruling D7); owner and manager write; staff writes are 403; nonmembers
+  — including platform administrators — get 404 for reads and writes
+  alike; a closed business answers every mutation with 409
+  `invalid_state` while staying readable; provisioning and suspended
+  businesses stay editable; hours rows never cross tenants (asserted in
+  the table, not just the API) and survive suspension intact.
+- **The preview probe and the timezone command.** The member preview at
+  an injected instant proves the pure core is wired end to end (the
+  spring-forward close observed through the API); naive instants are 422. The platform timezone command changes the zone, audits both
+  values, suppresses the exact no-op, refuses unknown zones, closed
+  businesses, and missing businesses — and a preview at the same instant
+  flips from open to closed when the zone moves west, proving the
+  re-interpretation is real.
+- **Facade coverage.** The `hours` group and `platform.setTimezone` are
+  covered with an injected fetch: request shape (method, path, CSRF
+  header, body, query), the defaults-projected fulfillment payload, the
+  window-rejection envelope with its details, and network failure.
+
+Deliberate limits, recorded plainly. The pickup-slot service has **no
+consumer until M6** — its proof is the unit suite and the preview probe,
+not a checkout. No browser-level evidence exists for any hours surface
+(M5C–M5E own it). The three retained risks stand unchanged: the
+dirty-navigation failure from run `30652179044` remains unexplained; the
+earlier local E2E non-zero exit remains unidentified; the accent-sweep
+15-second allowance remains unexercised.
+
+## Earlier state (M4G-D — delivered 2026-08-01)
 
 M4G-D adds the per-variant browser and visual acceptance layer (ADR-024
 §11/§12) as a test-only change: `pnpm e2e` grows from **13** to **23**
