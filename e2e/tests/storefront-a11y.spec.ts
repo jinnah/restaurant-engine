@@ -5,11 +5,13 @@ import { specNamespace, storefrontOrigin } from '../support/namespace';
 import { publicVisit, visitorContext } from '../support/publicApi';
 import { signIn } from '../support/ui';
 
-// Spec-owned namespace (ADR-019 D6): one published five-section
+// Spec-owned namespace (ADR-019 D6): one published six-section
 // storefront — the smallest deterministic fixture that exercises every
-// registered section type. Publication seeds the next draft from the
-// published result, so the composer, preview, history, and version
-// detail all have real state to present.
+// registered section type (M5E adds the hours section over the all-day
+// schedule, so the scan covers a real rendered schedule and status
+// line). Publication seeds the next draft from the published result, so
+// the composer, preview, history, and version detail all have real
+// state to present.
 const ns = specNamespace('sf-a11y');
 
 const HERO_HEADING = 'Wood-fired cooking, all seasons';
@@ -47,14 +49,18 @@ test('the public storefront pages pass the axe A/AA boundary with sound structur
   browser,
 }) => {
   test.setTimeout(300_000);
-  await seedPublishedStorefront(ns, {
-    category: CATEGORY,
-    item: ITEM,
-    imageAlt: IMAGE_ALT,
-    heroHeading: HERO_HEADING,
-    heroSubheading: HERO_SUBHEADING,
-    storyBody: STORY_BODY,
-  });
+  await seedPublishedStorefront(
+    ns,
+    {
+      category: CATEGORY,
+      item: ITEM,
+      imageAlt: IMAGE_ALT,
+      heroHeading: HERO_HEADING,
+      heroSubheading: HERO_SUBHEADING,
+      storyBody: STORY_BODY,
+    },
+    { hours: 'open-all-day' },
+  );
 
   const context = await visitorContext(browser);
   try {
@@ -66,6 +72,12 @@ test('the public storefront pages pass the axe A/AA boundary with sound structur
     await expect(
       page.getByRole('heading', { name: ns.businessName, level: 1 }),
     ).toBeVisible();
+    // The hours section is present with a live schedule (M5E): the scan
+    // below covers the status line, the day/times list, and its headings.
+    await expect(
+      page.getByRole('heading', { name: 'Opening hours', level: 2 }),
+    ).toBeVisible();
+    await expect(page.getByText('Open now')).toBeVisible();
     await expectNoAxeViolations(page, 'public /');
 
     // Structure the scan does not judge: exactly one h1, and the four
@@ -101,14 +113,18 @@ test('the storefront workspace pages pass the axe A/AA boundary with working dia
 }) => {
   test.setTimeout(300_000);
   const nsWorkspace = specNamespace('sf-a11y-ws');
-  const { businessId } = await seedPublishedStorefront(nsWorkspace, {
-    category: CATEGORY,
-    item: ITEM,
-    imageAlt: IMAGE_ALT,
-    heroHeading: HERO_HEADING,
-    heroSubheading: HERO_SUBHEADING,
-    storyBody: STORY_BODY,
-  });
+  const { businessId } = await seedPublishedStorefront(
+    nsWorkspace,
+    {
+      category: CATEGORY,
+      item: ITEM,
+      imageAlt: IMAGE_ALT,
+      heroHeading: HERO_HEADING,
+      heroSubheading: HERO_SUBHEADING,
+      storyBody: STORY_BODY,
+    },
+    { hours: 'open-all-day' },
+  );
 
   await signIn(page, nsWorkspace.ownerEmail, nsWorkspace.ownerPassword);
 
@@ -162,4 +178,14 @@ test('the storefront workspace pages pass the axe A/AA boundary with working dia
     page.getByRole('heading', { name: 'Version 1 (published)' }),
   ).toBeVisible();
   await expectNoAxeViolations(page, 'version detail');
+
+  // --- Hours workspace (M5C surface, scanned in M5E) --------------------
+  // The seeded all-day schedule gives the weekly editor, and the
+  // fulfillment panel its real populated state to scan.
+  await page.goto(`/businesses/${businessId}/hours`);
+  await expect(
+    page.getByRole('heading', { name: 'Hours', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Monday' })).toBeVisible();
+  await expectNoAxeViolations(page, 'hours workspace');
 });
