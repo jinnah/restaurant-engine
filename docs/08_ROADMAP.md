@@ -18,17 +18,17 @@ initial architecture-contract commit.
 
 ## Status
 
-| Milestone                                                      | State                                              |
-| -------------------------------------------------------------- | -------------------------------------------------- |
-| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                          |
-| M1 — Platform foundation                                       | **Complete** (2026-07-15)                          |
-| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                          |
-| M3 — Catalog and media                                         | **Complete** (2026-07-23)                          |
-| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                          |
-| M4G — Curated storefront design and motion (extension)         | **Complete** (2026-08-01; M4G-A–M4G-D, ADR-024)    |
-| M5 — Hours and pickup readiness                                | **In progress** (M5A complete 2026-08-01, ADR-025) |
-| M6 – M8 — Ordering, operations, pilot                          | Not started                                        |
-| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23)   |
+| Milestone                                                      | State                                                  |
+| -------------------------------------------------------------- | ------------------------------------------------------ |
+| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                              |
+| M1 — Platform foundation                                       | **Complete** (2026-07-15)                              |
+| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                              |
+| M3 — Catalog and media                                         | **Complete** (2026-07-23)                              |
+| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                              |
+| M4G — Curated storefront design and motion (extension)         | **Complete** (2026-08-01; M4G-A–M4G-D, ADR-024)        |
+| M5 — Hours and pickup readiness                                | **In progress** (M5A–M5D complete 2026-08-02, ADR-025) |
+| M6 – M8 — Ordering, operations, pilot                          | Not started                                            |
+| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23)       |
 
 ## Milestone 5 delivery decision (2026-08-01)
 
@@ -42,8 +42,79 @@ them.
 | **M5A** — Hours foundation    | `business_hours` / `schedule_exceptions` / `fulfillment_settings` + migration, pure DST-safe timekeeping/availability core, admin API, platform timezone command (D2), capability, audit actions, contract regeneration | **Complete** (2026-08-01, ADR-025) |
 | **M5B** — Public availability | `GET /api/v1/public/availability`, neutral failure semantics, `no-store` (D4), isolation tests                                                                                                                          | **Complete** (2026-08-02, ADR-025) |
 | **M5C** — Hours workspace UI  | `/businesses/:id/hours`: weekly editor with DST-gap warning, exceptions, fulfillment settings                                                                                                                           | **Complete** (2026-08-02, ADR-025) |
-| **M5D** — Storefront display  | `hours` section + three renderer arms + composer control (one slice), JSON-LD hours, request-cost assertion update                                                                                                      | Not started                        |
+| **M5D** — Storefront display  | `hours` section + three renderer arms + composer control (one slice), JSON-LD hours, request-cost assertion update                                                                                                      | **Complete** (2026-08-02, ADR-025) |
 | **M5E** — E2E and close-out   | journeys, per-variant acceptance for the new section, documentation, exit-criteria verification                                                                                                                         | Not started                        |
+
+### M5D close-out (2026-08-02)
+
+M5D delivered the **hours storefront section** — the slice that makes
+structured hours visible to customers, in one change per the M4G-B
+ruling so the registry, the renderer, and the composer cannot drift
+apart. The `hours` section type is registered with **presentation
+choices only** (ruling D5, made structural: `heading`, optional
+`intro`, `show_open_now`, and a pinned field set where every
+schedule-shaped smuggling attempt — `weekly`, `intervals`, `timezone`,
+`hours_text`, `opens_minute`, `is_open_now` — is a 422). The schedule
+itself arrives at render time from `GET /api/v1/public/availability`,
+composed by the storefront application exactly as the menu section
+composes with the public menu: one shared `HoursSection` renders the
+weekly schedule (seven ISO rows, Monday first, honest "Closed" for
+absent days), upcoming exceptions with the D6 note as plain text, and
+— when the owner leaves the status line on — the server-computed
+open/closed facts formatted in the **tenant** timezone, under all
+three variant arms with no per-variant fork and **zero client
+JavaScript**. Without availability data (the workspace preview) the
+section renders its authored copy alone, the MenuSection degradation
+precedent.
+
+**The home route now costs three backend reads, visibly.** The
+availability projection is read on every home render — not only when
+an hours section is composed — because the Restaurant JSON-LD now
+models `openingHoursSpecification` (blueprint §12.2: hours are
+modeled, never decorative text): one entry per stored interval, the
+D1 overnight case in schema.org's closes-before-opens convention, a
+full 00:00–24:00 day stated as 00:00–23:59, and an empty schedule
+claiming nothing at all. Exceptions are deliberately not claimed in
+JSON-LD (transient overrides rot in a crawler's index). The
+built-server verification's exact-cost assertion moved from two to
+three in the same slice; `/menu` stays at two, asserted. The
+availability fetch rides the tenant transport and stays `no-store`
+end to end (ruling D4) — the per-request React.cache memo lives for
+exactly one server request and is not a cache across requests. In the
+control center, the composer offers Hours with heading/intro/status
+fields and **no schedule input of any kind**; the exact full-document
+payload is pinned by test.
+
+**Verification.** Backend **1,245** (from 1,240; the data-free pin,
+the projection shape at the unit layer, and the published projection
+over the wire); storefront-renderer **161** (from 146; the pure
+formatting helpers at the D1 edges, the section under every variant
+arm with a single `h1`, honest empty states, markup-stays-text);
+storefront **78** (from 70; the unconditional third read, its failure
+as the generic error, JSON-LD hours including the overnight and
+full-day encodings and the empty-schedule omission); control-center
+**480** (from 478; the presentation-only seed and the exact composer
+payload); api-client **109** unchanged. Contract regenerated: **74
+operations unchanged**, new component schemas only, drift check
+byte-current. First-load JavaScript unmoved at **456,547 B**;
+delivered CSS measured 11,342 B per route (diagnostic, no threshold —
+ADR-024 §11). Full gate green including the built-server verification
+and `pnpm e2e` **23 passed** with full disposable cleanup.
+
+Merge evidence (PR #48): reviewed feature head
+`26e141ae8732ea6205ffdcd5eb3d03b1f7621eb3`, merged to `main` as
+`cc03eb42a3bef67c4adb0dc1e7c2a421d4699868` (ordered parents
+`65c5909d33a8` then the reviewed head; merge tree equal to the
+reviewed feature-head tree). Exact-head PR CI run `30750293487` and
+exact-merge push CI run `30750472801` both completed successfully —
+five jobs green, zero artifacts, attempt 1 (the third and fourth
+consecutive clean merge-CI e2e runs since the PR #44 keep-alive
+correction).
+
+**Boundary.** No migration, no new endpoint, no dependency change, no
+`schema_version` bump. No browser-level hours coverage (M5E owns the
+journeys and per-variant acceptance for the new section), no ordering
+behavior (M6). The four retained risks stand unchanged.
 
 ### M5C close-out (2026-08-02)
 

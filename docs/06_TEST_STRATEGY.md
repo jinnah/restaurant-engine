@@ -2,7 +2,59 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M5C — delivered 2026-08-02)
+## Current state (M5D — delivered 2026-08-02)
+
+M5D adds the hours storefront section's coverage (ADR-025, ruling D5)
+at every layer the slice touched. The backend suite grows from
+**1,240** to **1,245**, storefront-renderer from **146** to **161**,
+storefront from **70** to **78**, and control-center from **478** to
+**480**; api-client stays **109**. No browser-level acceptance was
+added — deliberately M5E.
+
+- **The registry stays data-free (D5 made structural).** The exact
+  `HoursProps` field set is pinned (`heading`, `intro`,
+  `show_open_now`); every schedule-shaped smuggling attempt —
+  `weekly`, `intervals`, `timezone`, `hours_text`, `opens_minute`,
+  `is_open_now` — is a 422 through `extra="forbid"`; the section
+  references no media; the ordering/campaign registry pin now names
+  six types. The published projection carries the presentation
+  choices verbatim, asserted at the unit layer and over the wire
+  (draft → publish → public projection).
+- **The renderer never reads a clock.** The pure formatting helpers
+  are proven at the D1 edges (minutes 0, 1439, 1440, 1560; the
+  overnight interval end-to-end; seven ISO rows Monday-first with
+  honest "Closed" gaps; interval sorting; timezone-free calendar
+  dates that can never shift by a day). The section renders under all
+  three variant arms with a single `h1`; the open/closed status is
+  the server's answer formatted in the **tenant** timezone from fixed
+  UTC fixture instants; a business with nothing upcoming states only
+  "Closed now"; null availability data (the workspace preview)
+  degrades to authored copy alone; authored copy and D6 notes render
+  as text, never markup.
+- **The third read, asserted twice.** At the unit layer the home page
+  reads the availability projection unconditionally (JSON-LD models
+  hours whether or not an hours section is composed) and its failure
+  is the same generic error as the other reads — never a partial
+  page. On the wire, the built-server verification asserts the home
+  render cost is **exactly three** backend reads with the
+  availability projection third, `/menu` stays at exactly two, the
+  rendered schedule and status appear in the delivered HTML, and the
+  JSON-LD carries `openingHoursSpecification` including the
+  overnight closes-before-opens convention. The JSON-LD suite also
+  pins the 00:00–23:59 full-day encoding, the empty-schedule
+  omission (no key, never an empty array), and that exceptions are
+  never claimed.
+- **The composer offers no schedule input.** The hours seed is
+  presentation-only; the dialog carries heading/intro/status fields
+  and nothing schedule-shaped; the exact full-document payload is
+  pinned; `props.show_open_now` maps to its dialog field for 422
+  routing.
+
+Deliberate limits: no browser-level evidence (M5E owns the hours
+journeys and the per-variant acceptance for the new section). The
+four retained risks stand unchanged.
+
+## Earlier state (M5C — delivered 2026-08-02)
 
 M5C adds the hours workspace's coverage (ADR-025) at the component and
 integration layers, through the real route table and the injected

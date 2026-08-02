@@ -1,6 +1,6 @@
 # ADR-025: Hours, exceptions, and fulfillment settings (Milestone 5)
 
-- **Status:** Accepted — M5A delivered (2026-08-01), M5B and M5C delivered (2026-08-02); M5D–M5E not started
+- **Status:** Accepted — M5A delivered (2026-08-01), M5B, M5C, and M5D delivered (2026-08-02); M5E not started
 - **Date:** 2026-08-01
 - **Deciders:** Jinnah (product owner / principal architect), Claude (senior engineer)
 
@@ -373,6 +373,50 @@ green 5/5) widened the orchestrated E2E backend's keep-alive window —
 no assertion weakened, no production change. If the signature ever
 reappears with the flag in place, the keep-alive reading is falsified
 and the investigation must reopen.
+
+### M5D — Storefront display: delivered, 2026-08-02
+
+Delivered exactly the §12 M5D scope, in one slice per the M4G-B ruling
+(registry entry, renderer, and composer control together, so the enum
+and the renderer cannot drift): the `hours` section type registered
+with presentation choices only — heading, optional intro,
+`show_open_now` — and **no schedule of any shape** (ruling D5 made
+structural: the exact field set is pinned by test and every
+schedule-shaped smuggling attempt is a 422); the public projection
+carrying those choices verbatim; one shared `HoursSection` rendered
+under all three variant arms (chrome only, no per-variant fork) from
+pure D1-minute/instant formatting helpers with no ambient clock — the
+open/closed answer is the server's, only formatted in the tenant
+timezone — with an honest all-closed rendering of an empty schedule
+and null-data degradation for the workspace preview (the MenuSection
+precedent); the composer offering Hours with heading/intro/status
+fields and no schedule input. The storefront home route grew from two
+backend reads to **three**: the availability projection is read on
+every home render, because the Restaurant JSON-LD now models
+`openingHoursSpecification` (blueprint §12.2) independently of section
+composition — the D1 overnight case uses schema.org's
+closes-before-opens convention, a full 00:00–24:00 day is stated as
+00:00–23:59, and an empty schedule claims nothing. The built-server
+verification's exact-cost assertion moved to three in the same slice,
+visibly; `/menu` stays at two. Upcoming exceptions render in the
+section (with the D6 note as plain text) but are deliberately not
+claimed in JSON-LD: transient overrides rot in a crawler's index.
+
+Verification: backend 1,245 (from 1,240), storefront-renderer 161
+(from 146), storefront 78 (from 70), control-center 480 (from 478),
+api-client 109 unchanged; contract regenerated with **74 operations
+unchanged** (new component schemas only) and byte-current; zero client
+JavaScript added (first-load budget unmoved at 456,547 B); every other
+gate green including `pnpm e2e` 23. Merge evidence: PR #48, reviewed
+head `26e141ae`, SHA-bound merge
+`cc03eb42a3bef67c4adb0dc1e7c2a421d4699868` (parents `65c5909d` then
+the reviewed head; merge tree equal to the reviewed head tree);
+exact-head CI run `30750293487` and exact-merge push CI run
+`30750472801` both green 5/5 with zero artifacts on attempt 1.
+
+Deliberately not delivered: browser-level hours coverage and
+per-variant acceptance for the new section (M5E), and ordering
+behavior (M6).
 
 ### M5C — Hours workspace UI: delivered, 2026-08-02
 
