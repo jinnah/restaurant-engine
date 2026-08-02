@@ -1,0 +1,184 @@
+.loading {
+  composes: loading from '../components/controls.module.css';
+}
+
+.errorPanel {
+  composes: errorPanel from '../components/controls.module.css';
+}
+
+.secondary {
+  composes: secondary from '../components/controls.module.css';
+}
+
+.submit {
+  composes: submit from '../components/controls.module.css';
+}
+
+.quiet {
+  composes: quiet from '../components/controls.module.css';
+}
+
+.actions {
+  composes: actions from '../components/controls.module.css';
+}
+
+/* One surface card vocabulary, shared with the storefront and menu pages. */
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.timezoneLine {
+  font-weight: 600;
+  margin: 0 0 var(--space-1);
+}
+
+.note {
+  color: var(--color-muted);
+  margin: var(--space-1) 0;
+}
+
+.mutedText {
+  color: var(--color-muted);
+  margin: var(--space-1) 0 0;
+}
+
+.fieldErrorText {
+  margin: 0.35rem 0 0;
+  color: var(--color-danger);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* Non-blocking authoring aid (the DST-gap line), visually distinct from
+   an error: the save is not refused, the copy explains what happens. */
+.warningText {
+  margin: 0.35rem 0 0;
+  padding: 0.25rem 0.6rem;
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+}
+
+/* --- Weekly editor ------------------------------------------------------- */
+
+.dayFieldset {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  margin: var(--space-2) 0;
+}
+
+.dayFieldset legend {
+  font-weight: 600;
+  padding: 0 0.35rem;
+}
+
+.readOnlyDays {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+/* --- Interval rows ------------------------------------------------------- */
+
+.intervalRows {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+}
+
+.intervalRow {
+  width: 100%;
+}
+
+.intervalInputs {
+  display: flex;
+  align-items: end;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.timeField label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.timeField input {
+  min-height: var(--target-min);
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  color: inherit;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.timeField input[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+/* --- Exceptions ---------------------------------------------------------- */
+
+.exceptionList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.exceptionRow {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-1) var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.exceptionBody {
+  flex: 1 1 14rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.exceptionActions {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+/* Interval rows plus a date and note need more room than the default. */
+.exceptionDialog {
+  max-width: 40rem;
+}
+
+/* --- Fulfillment --------------------------------------------------------- */
+
+.statusList {
+  margin: var(--space-1) 0 0;
+  display: grid;
+  gap: 0.25rem var(--space-2);
+  grid-template-columns: max-content 1fr;
+}
+
+.statusList dt {
+  font-weight: 600;
+}
+
+.statusList dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

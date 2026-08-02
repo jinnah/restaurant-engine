@@ -3,6 +3,7 @@ import { GuestOnly } from './auth/GuestOnly';
 import { RequireAuth } from './auth/RequireAuth';
 import { BusinessWorkspaceLayout } from './business/BusinessWorkspaceLayout';
 import { RequireBusinessMembership } from './business/RequireBusinessMembership';
+import { HoursPage } from './hours/HoursPage';
 import { ItemCreatePage } from './menu/ItemCreatePage';
 import { ItemEditorPage } from './menu/ItemEditorPage';
 import { MenuOverviewPage } from './menu/MenuOverviewPage';
@@ -79,6 +80,9 @@ export const routes: RouteObject[] = [
                         path: 'storefront/history/:versionId',
                         element: <StorefrontVersionDetailPage />,
                       },
+                      // The hours workspace (ADR-025 §M5C): one page for
+                      // the weekly schedule, exceptions, and fulfillment.
+                      { path: 'hours', element: <HoursPage /> },
                       // Unknown workspace children fall through to the root
                       // catch-all not-found route.
                     ],
