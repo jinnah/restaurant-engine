@@ -40,6 +40,8 @@ const RENDERER_VARIANTS = join(
 const ROUTES = [
   { label: '/', entry: 'page' },
   { label: '/menu', entry: 'menu/page' },
+  { label: '/order', entry: 'order/page' },
+  { label: '/order/track/[token]', entry: 'order/track/[token]/page' },
 ];
 
 // The registered design variants (ADR-024 §3). Reported individually

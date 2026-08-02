@@ -11,12 +11,16 @@
 // backend resolves the tenant from it (ADR-013), and a forwarder that
 // rewrote the Host would resolve no tenant at all.
 //
-// Only GET and HEAD are exported, so every unsafe method is a framework
-// 405 and this can never become a write path. The destination is always
-// the fixed API origin — the request influences the path and headers,
-// never the target host — so the forwarder cannot be steered elsewhere.
-// The forwarding logic (and its live-stub tests) live in
-// `lib/server/dev-api-proxy.ts`.
+// GET, HEAD, and — from M6C (ADR-026 D9) — POST are exported; every
+// other method is a framework 405. POST forwards only for
+// `/api/v1/public/` paths (the ordering surface's placement and
+// cancellation), with the browser-context headers preserved verbatim,
+// and the whole forwarder stays production-disabled — in production the
+// reverse proxy serves the API same-origin and this route never runs.
+// The destination is always the fixed API origin — the request
+// influences the path and headers, never the target host — so the
+// forwarder cannot be steered elsewhere. The forwarding logic (and its
+// live-stub tests) live in `lib/server/dev-api-proxy.ts`.
 
 import { forwardDevApiRequest } from '../../../lib/server/dev-api-proxy';
 
@@ -27,5 +31,9 @@ export function GET(request: Request): Promise<Response> {
 }
 
 export function HEAD(request: Request): Promise<Response> {
+  return forwardDevApiRequest(request);
+}
+
+export function POST(request: Request): Promise<Response> {
   return forwardDevApiRequest(request);
 }

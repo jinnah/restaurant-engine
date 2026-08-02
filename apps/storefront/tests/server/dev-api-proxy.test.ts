@@ -123,3 +123,100 @@ describe('forwardDevApiRequest', () => {
     expect(server.requests).toHaveLength(0);
   });
 });
+
+// M6C (ADR-026 D9): POST forwards for the public ordering surface only,
+// with the body and the browser-context evidence preserved verbatim.
+describe('forwardDevApiRequest POST', () => {
+  test('forwards body, Host, and the browser-context headers verbatim', async () => {
+    const server = await withStub({
+      status: 201,
+      headers: { 'cache-control': 'no-store' },
+      body: '{"tracking_token":"tok"}',
+    });
+    const response = await forwardDevApiRequest(
+      new Request(`http://${HOST}/api/v1/public/orders`, {
+        method: 'POST',
+        headers: {
+          host: HOST,
+          'content-type': 'application/json',
+          origin: `http://${HOST}`,
+          'sec-fetch-site': 'same-origin',
+          referer: `http://${HOST}/order`,
+        },
+        body: '{"idempotency_key":"k"}',
+      }),
+    );
+    expect(response.status).toBe(201);
+    expect(await response.text()).toBe('{"tracking_token":"tok"}');
+    const seen = server.requests[0];
+    expect(seen?.method).toBe('POST');
+    expect(seen?.url).toBe('/api/v1/public/orders');
+    expect(seen?.body).toBe('{"idempotency_key":"k"}');
+    // The backend resolves the tenant from Host and judges the unsafe
+    // request from exactly this evidence — all preserved verbatim.
+    expect(seen?.headers.host).toBe(HOST);
+    expect(seen?.headers['content-type']).toBe('application/json');
+    expect(seen?.headers.origin).toBe(`http://${HOST}`);
+    expect(seen?.headers['sec-fetch-site']).toBe('same-origin');
+    expect(seen?.headers.referer).toBe(`http://${HOST}/order`);
+  });
+
+  test('cookies and authorization never travel on the POST leg', async () => {
+    const server = await withStub({ body: '{}' });
+    await forwardDevApiRequest(
+      new Request(`http://${HOST}/api/v1/public/orders`, {
+        method: 'POST',
+        headers: {
+          host: HOST,
+          'content-type': 'application/json',
+          cookie: 'session=secret',
+          authorization: 'Bearer secret',
+        },
+        body: '{}',
+      }),
+    );
+    const seen = server.requests[0];
+    expect(seen?.headers.cookie).toBeUndefined();
+    expect(seen?.headers.authorization).toBeUndefined();
+  });
+
+  test('POST outside /api/v1/public/ forwards nothing', async () => {
+    const server = await withStub({ body: 'never' });
+    const response = await forwardDevApiRequest(
+      new Request(`http://${HOST}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: { host: HOST, 'content-type': 'application/json' },
+        body: '{}',
+      }),
+    );
+    expect(response.status).toBe(404);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(server.requests).toHaveLength(0);
+  });
+
+  test('production disables the POST leg like everything else', async () => {
+    const server = await withStub({ body: 'never' });
+    vi.stubEnv('NODE_ENV', 'production');
+    const response = await forwardDevApiRequest(
+      new Request(`http://${HOST}/api/v1/public/orders`, {
+        method: 'POST',
+        headers: { host: HOST },
+        body: '{}',
+      }),
+    );
+    expect(response.status).toBe(404);
+    expect(server.requests).toHaveLength(0);
+  });
+
+  test('an unreachable backend is a bounded 502 on POST too', async () => {
+    vi.stubEnv('STOREFRONT_API_ORIGIN', 'http://127.0.0.1:9');
+    const response = await forwardDevApiRequest(
+      new Request(`http://${HOST}/api/v1/public/orders`, {
+        method: 'POST',
+        headers: { host: HOST },
+        body: '{}',
+      }),
+    );
+    expect(response.status).toBe(502);
+  });
+});

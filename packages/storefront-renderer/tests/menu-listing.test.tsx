@@ -78,4 +78,37 @@ describe('MenuListing', () => {
       screen.getByText(/no menu items are available right now/i),
     ).toBeInTheDocument();
   });
+
+  // M6C (ADR-026): the optional per-item slot. Absent, the output is
+  // exactly the pre-M6C document; present, the consumer's affordance
+  // renders per item — the listing itself still decides nothing.
+  test('without itemAction no affordance markup exists', () => {
+    const { container } = render(<MenuListing menu={publicMenuFixture()} />);
+    expect(container.querySelectorAll('button')).toHaveLength(0);
+  });
+
+  test('itemAction is offered every item and its own gate decides', () => {
+    const seen: string[] = [];
+    render(
+      <MenuListing
+        menu={publicMenuFixture()}
+        itemAction={(item) => {
+          seen.push(item.name);
+          return item.is_available ? (
+            <button type="button">Add {item.name}</button>
+          ) : null;
+        }}
+      />,
+    );
+    // Every listed item reaches the slot…
+    expect(seen.length).toBeGreaterThan(1);
+    // …the consumer's gate renders for eligible items…
+    expect(
+      screen.getByRole('button', { name: 'Add House roast chicken' }),
+    ).toBeInTheDocument();
+    // …and not for the ones it refuses (the sold-out fixture item).
+    expect(
+      screen.queryByRole('button', { name: 'Add Garden salad' }),
+    ).toBeNull();
+  });
 });

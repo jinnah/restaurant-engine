@@ -13,9 +13,18 @@ import type { Metadata } from 'next';
 import { canonicalOrigin } from '../canonical';
 import { getPublishedStorefront, getRequestHost } from './storefront-data';
 
+// The ordering routes are deliberately non-indexable (M6C, ADR-026):
+// checkout and tracking are transactional surfaces, and their existence
+// is a live entitlement fact (D10/D12) never frozen into published
+// content — a crawler must not record a capability the page may not
+// show tomorrow. Discovery flows through the indexed content pages, and
+// robots.txt disallows the /order prefix as the first line of the same
+// policy.
 const PAGES = {
-  home: { canonicalPath: '/', titlePrefix: null },
-  menu: { canonicalPath: '/menu', titlePrefix: 'Menu' },
+  home: { canonicalPath: '/', titlePrefix: null, index: true },
+  menu: { canonicalPath: '/menu', titlePrefix: 'Menu', index: true },
+  order: { canonicalPath: '/order', titlePrefix: 'Order', index: false },
+  track: { canonicalPath: null, titlePrefix: 'Order status', index: false },
 } as const;
 
 export async function storefrontMetadata(
@@ -28,7 +37,7 @@ export async function storefrontMetadata(
   const storefront = result.data;
   const host = await getRequestHost();
   const origin = host === null ? null : canonicalOrigin(host);
-  const { canonicalPath, titlePrefix } = PAGES[page];
+  const { canonicalPath, titlePrefix, index } = PAGES[page];
   const name = storefront.business.name;
   const title = titlePrefix === null ? name : `${titlePrefix} — ${name}`;
   const hero =
@@ -39,8 +48,9 @@ export async function storefrontMetadata(
   const heroImage = hero?.props.image ?? undefined;
   return {
     title,
+    ...(index ? {} : { robots: { index: false, follow: false } }),
     ...(description === undefined ? {} : { description }),
-    ...(origin === null
+    ...(origin === null || canonicalPath === null
       ? {}
       : {
           metadataBase: new URL(origin),

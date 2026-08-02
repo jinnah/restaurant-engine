@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 import type { PublicMenu, PublicMenuItem } from '@restaurant-engine/api-client';
 
 import { formatMinorUnits } from '../money';
@@ -8,10 +10,15 @@ import styles from './menu.module.css';
 // public menu projection: category and item order are the projection's
 // array order, prices are exact minor-unit formatting, sold-out items stay
 // listed ("sold out" and "hidden" are different states, docs/03), and
-// dietary tags render as neutral labels. Deliberate M4D presentation
-// boundaries: modifier groups and `is_orderable` are ordering-surface
-// facts (M6) and are not rendered; there is no search. Badge and
+// dietary tags render as neutral labels. There is no search; badge and
 // empty-state labels are product chrome.
+//
+// `itemAction` (M6C, ADR-026): an optional per-item slot the consumer
+// fills with its ordering affordance. The listing itself stays a pure
+// server-renderable projection view — it decides nothing about ordering;
+// when the slot is absent the output is exactly the pre-M6C document, so
+// the workspace preview and an ordering-disabled storefront render no
+// affordance at all.
 const DIETARY_LABELS: Record<string, string> = {
   halal: 'Halal',
   vegetarian: 'Vegetarian',
@@ -26,10 +33,12 @@ function MenuItem({
   item,
   currency,
   featured,
+  itemAction,
 }: {
   item: PublicMenuItem;
   currency: string;
   featured: boolean;
+  itemAction?: (item: PublicMenuItem) => ReactNode;
 }) {
   const badges = [
     ...(featured ? ['Featured'] : []),
@@ -74,12 +83,19 @@ function MenuItem({
             ))}
           </span>
         )}
+        {itemAction?.(item)}
       </div>
     </li>
   );
 }
 
-export function MenuListing({ menu }: { menu: PublicMenu }) {
+export function MenuListing({
+  menu,
+  itemAction,
+}: {
+  menu: PublicMenu;
+  itemAction?: (item: PublicMenuItem) => ReactNode;
+}) {
   const featured = new Set(menu.featured_item_ids);
   return (
     <div className={styles.listing}>
@@ -102,6 +118,7 @@ export function MenuListing({ menu }: { menu: PublicMenu }) {
                   item={item}
                   currency={menu.business.currency}
                   featured={featured.has(item.id)}
+                  itemAction={itemAction}
                 />
               ))}
             </ul>
