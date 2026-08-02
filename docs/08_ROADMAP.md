@@ -18,18 +18,18 @@ initial architecture-contract commit.
 
 ## Status
 
-| Milestone                                                      | State                                              |
-| -------------------------------------------------------------- | -------------------------------------------------- |
-| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                          |
-| M1 — Platform foundation                                       | **Complete** (2026-07-15)                          |
-| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                          |
-| M3 — Catalog and media                                         | **Complete** (2026-07-23)                          |
-| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                          |
-| M4G — Curated storefront design and motion (extension)         | **Complete** (2026-08-01; M4G-A–M4G-D, ADR-024)    |
-| M5 — Hours and pickup readiness                                | **Complete** (2026-08-02; M5A–M5E, ADR-025)        |
-| M6 — Cart and guest pickup ordering                            | **In progress** (M6A complete 2026-08-02, ADR-026) |
-| M7 – M8 — Order operations, pilot                              | Not started                                        |
-| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23)   |
+| Milestone                                                      | State                                                  |
+| -------------------------------------------------------------- | ------------------------------------------------------ |
+| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                              |
+| M1 — Platform foundation                                       | **Complete** (2026-07-15)                              |
+| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                              |
+| M3 — Catalog and media                                         | **Complete** (2026-07-23)                              |
+| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                              |
+| M4G — Curated storefront design and motion (extension)         | **Complete** (2026-08-01; M4G-A–M4G-D, ADR-024)        |
+| M5 — Hours and pickup readiness                                | **Complete** (2026-08-02; M5A–M5E, ADR-025)            |
+| M6 — Cart and guest pickup ordering                            | **In progress** (M6A–M6B complete 2026-08-02, ADR-026) |
+| M7 – M8 — Order operations, pilot                              | Not started                                            |
+| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23)       |
 
 ## Milestone 6 delivery decision (2026-08-02)
 
@@ -41,9 +41,69 @@ M6D depends on all of them.
 | Slice                                  | Scope                                                                                                                                                                                                 | State                              |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 | **M6A** — Orders domain foundation     | order/idempotency/outbox tables + migration, pure pricing core over the catalog checkout view, transactional idempotent placement with D3 throttling, `POST /public/orders`, D9 self-origin, contract | **Complete** (2026-08-02, ADR-026) |
-| **M6B** — Public tracking and the gate | tracking GET + customer cancel + pickup-slots endpoint, `ordering_enabled` on the availability projection, `HeroAction.ORDER_ONLINE` + renderer arm, isolation matrix                                 | Not started                        |
+| **M6B** — Public tracking and the gate | tracking GET + customer cancel + pickup-slots endpoint, `ordering_enabled` on the availability projection, `HeroAction.ORDER_ONLINE` + renderer arm, isolation matrix                                 | **Complete** (2026-08-02, ADR-026) |
 | **M6C** — Storefront ordering UI       | cart island + persisted schema, modifier picker, `/order` checkout (consents, slots, honest failure states), confirmation + tracker, dev-forwarder POST, allowlist/budget updates                     | Not started                        |
 | **M6D** — E2E and close-out            | the CC fulfillment-throttle field, blueprint journey 4 (order despite a simulated retry) + cancellation and stale-item journeys, responsive/a11y acceptance, exit-criteria verification               | Not started                        |
+
+### M6B close-out (2026-08-02)
+
+M6B delivered **public tracking, customer cancellation, the slot
+listing, and the ordering gate** — the second Milestone 6 slice. No
+schema change; contract **75 → 78**.
+
+**Three public routes join the ordering surface.**
+`GET /public/orders/{tracking_token}` answers by token possession plus
+the tenant Host, both required, compared digest-only (D4), with the
+PII-free `PublicOrderView` snapshot projection — a tracking URL is
+shareable by design, so it never returns the name, phone, email,
+consents, or instructions the order stores.
+`POST /public/orders/{tracking_token}/cancel` (D11) is legal only from
+`submitted`, runs under the Business lock so slot release serializes
+with placement counting, is idempotent on an already-cancelled order,
+refuses with `409 invalid_state` past `submitted`, and writes the
+customer-actor status event plus the NULL-actor
+`order.cancelled_by_customer` audit event.
+`GET /public/pickup-slots` is the first real exposure of the M5 slot
+service, bounded by the shared `MAX_PUBLIC_SLOTS` (100) policy and
+D10-gated exactly like placement. Tracking and cancellation are
+deliberately **not** entitlement-gated (D10 as amended): an order
+already placed stays trackable and cancellable after the platform
+revokes ordering — proven by the entitlement-revocation survival test.
+
+**The D12 gate ships as a live public fact.** `PublicPickup` gains
+`ordering_enabled` (`online_ordering` entitlement AND
+`pickup_enabled`), computed per request and never frozen into
+published content, at zero request cost — the home render has read the
+availability projection since M5D. `HeroAction` gains the reserved
+`order_online` member; the renderer renders it as ordering navigation
+only when the gate is on and degrades to the plain menu link otherwise
+(default off, so the workspace preview never fabricates an ordering
+affordance). One recorded pull-forward from M6D: the composer's hero
+dialog accepts and offers "Order online" with honest hint copy — the
+widened contract type forced the dialog to handle stored values, and
+the enum-and-handlers-together rule requires offering what is handled.
+The public-surface invariant pin grows to exactly the two reviewed
+unsafe routes, each carrying both the Host resolver and the
+browser-context check.
+
+**Verification.** Backend **1,301** (from 1,290); api-client **115**
+(from 112); renderer **163** (from 161); storefront 78 and
+control-center 480 unchanged and green; contract byte-current;
+first-load JavaScript unchanged at 456,547 B; built-server
+verification green; `pnpm e2e` green with full disposable cleanup.
+
+Merge evidence (PR #54): reviewed feature head
+`a2030175cf74a04b1954d0395862cf2437229b67`, merged to `main` as
+`9e9f45768da0c2b262df3e3f7d8040878f675b14` (ordered parents
+`ffacb354` then the reviewed head; merge tree `63b3a0ef` equal to the
+reviewed feature-head tree). Exact-head PR CI run `30763611800` and
+exact-merge push CI run `30763807914` both completed successfully —
+five jobs green, zero artifacts, attempt 1.
+
+**Boundary.** No storefront ordering UI — cart, modifier picker,
+`/order`, tracker (M6C); no CC fulfillment-throttle field and no
+ordering e2e journeys (M6D); no outbox worker (D14). The four retained
+risks stand unchanged.
 
 ### M6A close-out (2026-08-02)
 

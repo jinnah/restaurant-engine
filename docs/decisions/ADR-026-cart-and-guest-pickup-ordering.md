@@ -1,6 +1,6 @@
 # ADR-026: Cart and guest pickup ordering (Milestone 6)
 
-- **Status:** Accepted — M6A delivered (2026-08-02); M6B–M6D not started
+- **Status:** Accepted — M6A–M6B delivered (2026-08-02); M6C–M6D not started
 - **Date:** 2026-08-02
 - **Deciders:** Jinnah (product owner / principal architect), Claude (senior engineer)
 
@@ -539,3 +539,71 @@ the public slot listing, `ordering_enabled`, and `HeroAction` (M6B);
 the storefront ordering UI (M6C); the CC throttle field and the
 ordering journeys (M6D); the outbox worker (D14 — the first channel
 milestone).
+
+### M6B — Public tracking and the ordering gate: delivered, 2026-08-02
+
+Delivered exactly the §13 M6B scope plus one recorded pull-forward
+(below). No schema change. Three public routes join the ordering
+surface (contract **75 → 78**: `public_order_get`,
+`public_order_cancel`, `public_pickup_slots_get`):
+
+- `GET /public/orders/{tracking_token}` — token possession plus the
+  tenant Host, both required; digest-only comparison (D4); the PII-free
+  `PublicOrderView` snapshot projection (the review amendment honored:
+  a tracking URL is shareable by design, so the projection never
+  returns the name, phone, email, consents, or instructions the order
+  stores). Deliberately **not** entitlement-gated (D10 as amended) —
+  proven by the entitlement-revocation survival test: an order already
+  placed stays trackable after the platform revokes ordering.
+- `POST /public/orders/{tracking_token}/cancel` — D11: legal only from
+  `submitted`, run under the Business lock so slot release serializes
+  with placement counting; idempotent on an already-cancelled order (a
+  double-tap is not an error); `409 invalid_state` once the order moves
+  past `submitted`; customer-actor status event plus the NULL-actor
+  audit event `order.cancelled_by_customer`. Like tracking, not
+  entitlement-gated (D10).
+- `GET /public/pickup-slots` — the first real exposure of the M5 slot
+  service, bounded by the shared `MAX_PUBLIC_SLOTS` (100) policy and
+  D10-gated exactly like placement.
+
+The D12 gate ships as a live public fact: `PublicPickup` gains
+`ordering_enabled` — the `online_ordering` entitlement AND
+`pickup_enabled`, computed per request in the hours public service,
+never frozen into published content, at zero request cost (the home
+render has read the availability projection since M5D). `HeroAction`
+gains the reserved `order_online` member; the renderer's exhaustive
+dispatch renders it as ordering navigation to `/order` only when
+`orderingEnabled` is true and degrades to the plain menu link
+otherwise — the prop defaults false, so the workspace preview never
+fabricates an ordering affordance. **Pull-forward recorded:** the
+composer's hero dialog accepts and offers "Order online" with honest
+hint copy — nominally M6D's control-center touch, pulled into M6B
+because the widened contract type forced the dialog to handle stored
+values, and the enum-and-handlers-together rule requires offering what
+is handled.
+
+The public-surface invariant pin grows to exactly the two reviewed
+unsafe routes (placement and cancellation), each proven to carry both
+the Host resolver and the browser-context check. The public facade
+gains `getOrder()`, `cancelOrder()`, and `getPickupSlots()`.
+
+Verification: backend **1,301** (from 1,290 — the tracking matrix
+including entitlement-revocation survival and the cross-tenant token
+404; cancellation happy/idempotent/browser-context/invalid-state/
+neutrality; the slot listing bounded, sorted, placeable, and
+D10-gated; the `ordering_enabled` matrix including instant revocation;
+the filled `HeroAction` seam); api-client **115** (from 112); renderer
+**163** (from 161); storefront 78 and control-center 480 unchanged and
+green; contract byte-current; first-load JavaScript unchanged at
+456,547 B; built-server verification green; `pnpm e2e` green.
+Merge evidence: PR #54, reviewed head
+`a2030175cf74a04b1954d0395862cf2437229b67`, SHA-bound merge
+`9e9f45768da0c2b262df3e3f7d8040878f675b14` (parents `ffacb354` then
+the reviewed head; merge tree `63b3a0ef` equal to the reviewed
+head tree); exact-head CI run `30763611800` and exact-merge push CI
+run `30763807914` both green — five jobs, zero artifacts, attempt 1.
+
+Deliberately not delivered (their own slices): the storefront ordering
+UI — cart, modifier picker, `/order`, tracker (M6C); the CC
+fulfillment-throttle field and the ordering e2e journeys (M6D); the
+outbox worker (D14 — the first channel milestone).

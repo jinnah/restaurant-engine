@@ -2,7 +2,56 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M6A — delivered 2026-08-02)
+## Current state (M6B — delivered 2026-08-02)
+
+M6B adds the public ordering-surface coverage (ADR-026) at the API,
+security, and component layers. The backend suite grows from **1,290**
+to **1,301**, the api-client suite from **112** to **115**, and the
+renderer suite from **161** to **163**; storefront (78) and
+control-center (480) are unchanged — M6B ships no customer-facing UI
+beyond the renderer's gated hero arm (the ordering surface itself is
+M6C).
+
+- **The tracking matrix.** Token possession plus the tenant Host, both
+  required — a valid token under another tenant's host is the same
+  neutral 404 as a bad token; the projection is pinned PII-free (no
+  name, phone, email, consents, or instructions); and the
+  **entitlement-revocation survival proof**: tracking and cancellation
+  keep working after the platform revokes `online_ordering` (D10 as
+  amended — the gate applies to placement and slot listing only).
+- **The cancellation matrix (D11).** The happy path writes the
+  customer-actor status event and the NULL-actor audit event; a repeat
+  cancel is idempotent (the current representation, no new events);
+  cancellation requires browser-context evidence like placement; a
+  non-`submitted` order refuses with `409 invalid_state`; and every
+  resolution failure stays neutral.
+- **The slot listing.** Bounded by the shared `MAX_PUBLIC_SLOTS`
+  policy, sorted, every instant placeable through the same pure slot
+  machinery placement revalidates against, and D10-gated — missing
+  entitlement or disabled pickup answers the one neutral 404.
+- **The `ordering_enabled` matrix (D12).** True only when the
+  `online_ordering` entitlement AND `pickup_enabled` hold, computed
+  per request — an entitlement revocation shows instantly on the next
+  availability read, never frozen into published content.
+- **The filled `HeroAction` seam.** The seam test now accepts
+  `order_online` as a delivered member while staying closed against
+  further growth; the renderer proves the gated dispatch — ordering
+  navigation only when `orderingEnabled` is true, the plain menu link
+  otherwise, and the default is off so the workspace preview never
+  fabricates an ordering affordance.
+- **The permanent invariants, moved again deliberately.** The
+  public-surface pin grows to exactly the two reviewed unsafe routes —
+  `POST /public/orders` and `POST /public/orders/{token}/cancel` — and
+  proves both the Host resolver and the browser-context check sit in
+  each dependency graph. The op-id registry pins the contract at
+  **78** operations.
+
+Deliberate limits: no cart, checkout, or tracker UI exists yet (M6C);
+no ordering e2e journey and no CC throttle field (M6D); the outbox
+still accumulates `pending` rows with no worker (D14). The four
+retained risks stand unchanged.
+
+## Earlier state (M6A — delivered 2026-08-02)
 
 M6A adds the orders domain's coverage (ADR-026) at the unit, API,
 security, and isolation layers. The backend suite grows from **1,245**
