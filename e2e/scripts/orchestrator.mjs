@@ -139,6 +139,20 @@ export const BACKEND_ARGV = [
   '--factory',
   '--port',
   String(BACKEND_PORT),
+  // Uvicorn's default keep-alive idle timeout is 5 s — barely above the
+  // ~4 s window undici (the storefront's server-side fetch) will reuse an
+  // idle pooled socket for. Under CI load that margin collapses: a reuse
+  // decision made inside the client window can hit a socket the server is
+  // already closing, the fetch dies with a connection reset before any
+  // request reaches the backend, and the SSR page honestly renders its
+  // 500 boundary — observed twice on merge run 30732209402 (the
+  // storefront-design-assignment isolation journey's first anonymous
+  // visit after a quiet gap in SSR traffic). A server-side window far
+  // wider than the client's reuse window removes the race outright; 75 s
+  // matches common reverse-proxy upstream defaults. Test topology only —
+  // production keep-alive is a deployment concern behind nginx (M8).
+  '--timeout-keep-alive',
+  '75',
 ];
 
 /** Vite argv, given the entry-resolved node executable and vite script. */
