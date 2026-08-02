@@ -97,6 +97,8 @@ EXPECTED_OPERATION_IDS = {
     "hours_exception_delete",
     "hours_fulfillment_set",
     "platform_business_timezone_set",
+    # M5B (ADR-025): the public availability projection.
+    "public_availability_get",
 }
 
 
@@ -129,11 +131,12 @@ def test_exported_operation_ids_are_expected_and_unique() -> None:
     # M3D brought the contract to 57; M4B added the six storefront
     # administration operations and the platform design assignment (64);
     # M4C added the public storefront projection and the authenticated
-    # draft preview (66); M5A adds the six hours administration
-    # operations and the platform timezone correction: the contract is
-    # exactly 73 operations. The three schema-hidden HEAD companions add
-    # none (see below).
-    assert len(EXPECTED_OPERATION_IDS) == 73
+    # draft preview (66); M5A added the six hours administration
+    # operations and the platform timezone correction (73); M5B adds the
+    # public availability projection: the contract is exactly 74
+    # operations. The four schema-hidden HEAD companions add none (see
+    # below).
+    assert len(EXPECTED_OPERATION_IDS) == 74
 
 
 def test_public_media_documents_no_validation_error() -> None:

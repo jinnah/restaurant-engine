@@ -276,3 +276,56 @@ describe('public.getStorefront', () => {
     expect(result).toEqual({ ok: false, status: null, envelope: null });
   });
 });
+
+describe('public.getAvailability', () => {
+  const AVAILABILITY = {
+    business: SITE,
+    is_open_now: true,
+    closes_at: '2026-08-01T21:00:00Z',
+    next_opens_at: null,
+    weekly: [{ day_of_week: 0, opens_minute: 660, closes_minute: 1260 }],
+    exceptions: [
+      { exception_date: '2026-08-20', intervals: [], note: 'Closed for Eid' },
+    ],
+    pickup: { enabled: false, asap_enabled: true, next_pickup_at: null },
+  };
+
+  it('GETs the availability with no tenant-selection input', async () => {
+    const requests: Request[] = [];
+    const client = clientCapturing(jsonResponse(200, AVAILABILITY), requests);
+
+    const result = await client.public.getAvailability();
+
+    const url = new URL(requests[0]!.url);
+    expect(url.pathname).toBe('/api/v1/public/availability');
+    expect([...url.searchParams.keys()]).toEqual([]);
+    expect(requests[0]?.method).toBe('GET');
+    expect(requests[0]?.headers.get('X-CSRF-Token')).toBeNull();
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.is_open_now).toBe(true);
+      expect(result.data.weekly[0]?.day_of_week).toBe(0);
+      expect(result.data.exceptions[0]?.note).toBe('Closed for Eid');
+      expect(result.data.pickup.enabled).toBe(false);
+    }
+  });
+
+  it('narrows the neutral not_found on 404 (inactive or unknown host)', async () => {
+    const client = clientCapturing(jsonResponse(404, notFound()));
+    const result = await client.public.getAvailability();
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(404);
+      expect(result.envelope?.error.code).toBe('not_found');
+    }
+  });
+
+  it('reports a network failure without throwing', async () => {
+    const client = createApiClient({
+      baseUrl: BASE_URL,
+      fetch: () => Promise.reject(new Error('offline')),
+    });
+    const result = await client.public.getAvailability();
+    expect(result).toEqual({ ok: false, status: null, envelope: null });
+  });
+});

@@ -19,6 +19,7 @@ from app.domains.businesses.router_public import public_router
 from app.domains.catalog.router_admin import catalog_admin_router
 from app.domains.catalog.router_public import catalog_public_router
 from app.domains.hours.router_admin import hours_admin_router
+from app.domains.hours.router_public import hours_public_router
 from app.domains.identity.router import auth_router
 from app.domains.identity.router_recovery import (
     recovery_platform_router,
@@ -70,3 +71,6 @@ api_v1_router.include_router(storefront_public_router)
 # Hours (M5A, ADR-025): business-scoped weekly schedule, exceptions,
 # fulfillment settings, and the member availability preview.
 api_v1_router.include_router(hours_admin_router)
+# Hours (M5B, ADR-025): the host-resolved public availability projection;
+# unauthenticated, neutral-404, never cacheable (ruling D4).
+api_v1_router.include_router(hours_public_router)

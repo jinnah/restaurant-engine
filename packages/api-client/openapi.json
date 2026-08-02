@@ -2639,6 +2639,70 @@
         "title": "PasswordResetRedeemResponse",
         "type": "object"
       },
+      "PublicAvailability": {
+        "description": "The structured hours of the host-resolved active Business.\n\nEvery active business has one — a business with no configured hours\nis honestly closed with nothing upcoming, not a 404, because absence\nof a schedule is a real operational state the storefront must render.\n`exceptions` is the bounded forward window only (today onward in the\ntenant's local calendar); past overrides are history, not display.",
+        "properties": {
+          "business": {
+            "$ref": "#/components/schemas/PublicSiteSummary"
+          },
+          "closes_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closes At"
+          },
+          "exceptions": {
+            "items": {
+              "$ref": "#/components/schemas/PublicScheduleException"
+            },
+            "title": "Exceptions",
+            "type": "array"
+          },
+          "is_open_now": {
+            "title": "Is Open Now",
+            "type": "boolean"
+          },
+          "next_opens_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Opens At"
+          },
+          "pickup": {
+            "$ref": "#/components/schemas/PublicPickup"
+          },
+          "weekly": {
+            "items": {
+              "$ref": "#/components/schemas/PublicWeeklyInterval"
+            },
+            "title": "Weekly",
+            "type": "array"
+          }
+        },
+        "required": [
+          "business",
+          "is_open_now",
+          "closes_at",
+          "next_opens_at",
+          "weekly",
+          "exceptions",
+          "pickup"
+        ],
+        "title": "PublicAvailability",
+        "type": "object"
+      },
       "PublicContactProps": {
         "description": "Contact details as structured fields (no hours — M5).",
         "properties": {
@@ -2822,6 +2886,25 @@
           "props"
         ],
         "title": "PublicHeroSection",
+        "type": "object"
+      },
+      "PublicHoursInterval": {
+        "description": "One open interval in D1 minutes on its local day.",
+        "properties": {
+          "closes_minute": {
+            "title": "Closes Minute",
+            "type": "integer"
+          },
+          "opens_minute": {
+            "title": "Opens Minute",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "opens_minute",
+          "closes_minute"
+        ],
+        "title": "PublicHoursInterval",
         "type": "object"
       },
       "PublicMenu": {
@@ -3165,6 +3248,73 @@
         "title": "PublicModifierOption",
         "type": "object"
       },
+      "PublicPickup": {
+        "description": "The pickup facts a visitor may see before ordering exists (M6).\n\nDeliberately minimal: whether pickup is offered, whether \"as soon as\npossible\" is offered, and the earliest valid pickup instant. Lead\ntimes, slot intervals, and cut-offs are operational configuration and\nstay off the public surface until checkout (M6) needs them.",
+        "properties": {
+          "asap_enabled": {
+            "title": "Asap Enabled",
+            "type": "boolean"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "next_pickup_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Pickup At"
+          }
+        },
+        "required": [
+          "enabled",
+          "asap_enabled",
+          "next_pickup_at"
+        ],
+        "title": "PublicPickup",
+        "type": "object"
+      },
+      "PublicScheduleException": {
+        "description": "One upcoming override: special hours, or closed all day.\n\n``intervals`` empty = closed all day. ``note`` is the owner's\ncustomer-visible label (ruling D6), already normalized plain text.",
+        "properties": {
+          "exception_date": {
+            "format": "date",
+            "title": "Exception Date",
+            "type": "string"
+          },
+          "intervals": {
+            "items": {
+              "$ref": "#/components/schemas/PublicHoursInterval"
+            },
+            "title": "Intervals",
+            "type": "array"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "exception_date",
+          "intervals",
+          "note"
+        ],
+        "title": "PublicScheduleException",
+        "type": "object"
+      },
       "PublicSiteSummary": {
         "description": "Minimal public projection returned for a resolved active business\n(M2C, ADR-013).\n\nDeliberately narrow: a 200 already proves the business is active, so no\n``status`` field is needed, and no id/timestamps/management data are\nexposed on the unauthenticated surface.",
         "properties": {
@@ -3432,6 +3582,30 @@
           "variants"
         ],
         "title": "PublicThemeLogo",
+        "type": "object"
+      },
+      "PublicWeeklyInterval": {
+        "description": "One recurring interval (ISO day: 0 = Monday … 6 = Sunday).",
+        "properties": {
+          "closes_minute": {
+            "title": "Closes Minute",
+            "type": "integer"
+          },
+          "day_of_week": {
+            "title": "Day Of Week",
+            "type": "integer"
+          },
+          "opens_minute": {
+            "title": "Opens Minute",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "opens_minute",
+          "closes_minute",
+          "day_of_week"
+        ],
+        "title": "PublicWeeklyInterval",
         "type": "object"
       },
       "PublishRequest": {
@@ -10175,6 +10349,38 @@
         "summary": "Platform Password Reset Issue",
         "tags": [
           "platform"
+        ]
+      }
+    },
+    "/api/v1/public/availability": {
+      "get": {
+        "description": "The structured hours and instant facts of the Host-resolved Business.\n\nWeekly schedule, upcoming exceptions, open/closed status with the\ncurrent close or next opening, and the pickup facts — all derived\nfrom structured settings through the pure hours core (the Milestone\n5 exit criterion, literally).",
+        "operationId": "public_availability_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAvailability"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "summary": "Public Availability Get",
+        "tags": [
+          "public"
         ]
       }
     },

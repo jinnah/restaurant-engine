@@ -126,6 +126,7 @@ export type {
 export type {
   HeroAction,
   PublicApi,
+  PublicAvailability,
   PublicContactSection,
   PublicGallerySection,
   PublicHeroSection,
@@ -137,6 +138,8 @@ export type {
   PublicMenuSection,
   PublicModifierGroup,
   PublicModifierOption,
+  PublicPickup,
+  PublicScheduleException,
   PublicSection,
   PublicSiteSummary,
   PublicStorefront,
@@ -145,6 +148,7 @@ export type {
   PublicStorySection,
   PublicTheme,
   PublicThemeLogo,
+  PublicWeeklyInterval,
 } from './public';
 export { isErrorEnvelope } from './errors';
 export type {

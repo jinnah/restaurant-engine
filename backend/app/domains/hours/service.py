@@ -210,7 +210,12 @@ def _domain_inputs(
     return weekly, exceptions
 
 
-def _effective_policy(db: Session, business_id: uuid.UUID) -> FulfillmentPolicy:
+def effective_policy(db: Session, business_id: uuid.UUID) -> FulfillmentPolicy:
+    """The stored fulfillment policy, or the registry defaults (M5A).
+
+    Shared with the public projection (M5B): both surfaces must derive
+    from the same effective settings, so the fallback lives once.
+    """
     row = repository.get_fulfillment(db, business_id=business_id)
     if row is None:
         return DEFAULT_POLICY
@@ -255,7 +260,7 @@ def preview_availability(
         at,
         weekly=weekly,
         exceptions=exceptions,
-        policy=_effective_policy(db, business_id),
+        policy=effective_policy(db, business_id),
         tz=ZoneInfo(business.timezone),
     )
     return AvailabilityPreview(

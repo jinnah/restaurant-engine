@@ -1187,6 +1187,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public Availability Get
+         * @description The structured hours and instant facts of the Host-resolved Business.
+         *
+         *     Weekly schedule, upcoming exceptions, open/closed status with the
+         *     current close or next opening, and the pickup facts — all derived
+         *     from structured settings through the pure hours core (the Milestone
+         *     5 exit criterion, literally).
+         */
+        get: operations["public_availability_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/media/{asset_id}/{variant}": {
         parameters: {
             query?: never;
@@ -2625,6 +2650,30 @@ export interface components {
             status: "password_reset";
         };
         /**
+         * PublicAvailability
+         * @description The structured hours of the host-resolved active Business.
+         *
+         *     Every active business has one — a business with no configured hours
+         *     is honestly closed with nothing upcoming, not a 404, because absence
+         *     of a schedule is a real operational state the storefront must render.
+         *     `exceptions` is the bounded forward window only (today onward in the
+         *     tenant's local calendar); past overrides are history, not display.
+         */
+        PublicAvailability: {
+            business: components["schemas"]["PublicSiteSummary"];
+            /** Closes At */
+            closes_at: string | null;
+            /** Exceptions */
+            exceptions: components["schemas"]["PublicScheduleException"][];
+            /** Is Open Now */
+            is_open_now: boolean;
+            /** Next Opens At */
+            next_opens_at: string | null;
+            pickup: components["schemas"]["PublicPickup"];
+            /** Weekly */
+            weekly: components["schemas"]["PublicWeeklyInterval"][];
+        };
+        /**
          * PublicContactProps
          * @description Contact details as structured fields (no hours — M5).
          */
@@ -2696,6 +2745,16 @@ export interface components {
              * @enum {string}
              */
             type: "hero";
+        };
+        /**
+         * PublicHoursInterval
+         * @description One open interval in D1 minutes on its local day.
+         */
+        PublicHoursInterval: {
+            /** Closes Minute */
+            closes_minute: number;
+            /** Opens Minute */
+            opens_minute: number;
         };
         /**
          * PublicMenu
@@ -2869,6 +2928,41 @@ export interface components {
             price_delta_minor: number;
         };
         /**
+         * PublicPickup
+         * @description The pickup facts a visitor may see before ordering exists (M6).
+         *
+         *     Deliberately minimal: whether pickup is offered, whether "as soon as
+         *     possible" is offered, and the earliest valid pickup instant. Lead
+         *     times, slot intervals, and cut-offs are operational configuration and
+         *     stay off the public surface until checkout (M6) needs them.
+         */
+        PublicPickup: {
+            /** Asap Enabled */
+            asap_enabled: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /** Next Pickup At */
+            next_pickup_at: string | null;
+        };
+        /**
+         * PublicScheduleException
+         * @description One upcoming override: special hours, or closed all day.
+         *
+         *     ``intervals`` empty = closed all day. ``note`` is the owner's
+         *     customer-visible label (ruling D6), already normalized plain text.
+         */
+        PublicScheduleException: {
+            /**
+             * Exception Date
+             * Format: date
+             */
+            exception_date: string;
+            /** Intervals */
+            intervals: components["schemas"]["PublicHoursInterval"][];
+            /** Note */
+            note: string | null;
+        };
+        /**
          * PublicSiteSummary
          * @description Minimal public projection returned for a resolved active business
          *     (M2C, ADR-013).
@@ -3017,6 +3111,18 @@ export interface components {
             variants: components["schemas"]["PublicStorefrontImageVariant"][];
             /** Width */
             width: number;
+        };
+        /**
+         * PublicWeeklyInterval
+         * @description One recurring interval (ISO day: 0 = Monday … 6 = Sunday).
+         */
+        PublicWeeklyInterval: {
+            /** Closes Minute */
+            closes_minute: number;
+            /** Day Of Week */
+            day_of_week: number;
+            /** Opens Minute */
+            opens_minute: number;
         };
         /**
          * PublishRequest
@@ -7690,6 +7796,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    public_availability_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicAvailability"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
         };
