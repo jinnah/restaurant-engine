@@ -390,3 +390,9 @@ class OrderPlacedDetails(AuditDetails):
     line_count: int
     total_minor: int
     pickup_kind: Literal["asap", "scheduled"]
+
+
+class OrderCancelledByCustomerDetails(AuditDetails):
+    """The customer cancelled their submitted order (M6B, ruling D11)."""
+
+    order_number: int

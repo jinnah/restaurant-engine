@@ -64,6 +64,74 @@ def _seed_hours(
     return csrf
 
 
+class TestOrderingGate:
+    """`ordering_enabled` (M6B, ADR-026 D12): entitlement AND pickup."""
+
+    def _enable_pickup(self, client: TestClient, business_id: uuid.UUID) -> None:
+        csrf = login_as(client, OWNER)
+        response = client.put(
+            f"/api/v1/businesses/{business_id}/hours/fulfillment",
+            json={
+                "pickup_enabled": True,
+                "asap_enabled": True,
+                "lead_time_minutes": 20,
+                "slot_interval_minutes": 15,
+                "last_order_before_close_minutes": 0,
+                "max_days_ahead": 3,
+            },
+            headers=csrf_headers(csrf),
+        )
+        assert response.status_code == 200, response.text
+
+    def _grant(self, engine: Engine, business_id: uuid.UUID) -> None:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO feature_entitlements (id, business_id, feature_key)"
+                    " VALUES (:id, :bid, 'online_ordering')"
+                ),
+                {"id": str(uuid.uuid4()), "bid": str(business_id)},
+            )
+
+    def test_entitlement_and_pickup_together_enable_ordering(
+        self,
+        client: TestClient,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business_id = create_business("shalik", status="active")
+        create_membership(business_id, create_user(OWNER), role="owner")
+        # Neither: off. The projection is live platform state, so each
+        # half is added in turn against the same business.
+        assert _get(client).json()["pickup"]["ordering_enabled"] is False
+        self._enable_pickup(client, business_id)
+        assert _get(client).json()["pickup"]["ordering_enabled"] is False
+        self._grant(migrated_engine, business_id)
+        assert _get(client).json()["pickup"]["ordering_enabled"] is True
+        # Revocation switches it off instantly — the fact is computed
+        # per request, never frozen into published content.
+        with migrated_engine.begin() as connection:
+            connection.execute(
+                text("DELETE FROM feature_entitlements WHERE business_id = :bid"),
+                {"bid": str(business_id)},
+            )
+        assert _get(client).json()["pickup"]["ordering_enabled"] is False
+
+    def test_entitlement_without_pickup_stays_off(
+        self,
+        client: TestClient,
+        migrated_engine: Engine,
+        create_business: CreateBusiness,
+    ) -> None:
+        business_id = create_business("shalik", status="active")
+        self._grant(migrated_engine, business_id)
+        body = _get(client).json()
+        assert body["pickup"]["enabled"] is False
+        assert body["pickup"]["ordering_enabled"] is False
+
+
 class TestNeutralFailure:
     def _assert_neutral_404(self, response: Any) -> None:
         assert response.status_code == 404
@@ -116,6 +184,9 @@ class TestProjection:
             "enabled": False,
             "asap_enabled": True,
             "next_pickup_at": None,
+            # M6B (ADR-026 D12): no pickup means no ordering, whatever
+            # the entitlement says.
+            "ordering_enabled": False,
         }
 
     def test_an_around_the_clock_schedule_is_open_now(

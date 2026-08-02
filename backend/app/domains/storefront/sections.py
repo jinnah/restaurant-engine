@@ -66,14 +66,18 @@ class SectionType(StrEnum):
 class HeroAction(StrEnum):
     """The hero's primary call to action — a closed enum, not free text.
 
-    ``view_menu`` is ordinary in-site navigation to the menu. It is **not**
-    an ordering call to action: no ordering exists before M6, and this enum
-    is the seam where an entitlement-gated ordering member will be added
-    when it does.
+    ``view_menu`` is ordinary in-site navigation to the menu.
+    ``order_online`` is the M6 member this enum always reserved (M6B,
+    ADR-026): stored content stays a *choice*, and the renderer gates it
+    on the live ``ordering_enabled`` fact at render time — entitlement is
+    a platform fact that changes independently of published content, so
+    a hero authored with the ordering action degrades to the plain menu
+    link whenever ordering is off (the D12 render-time-gate ruling).
     """
 
     NONE = "none"
     VIEW_MENU = "view_menu"
+    ORDER_ONLINE = "order_online"
 
 
 def _line(max_length: int) -> Callable[[object], object]:

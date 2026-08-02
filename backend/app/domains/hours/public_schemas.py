@@ -49,17 +49,21 @@ class PublicScheduleException(BaseModel):
 
 
 class PublicPickup(BaseModel):
-    """The pickup facts a visitor may see before ordering exists (M6).
+    """The pickup facts a visitor may see (extended in M6B, ADR-026 D12).
 
     Deliberately minimal: whether pickup is offered, whether "as soon as
-    possible" is offered, and the earliest valid pickup instant. Lead
-    times, slot intervals, and cut-offs are operational configuration and
-    stay off the public surface until checkout (M6) needs them.
+    possible" is offered, the earliest valid pickup instant, and — from
+    M6B — ``ordering_enabled``, the live gate for the whole ordering
+    surface (the ``online_ordering`` entitlement AND ``pickup_enabled``,
+    computed per request, never frozen into published content). Lead
+    times, slot intervals, and cut-offs stay off the public surface;
+    checkout consumes them server-side.
     """
 
     enabled: bool
     asap_enabled: bool
     next_pickup_at: datetime | None
+    ordering_enabled: bool
 
 
 class PublicAvailability(BaseModel):

@@ -326,6 +326,10 @@ _PROJECTIONS: dict[str, dict[str, _Extractor]] = {
         "total_minor": _total_int,
         "pickup_kind": _PICKUP_KIND_CHOICE,
     },
+    # M6B (ADR-026 D11): the customer's own cancellation.
+    AuditAction.ORDER_CANCELLED_BY_CUSTOMER.value: {
+        "order_number": _small_int,
+    },
 }
 
 

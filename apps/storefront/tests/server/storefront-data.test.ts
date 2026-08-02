@@ -137,7 +137,12 @@ describe('loadPublicAvailability', () => {
         next_opens_at: null,
         weekly: [],
         exceptions: [],
-        pickup: { enabled: true, asap_enabled: true, next_pickup_at: null },
+        pickup: {
+          enabled: true,
+          asap_enabled: true,
+          next_pickup_at: null,
+          ordering_enabled: false,
+        },
       }),
     });
     const result = await loadPublicAvailability(HOST);
