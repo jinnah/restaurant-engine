@@ -67,7 +67,7 @@ def test_upgrade_head_runs_on_empty_database(empty_database_url: str) -> None:
         tables = set(inspect(engine).get_table_names())
         # M2A identity/audit + M2B tenancy + M2D onboarding/recovery/
         # entitlements + M3A catalog core + M3B modifiers + M3C media +
-        # M4A storefront foundation.
+        # M4A storefront foundation + M5A hours and fulfillment.
         assert tables == {
             "alembic_version",
             "users",
@@ -86,6 +86,9 @@ def test_upgrade_head_runs_on_empty_database(empty_database_url: str) -> None:
             "media_assets",
             "media_asset_variants",
             "storefront_versions",
+            "business_hours",
+            "schedule_exceptions",
+            "fulfillment_settings",
         }
         with engine.connect() as connection:
             version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar()

@@ -321,3 +321,54 @@ class StorefrontDesignAssignedDetails(ModifierAuditDetails):
 
     previous_variant: str | None = None
     new_variant: str
+
+
+# --- Hours (M5A, ADR-025) -----------------------------------------------------
+#
+# Bounded scalars only. The D6 exception note is deliberately never
+# recorded — only whether one is present — so customer-facing copy stays
+# out of audit payloads, and the projection value union stays string/int
+# (booleans are expressed as closed-set strings, the M3B convention).
+
+
+class BusinessHoursUpdatedDetails(AuditDetails):
+    """The weekly schedule was replaced (one event per full-set command)."""
+
+    interval_count: int
+
+
+class ScheduleExceptionSetDetails(AuditDetails):
+    """One date's override was created or replaced."""
+
+    exception_date: str  # ISO date — a bounded string, never a free value
+    kind: Literal["closed_all_day", "special_hours"]
+    interval_count: int
+    note: Literal["present", "absent"]
+
+
+class ScheduleExceptionRemovedDetails(AuditDetails):
+    """One date's override was removed (the weekly schedule resumes)."""
+
+    exception_date: str
+
+
+class FulfillmentUpdatedDetails(AuditDetails):
+    """The fulfillment policy was written (full-document command)."""
+
+    pickup: Literal["enabled", "disabled"]
+    asap: Literal["enabled", "disabled"]
+    lead_time_minutes: int
+    slot_interval_minutes: int
+    last_order_before_close_minutes: int
+    max_days_ahead: int
+
+
+class BusinessTimezoneChangedDetails(AuditDetails):
+    """The platform corrected the tenant timezone (ruling D2).
+
+    Both values are recorded because the change re-interprets every stored
+    local time; IANA identifiers are bounded operational strings.
+    """
+
+    timezone_from: str
+    timezone_to: str

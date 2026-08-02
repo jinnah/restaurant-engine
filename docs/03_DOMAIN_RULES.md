@@ -418,6 +418,60 @@ storefront text. Instants are computed carefully across DST transitions.
 Order timestamps are stored in UTC alongside the tenant timezone used for
 display.
 
+**Implemented in M5A (ADR-025):** hours owns `business_hours` (the
+recurring weekly schedule), `schedule_exceptions` (date overrides), and
+`fulfillment_settings` (the per-business pickup policy). Storage is the
+D1 minute encoding — `day_of_week` 0–6 (Monday = 0, ISO), `opens_minute`
+0–1439, `closes_minute` 1–2879 where a value above 1440 ends the interval
+on the following local day — and the tenant's IANA zone is the only
+bridge to instants, applied at computation time by the pure
+`hours.timekeeping` module (no ambient clock anywhere: `now` is always an
+argument). The DST rules are explicit: a time inside a spring-forward gap
+moves **forward to the gap's end**; a fall-back ambiguity resolves
+**earlier for openings, later for closings** (the open window is the
+union); overnight intervals are converted end-to-end, never
+start-plus-duration, and an interval entirely inside a gap contributes
+nothing.
+
+- Both write commands are exact full-set replacements with the exact
+  no-op suppressed: the weekly PUT carries the whole week (non-overlap on
+  the 10,080-minute week circle is validated as a pure function of the
+  payload, so a Sunday overnight is checked against Monday's openings);
+  the per-date exception PUT carries that date's whole override, where
+  empty intervals mean **closed all day** and DELETE means the weekly
+  schedule resumes. Any exception fully replaces its date's weekly
+  schedule; an overnight interval still belongs to the local date whose
+  schedule created it, so Monday 17:00–02:00 survives a Tuesday closure.
+- Exceptions are writable only inside a bounded tenant-local window
+  (30 days back, 550 days forward); stored history is retained. The D6
+  `note` is bounded, normalized plain text — a label on structured data,
+  never freeform hours — and its content never enters an audit payload.
+- An absent `fulfillment_settings` row projects the documented defaults
+  (`is_configured: false`) and the first write materializes it — the
+  M4G-A mechanism, no backfill. Order throttling is deliberately absent
+  (ruling D3): it cannot be enforced before orders exist, and M6 owns it.
+- The pure `hours.availability` module answers `is_open_now`,
+  `closes_at`, `next_opens_at`, and `next_pickup_at` (slots step in real
+  time from each opening, valid from `now + lead_time` through
+  `closes_at − last_order_before_close`, bounded by `max_days_ahead` in
+  service days; every scan is bounded so a business with no hours
+  terminates). The authenticated `GET …/hours/preview?at=` probe exposes
+  those facts at an arbitrary aware instant. The pickup-slot service has
+  **no consumer until M6** — it is proven by its unit suite and the
+  preview, not by a checkout.
+- Authorization (ruling D7): reads ride on `business.view` — the
+  schedule is public information and staff see the hours they work;
+  writes require the new `business.hours.write` (owner and manager).
+  Every mutation runs the established preamble (capability → Business
+  `FOR UPDATE` → lifecycle gate); closed businesses stay readable and
+  refuse mutations with 409 `invalid_state`.
+- The platform timezone command (ruling D2,
+  `PUT /platform/businesses/{id}/timezone`) is the first correction path
+  for a creation-time tenancy fact: platform-only, audited with both
+  values, exact no-op suppressed, closed businesses immutable — it
+  re-interprets every stored local time, which is exactly why it is not
+  tenant content.
+
 ## Orders
 
 Status machine:

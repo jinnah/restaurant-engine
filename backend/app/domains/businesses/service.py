@@ -21,11 +21,20 @@ from sqlalchemy.orm import Session
 from app.core.errors import ConflictError, InvalidStateError, ResourceNotFoundError
 from app.domains.audit import recorder
 from app.domains.audit.actions import AuditAction
-from app.domains.audit.details import BusinessCreatedDetails, BusinessStatusChangedDetails
+from app.domains.audit.details import (
+    BusinessCreatedDetails,
+    BusinessStatusChangedDetails,
+    BusinessTimezoneChangedDetails,
+)
 from app.domains.businesses import repository
 from app.domains.businesses.lifecycle import BusinessStatus, can_transition
 from app.domains.businesses.models import Business
-from app.domains.businesses.schemas import BusinessCreate, BusinessPage, BusinessSummary
+from app.domains.businesses.schemas import (
+    BusinessCreate,
+    BusinessPage,
+    BusinessSummary,
+    BusinessTimezoneSet,
+)
 from app.domains.identity import memberships
 from app.domains.identity.actor import ActorContext
 from app.domains.identity.authorization import require_membership_capability
@@ -168,6 +177,45 @@ def close(db: Session, actor: ActorContext, business_id: uuid.UUID) -> BusinessS
         action=AuditAction.BUSINESS_CLOSED,
         verb="close",
     )
+
+
+def set_timezone(
+    db: Session, actor: ActorContext, business_id: uuid.UUID, payload: BusinessTimezoneSet
+) -> BusinessSummary:
+    """Assign the tenant timezone (M5A, ADR-025 ruling D2).
+
+    The first correction path for a creation-time tenancy fact. Platform
+    capability only — the timezone is platform-assigned like the slug,
+    never tenant content — and audited with both values, because the
+    change re-interprets every stored local wall time (hours, exceptions,
+    and every instant computed from them). The exact no-op is suppressed:
+    assigning the already-set zone writes and audits nothing.
+    """
+    require_platform_capability(actor, _MANAGE)
+    business = repository.get_for_update(db, business_id)
+    if business is None:
+        raise ResourceNotFoundError("Business not found.")
+    if business.status == BusinessStatus.CLOSED.value:
+        raise InvalidStateError("cannot change the timezone of a closed business")
+    if business.timezone == payload.timezone:
+        return _to_summary(business)
+    previous = business.timezone
+    business.timezone = payload.timezone
+    business.updated_at = func.now()
+    recorder.record(
+        db,
+        AuditAction.BUSINESS_TIMEZONE_CHANGED,
+        actor_user_id=actor.user.id,
+        business_id=business.id,
+        target_type="business",
+        target_id=str(business.id),
+        details=BusinessTimezoneChangedDetails(
+            timezone_from=previous, timezone_to=payload.timezone
+        ),
+    )
+    db.commit()
+    db.refresh(business)
+    return _to_summary(business)
 
 
 def _transition(

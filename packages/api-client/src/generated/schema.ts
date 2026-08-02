@@ -455,6 +455,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/businesses/{business_id}/hours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Hours Settings Get
+         * @description The complete operating configuration in one read.
+         */
+        get: operations["hours_settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/hours/exceptions/{exception_date}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Hours Exception Set
+         * @description Create or replace one date's override (empty intervals = closed).
+         */
+        put: operations["hours_exception_set"];
+        post?: never;
+        /**
+         * Hours Exception Delete
+         * @description Remove one date's override; the weekly schedule resumes.
+         */
+        delete: operations["hours_exception_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/hours/fulfillment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Hours Fulfillment Set
+         * @description Write the complete fulfillment policy (full-document command).
+         */
+        put: operations["hours_fulfillment_set"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/hours/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Hours Availability Preview
+         * @description The computed availability at ``at`` (default: now) — a member probe.
+         */
+        get: operations["hours_availability_preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/hours/weekly": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Hours Weekly Set
+         * @description Replace the whole weekly schedule (idempotent full replacement).
+         */
+        put: operations["hours_weekly_set"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/businesses/{business_id}/invitations": {
         parameters: {
             query?: never;
@@ -1043,6 +1147,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/platform/businesses/{business_id}/timezone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Platform Business Timezone Set
+         * @description Assign the tenant IANA timezone (M5A, ADR-025 ruling D2; audited).
+         */
+        put: operations["platform_business_timezone_set"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/platform/password-resets": {
         parameters: {
             query?: never;
@@ -1227,7 +1351,7 @@ export interface components {
          * @description Machine-readable audit event names (append-only).
          * @enum {string}
          */
-        AuditAction: "auth.login_succeeded" | "auth.login_failed" | "auth.login_throttled" | "auth.logout" | "user.platform_admin_created" | "business.created" | "business.activated" | "business.suspended" | "business.reactivated" | "business.closed" | "business.invitation_issued" | "business.invitation_revoked" | "business.invitation_accepted" | "business.entitlement_granted" | "business.entitlement_revoked" | "auth.password_reset_issued" | "auth.password_reset_completed" | "catalog.category_created" | "catalog.category_updated" | "catalog.category_deleted" | "catalog.categories_reordered" | "catalog.item_created" | "catalog.item_updated" | "catalog.item_deleted" | "catalog.items_reordered" | "catalog.item_availability_changed" | "catalog.modifier_group_created" | "catalog.modifier_group_updated" | "catalog.modifier_group_deleted" | "catalog.modifier_groups_reordered" | "catalog.modifier_option_created" | "catalog.modifier_option_updated" | "catalog.modifier_option_deleted" | "catalog.modifier_options_reordered" | "media.asset_uploaded" | "media.asset_deleted" | "media.asset_expired" | "catalog.item_image_changed" | "storefront.published" | "storefront.version_restored" | "storefront.design_assigned";
+        AuditAction: "auth.login_succeeded" | "auth.login_failed" | "auth.login_throttled" | "auth.logout" | "user.platform_admin_created" | "business.created" | "business.activated" | "business.suspended" | "business.reactivated" | "business.closed" | "business.invitation_issued" | "business.invitation_revoked" | "business.invitation_accepted" | "business.entitlement_granted" | "business.entitlement_revoked" | "auth.password_reset_issued" | "auth.password_reset_completed" | "catalog.category_created" | "catalog.category_updated" | "catalog.category_deleted" | "catalog.categories_reordered" | "catalog.item_created" | "catalog.item_updated" | "catalog.item_deleted" | "catalog.items_reordered" | "catalog.item_availability_changed" | "catalog.modifier_group_created" | "catalog.modifier_group_updated" | "catalog.modifier_group_deleted" | "catalog.modifier_groups_reordered" | "catalog.modifier_option_created" | "catalog.modifier_option_updated" | "catalog.modifier_option_deleted" | "catalog.modifier_options_reordered" | "media.asset_uploaded" | "media.asset_deleted" | "media.asset_expired" | "catalog.item_image_changed" | "storefront.published" | "storefront.version_restored" | "storefront.design_assigned" | "business.hours_updated" | "business.schedule_exception_set" | "business.schedule_exception_removed" | "business.fulfillment_updated" | "business.timezone_changed";
         /**
          * AuditEventPage
          * @description Cursor page (``id DESC``); ``next_before_id`` feeds the next request.
@@ -1266,6 +1390,32 @@ export interface components {
             target_id: string | null;
             /** Target Type */
             target_type: string | null;
+        };
+        /**
+         * AvailabilityPreview
+         * @description The authenticated probe's answer: the computed facts at ``at``.
+         *
+         *     The same shape the public projection derives from (M5B), computed for
+         *     members at an arbitrary instant so a DST weekend or a holiday can be
+         *     checked before it happens — and so the E2E suite can exercise
+         *     transitions deterministically.
+         */
+        AvailabilityPreview: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Closes At */
+            closes_at: string | null;
+            /** Is Open Now */
+            is_open_now: boolean;
+            /** Next Opens At */
+            next_opens_at: string | null;
+            /** Next Pickup At */
+            next_pickup_at: string | null;
+            /** Timezone */
+            timezone: string;
         };
         /**
          * BusinessCreate
@@ -1331,6 +1481,19 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /**
+         * BusinessTimezoneSet
+         * @description Platform command (M5A, ADR-025 ruling D2): assign the IANA timezone.
+         *
+         *     The first correction path for a creation-time tenancy fact: every
+         *     hours computation is a function of this column, and changing it
+         *     re-interprets every stored local time — which is exactly why the
+         *     command is platform-only and audited.
+         */
+        BusinessTimezoneSet: {
+            /** Timezone */
+            timezone: string;
         };
         /**
          * CategoryCreate
@@ -1641,6 +1804,51 @@ export interface components {
             message: string;
         };
         /**
+         * FulfillmentOut
+         * @description The effective policy — the stored row, or the documented defaults.
+         *
+         *     ``is_configured`` says which, so the UI can present "using defaults"
+         *     honestly without comparing values against a copy of the registry.
+         */
+        FulfillmentOut: {
+            /** Asap Enabled */
+            asap_enabled: boolean;
+            /** Is Configured */
+            is_configured: boolean;
+            /** Last Order Before Close Minutes */
+            last_order_before_close_minutes: number;
+            /** Lead Time Minutes */
+            lead_time_minutes: number;
+            /** Max Days Ahead */
+            max_days_ahead: number;
+            /** Pickup Enabled */
+            pickup_enabled: boolean;
+            /** Slot Interval Minutes */
+            slot_interval_minutes: number;
+        };
+        /**
+         * FulfillmentSet
+         * @description The complete desired fulfillment policy (full-document, idempotent).
+         *
+         *     Every field is required: partial updates would reintroduce the
+         *     lost-update shape the full-document convention exists to avoid.
+         *     Throttling is deliberately absent (ruling D3 — M6).
+         */
+        FulfillmentSet: {
+            /** Asap Enabled */
+            asap_enabled: boolean;
+            /** Last Order Before Close Minutes */
+            last_order_before_close_minutes: number;
+            /** Lead Time Minutes */
+            lead_time_minutes: number;
+            /** Max Days Ahead */
+            max_days_ahead: number;
+            /** Pickup Enabled */
+            pickup_enabled: boolean;
+            /** Slot Interval Minutes */
+            slot_interval_minutes: number;
+        };
+        /**
          * GalleryProps
          * @description A bounded set of images, in display order.
          */
@@ -1710,6 +1918,46 @@ export interface components {
              * @enum {string}
              */
             type: "hero";
+        };
+        /**
+         * HoursDeletedResponse
+         * @description Acknowledgement for the exception DELETE.
+         */
+        HoursDeletedResponse: {
+            /**
+             * Status
+             * @default deleted
+             */
+            status: string;
+        };
+        /**
+         * HoursInterval
+         * @description One open interval in D1 minutes (0-1439 opens; closes may run to
+         *     2879, ending on the following local day).
+         */
+        HoursInterval: {
+            /** Closes Minute */
+            closes_minute: number;
+            /** Opens Minute */
+            opens_minute: number;
+        };
+        /**
+         * HoursSettings
+         * @description The complete operating configuration in one read.
+         *
+         *     ``timezone`` is the business's IANA zone — stated here because every
+         *     minute value below is local wall time under exactly that zone.
+         *     Exceptions are the bounded window around today (tenant-local), sorted
+         *     by date.
+         */
+        HoursSettings: {
+            /** Exceptions */
+            exceptions: components["schemas"]["ScheduleExceptionOut"][];
+            fulfillment: components["schemas"]["FulfillmentOut"];
+            /** Timezone */
+            timezone: string;
+            /** Weekly */
+            weekly: components["schemas"]["WeeklyIntervalOut"][];
         };
         /**
          * InvitationAcceptExistingRequest
@@ -2836,6 +3084,36 @@ export interface components {
          */
         Role: "owner" | "manager" | "staff";
         /**
+         * ScheduleExceptionOut
+         * @description One date's stored override. ``intervals`` empty = closed all day.
+         */
+        ScheduleExceptionOut: {
+            /**
+             * Exception Date
+             * Format: date
+             */
+            exception_date: string;
+            /** Intervals */
+            intervals: components["schemas"]["HoursInterval"][];
+            /** Note */
+            note: string | null;
+        };
+        /**
+         * ScheduleExceptionSet
+         * @description One date's complete override: special hours, or closed all day.
+         *
+         *     ``intervals: []`` means **closed all day** — removing the exception
+         *     entirely is the DELETE route, so absence and closure stay distinct
+         *     intents. ``note`` is the D6 label (bounded plain text, normalized,
+         *     control characters rejected).
+         */
+        ScheduleExceptionSet: {
+            /** Intervals */
+            intervals?: components["schemas"]["HoursInterval"][];
+            /** Note */
+            note?: string | null;
+        };
+        /**
          * SectionImage
          * @description One image reference: an opaque media asset id plus contextual alt text.
          *
@@ -3125,6 +3403,40 @@ export interface components {
             state: "published" | "archived";
             /** Version Number */
             version_number: number;
+        };
+        /**
+         * WeeklyIntervalIn
+         * @description One weekly interval: ISO day (0 = Monday) plus the open interval.
+         */
+        WeeklyIntervalIn: {
+            /** Closes Minute */
+            closes_minute: number;
+            /** Day Of Week */
+            day_of_week: number;
+            /** Opens Minute */
+            opens_minute: number;
+        };
+        /** WeeklyIntervalOut */
+        WeeklyIntervalOut: {
+            /** Closes Minute */
+            closes_minute: number;
+            /** Day Of Week */
+            day_of_week: number;
+            /** Opens Minute */
+            opens_minute: number;
+        };
+        /**
+         * WeeklyScheduleSet
+         * @description The complete desired weekly schedule (idempotent full replacement).
+         *
+         *     An empty list is a valid schedule: never open. Per-day counts and
+         *     week-circle non-overlap (an overnight interval is checked against the
+         *     following day's openings) are validated here, so the service receives
+         *     a set that is internally consistent by construction.
+         */
+        WeeklyScheduleSet: {
+            /** Intervals */
+            intervals: components["schemas"]["WeeklyIntervalIn"][];
         };
     };
     responses: never;
@@ -4823,6 +5135,388 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    hours_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoursSettings"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    hours_exception_set: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                exception_date: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleExceptionSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoursSettings"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    hours_exception_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                exception_date: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoursDeletedResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    hours_fulfillment_set: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FulfillmentSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoursSettings"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    hours_availability_preview: {
+        parameters: {
+            query?: {
+                at?: string | null;
+            };
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvailabilityPreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    hours_weekly_set: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WeeklyScheduleSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoursSettings"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6801,6 +7495,77 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["EmptyCommand"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessSummary"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    platform_business_timezone_set: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BusinessTimezoneSet"];
             };
         };
         responses: {

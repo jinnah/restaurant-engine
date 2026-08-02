@@ -62,3 +62,12 @@ class AuditAction(StrEnum):
     STOREFRONT_PUBLISHED = "storefront.published"
     STOREFRONT_VERSION_RESTORED = "storefront.version_restored"
     STOREFRONT_DESIGN_ASSIGNED = "storefront.design_assigned"
+    # M5A: hours and fulfillment (ADR-025). Weekly and exception writes are
+    # full-set replacements, so one event per command — never per row.
+    BUSINESS_HOURS_UPDATED = "business.hours_updated"
+    BUSINESS_SCHEDULE_EXCEPTION_SET = "business.schedule_exception_set"
+    BUSINESS_SCHEDULE_EXCEPTION_REMOVED = "business.schedule_exception_removed"
+    BUSINESS_FULFILLMENT_UPDATED = "business.fulfillment_updated"
+    # D2: the platform timezone correction re-interprets every stored
+    # local time, which is why it is audited with both values.
+    BUSINESS_TIMEZONE_CHANGED = "business.timezone_changed"

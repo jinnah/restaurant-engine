@@ -32,6 +32,8 @@ export type FeatureKey = components['schemas']['FeatureKey'];
 export type DesignAssignment = components['schemas']['DesignAssignment'];
 export type DesignAssignmentResult =
   components['schemas']['DesignAssignmentResult'];
+// M5A (ADR-025 ruling D2): the platform timezone correction.
+export type BusinessTimezoneSet = components['schemas']['BusinessTimezoneSet'];
 
 type PlatformAuditQuery = NonNullable<
   paths['/api/v1/platform/audit-events']['get']['parameters']['query']
@@ -143,6 +145,17 @@ export interface PlatformApi {
     body: DesignAssignment,
     csrfToken: string,
   ): Promise<ApiResult<DesignAssignmentResult>>;
+  /**
+   * Assign the tenant IANA timezone (M5A, ADR-025 ruling D2). Audited;
+   * it re-interprets every stored local hours value, which is why the
+   * command is platform-only. The exact no-op returns the unchanged
+   * summary.
+   */
+  setTimezone(
+    businessId: string,
+    body: BusinessTimezoneSet,
+    csrfToken: string,
+  ): Promise<ApiResult<BusinessSummary>>;
 }
 
 export function createPlatformApi(client: Client<paths>): PlatformApi {
@@ -342,6 +355,18 @@ export function createPlatformApi(client: Client<paths>): PlatformApi {
       try {
         const { data, error, response } = await client.PUT(
           '/api/v1/platform/businesses/{business_id}/design',
+          { ...path(businessId), body, headers: csrf(csrfToken) },
+        );
+        return toResult(data, error, response);
+      } catch {
+        return { ok: false, status: null, envelope: null };
+      }
+    },
+
+    async setTimezone(businessId, body, csrfToken) {
+      try {
+        const { data, error, response } = await client.PUT(
+          '/api/v1/platform/businesses/{business_id}/timezone',
           { ...path(businessId), body, headers: csrf(csrfToken) },
         );
         return toResult(data, error, response);

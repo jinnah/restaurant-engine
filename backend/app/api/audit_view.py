@@ -88,6 +88,10 @@ _ALT_CHANGED_CHOICE = _choice(frozenset({"changed", "unchanged"}))
 # registry (append-only), so a newly registered variant projects without a
 # second edit here while unregistered stored values still drop out.
 _VARIANT_CHOICE = _choice(frozenset(variant.value for variant in DesignVariant))
+# M5A hours closed-set extractors.
+_EXCEPTION_KIND_CHOICE = _choice(frozenset({"closed_all_day", "special_hours"}))
+_NOTE_PRESENCE_CHOICE = _choice(frozenset({"present", "absent"}))
+_ENABLEMENT_CHOICE = _choice(frozenset({"enabled", "disabled"}))
 
 
 def _byte_int(value: object) -> int | None:
@@ -272,6 +276,31 @@ _PROJECTIONS: dict[str, dict[str, _Extractor]] = {
     AuditAction.STOREFRONT_DESIGN_ASSIGNED.value: {
         "previous_variant": _VARIANT_CHOICE,
         "new_variant": _VARIANT_CHOICE,
+    },
+    # M5A hours (ADR-025): bounded scalars; closed-set strings for the
+    # enabled/disabled facts; the exception note is never stored, so it can
+    # never project.
+    AuditAction.BUSINESS_HOURS_UPDATED.value: {"interval_count": _small_int},
+    AuditAction.BUSINESS_SCHEDULE_EXCEPTION_SET.value: {
+        "exception_date": _short_str,
+        "kind": _EXCEPTION_KIND_CHOICE,
+        "interval_count": _small_int,
+        "note": _NOTE_PRESENCE_CHOICE,
+    },
+    AuditAction.BUSINESS_SCHEDULE_EXCEPTION_REMOVED.value: {
+        "exception_date": _short_str,
+    },
+    AuditAction.BUSINESS_FULFILLMENT_UPDATED.value: {
+        "pickup": _ENABLEMENT_CHOICE,
+        "asap": _ENABLEMENT_CHOICE,
+        "lead_time_minutes": _small_int,
+        "slot_interval_minutes": _small_int,
+        "last_order_before_close_minutes": _small_int,
+        "max_days_ahead": _small_int,
+    },
+    AuditAction.BUSINESS_TIMEZONE_CHANGED.value: {
+        "timezone_from": _short_str,
+        "timezone_to": _short_str,
     },
 }
 

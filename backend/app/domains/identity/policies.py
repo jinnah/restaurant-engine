@@ -65,6 +65,11 @@ class Capability(StrEnum):
     BUSINESS_STOREFRONT_READ = "business.storefront.read"
     BUSINESS_STOREFRONT_WRITE = "business.storefront.write"
     BUSINESS_STOREFRONT_PUBLISH = "business.storefront.publish"
+    # M5A (ADR-025 ruling D7): hours writes are owner/manager (§7.1 gives
+    # the manager "menu, storefront content, hours, and orders"); hours
+    # reads deliberately ride on business.view — the schedule is public
+    # information and staff see the hours they work.
+    BUSINESS_HOURS_WRITE = "business.hours.write"
 
 
 PLATFORM_CAPABILITIES: frozenset[Capability] = frozenset(
@@ -92,6 +97,7 @@ CAPABILITIES_BY_ROLE: dict[Role, frozenset[Capability]] = {
             Capability.BUSINESS_STOREFRONT_READ,
             Capability.BUSINESS_STOREFRONT_WRITE,
             Capability.BUSINESS_STOREFRONT_PUBLISH,
+            Capability.BUSINESS_HOURS_WRITE,
         }
     ),
     Role.MANAGER: frozenset(
@@ -104,6 +110,7 @@ CAPABILITIES_BY_ROLE: dict[Role, frozenset[Capability]] = {
             Capability.BUSINESS_MEDIA_WRITE,
             Capability.BUSINESS_STOREFRONT_READ,
             Capability.BUSINESS_STOREFRONT_WRITE,
+            Capability.BUSINESS_HOURS_WRITE,
         }
     ),
     Role.STAFF: frozenset(

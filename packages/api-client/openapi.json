@@ -61,7 +61,12 @@
           "catalog.item_image_changed",
           "storefront.published",
           "storefront.version_restored",
-          "storefront.design_assigned"
+          "storefront.design_assigned",
+          "business.hours_updated",
+          "business.schedule_exception_set",
+          "business.schedule_exception_removed",
+          "business.fulfillment_updated",
+          "business.timezone_changed"
         ],
         "title": "AuditAction",
         "type": "string"
@@ -204,6 +209,70 @@
         "title": "AuditEventSummary",
         "type": "object"
       },
+      "AvailabilityPreview": {
+        "description": "The authenticated probe's answer: the computed facts at ``at``.\n\nThe same shape the public projection derives from (M5B), computed for\nmembers at an arbitrary instant so a DST weekend or a holiday can be\nchecked before it happens — and so the E2E suite can exercise\ntransitions deterministically.",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "closes_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closes At"
+          },
+          "is_open_now": {
+            "title": "Is Open Now",
+            "type": "boolean"
+          },
+          "next_opens_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Opens At"
+          },
+          "next_pickup_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Pickup At"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "timezone",
+          "is_open_now",
+          "closes_at",
+          "next_opens_at",
+          "next_pickup_at"
+        ],
+        "title": "AvailabilityPreview",
+        "type": "object"
+      },
       "BusinessCreate": {
         "additionalProperties": false,
         "description": "Platform command to create a business (starts in provisioning).",
@@ -320,6 +389,21 @@
           "updated_at"
         ],
         "title": "BusinessSummary",
+        "type": "object"
+      },
+      "BusinessTimezoneSet": {
+        "additionalProperties": false,
+        "description": "Platform command (M5A, ADR-025 ruling D2): assign the IANA timezone.\n\nThe first correction path for a creation-time tenancy fact: every\nhours computation is a function of this column, and changing it\nre-interprets every stored local time — which is exactly why the\ncommand is platform-only and audited.",
+        "properties": {
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timezone"
+        ],
+        "title": "BusinessTimezoneSet",
         "type": "object"
       },
       "CategoryCreate": {
@@ -920,6 +1004,98 @@
         "title": "FieldError",
         "type": "object"
       },
+      "FulfillmentOut": {
+        "description": "The effective policy — the stored row, or the documented defaults.\n\n``is_configured`` says which, so the UI can present \"using defaults\"\nhonestly without comparing values against a copy of the registry.",
+        "properties": {
+          "asap_enabled": {
+            "title": "Asap Enabled",
+            "type": "boolean"
+          },
+          "is_configured": {
+            "title": "Is Configured",
+            "type": "boolean"
+          },
+          "last_order_before_close_minutes": {
+            "title": "Last Order Before Close Minutes",
+            "type": "integer"
+          },
+          "lead_time_minutes": {
+            "title": "Lead Time Minutes",
+            "type": "integer"
+          },
+          "max_days_ahead": {
+            "title": "Max Days Ahead",
+            "type": "integer"
+          },
+          "pickup_enabled": {
+            "title": "Pickup Enabled",
+            "type": "boolean"
+          },
+          "slot_interval_minutes": {
+            "title": "Slot Interval Minutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pickup_enabled",
+          "asap_enabled",
+          "lead_time_minutes",
+          "slot_interval_minutes",
+          "last_order_before_close_minutes",
+          "max_days_ahead",
+          "is_configured"
+        ],
+        "title": "FulfillmentOut",
+        "type": "object"
+      },
+      "FulfillmentSet": {
+        "additionalProperties": false,
+        "description": "The complete desired fulfillment policy (full-document, idempotent).\n\nEvery field is required: partial updates would reintroduce the\nlost-update shape the full-document convention exists to avoid.\nThrottling is deliberately absent (ruling D3 — M6).",
+        "properties": {
+          "asap_enabled": {
+            "title": "Asap Enabled",
+            "type": "boolean"
+          },
+          "last_order_before_close_minutes": {
+            "maximum": 240.0,
+            "minimum": 0.0,
+            "title": "Last Order Before Close Minutes",
+            "type": "integer"
+          },
+          "lead_time_minutes": {
+            "maximum": 1440.0,
+            "minimum": 0.0,
+            "title": "Lead Time Minutes",
+            "type": "integer"
+          },
+          "max_days_ahead": {
+            "maximum": 30.0,
+            "minimum": 0.0,
+            "title": "Max Days Ahead",
+            "type": "integer"
+          },
+          "pickup_enabled": {
+            "title": "Pickup Enabled",
+            "type": "boolean"
+          },
+          "slot_interval_minutes": {
+            "maximum": 120.0,
+            "minimum": 5.0,
+            "title": "Slot Interval Minutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pickup_enabled",
+          "asap_enabled",
+          "lead_time_minutes",
+          "slot_interval_minutes",
+          "last_order_before_close_minutes",
+          "max_days_ahead"
+        ],
+        "title": "FulfillmentSet",
+        "type": "object"
+      },
       "GalleryProps": {
         "additionalProperties": false,
         "description": "A bounded set of images, in display order.",
@@ -1065,6 +1241,76 @@
           "props"
         ],
         "title": "HeroSection",
+        "type": "object"
+      },
+      "HoursDeletedResponse": {
+        "description": "Acknowledgement for the exception DELETE.",
+        "properties": {
+          "status": {
+            "default": "deleted",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "HoursDeletedResponse",
+        "type": "object"
+      },
+      "HoursInterval": {
+        "additionalProperties": false,
+        "description": "One open interval in D1 minutes (0-1439 opens; closes may run to\n2879, ending on the following local day).",
+        "properties": {
+          "closes_minute": {
+            "maximum": 2879.0,
+            "minimum": 1.0,
+            "title": "Closes Minute",
+            "type": "integer"
+          },
+          "opens_minute": {
+            "maximum": 1439.0,
+            "minimum": 0.0,
+            "title": "Opens Minute",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "opens_minute",
+          "closes_minute"
+        ],
+        "title": "HoursInterval",
+        "type": "object"
+      },
+      "HoursSettings": {
+        "description": "The complete operating configuration in one read.\n\n``timezone`` is the business's IANA zone — stated here because every\nminute value below is local wall time under exactly that zone.\nExceptions are the bounded window around today (tenant-local), sorted\nby date.",
+        "properties": {
+          "exceptions": {
+            "items": {
+              "$ref": "#/components/schemas/ScheduleExceptionOut"
+            },
+            "title": "Exceptions",
+            "type": "array"
+          },
+          "fulfillment": {
+            "$ref": "#/components/schemas/FulfillmentOut"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "weekly": {
+            "items": {
+              "$ref": "#/components/schemas/WeeklyIntervalOut"
+            },
+            "title": "Weekly",
+            "type": "array"
+          }
+        },
+        "required": [
+          "timezone",
+          "weekly",
+          "exceptions",
+          "fulfillment"
+        ],
+        "title": "HoursSettings",
         "type": "object"
       },
       "InvitationAcceptExistingRequest": {
@@ -3293,6 +3539,69 @@
         "title": "Role",
         "type": "string"
       },
+      "ScheduleExceptionOut": {
+        "description": "One date's stored override. ``intervals`` empty = closed all day.",
+        "properties": {
+          "exception_date": {
+            "format": "date",
+            "title": "Exception Date",
+            "type": "string"
+          },
+          "intervals": {
+            "items": {
+              "$ref": "#/components/schemas/HoursInterval"
+            },
+            "title": "Intervals",
+            "type": "array"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "exception_date",
+          "intervals",
+          "note"
+        ],
+        "title": "ScheduleExceptionOut",
+        "type": "object"
+      },
+      "ScheduleExceptionSet": {
+        "additionalProperties": false,
+        "description": "One date's complete override: special hours, or closed all day.\n\n``intervals: []`` means **closed all day** — removing the exception\nentirely is the DELETE route, so absence and closure stay distinct\nintents. ``note`` is the D6 label (bounded plain text, normalized,\ncontrol characters rejected).",
+        "properties": {
+          "intervals": {
+            "items": {
+              "$ref": "#/components/schemas/HoursInterval"
+            },
+            "maxItems": 4,
+            "title": "Intervals",
+            "type": "array"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 480,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "title": "ScheduleExceptionSet",
+        "type": "object"
+      },
       "SectionImage": {
         "additionalProperties": false,
         "description": "One image reference: an opaque media asset id plus contextual alt text.\n\n``alt_text`` belongs to *this* placement, not to the asset — the same\ncontextual-alt contract catalog uses for item images (ADR-017 R2).\nSame-business ownership and public-delivery eligibility are database\nquestions answered by the M4B service, not here.",
@@ -3793,6 +4102,79 @@
           "created_at"
         ],
         "title": "VersionSummary",
+        "type": "object"
+      },
+      "WeeklyIntervalIn": {
+        "additionalProperties": false,
+        "description": "One weekly interval: ISO day (0 = Monday) plus the open interval.",
+        "properties": {
+          "closes_minute": {
+            "maximum": 2879.0,
+            "minimum": 1.0,
+            "title": "Closes Minute",
+            "type": "integer"
+          },
+          "day_of_week": {
+            "maximum": 6.0,
+            "minimum": 0.0,
+            "title": "Day Of Week",
+            "type": "integer"
+          },
+          "opens_minute": {
+            "maximum": 1439.0,
+            "minimum": 0.0,
+            "title": "Opens Minute",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "opens_minute",
+          "closes_minute",
+          "day_of_week"
+        ],
+        "title": "WeeklyIntervalIn",
+        "type": "object"
+      },
+      "WeeklyIntervalOut": {
+        "properties": {
+          "closes_minute": {
+            "title": "Closes Minute",
+            "type": "integer"
+          },
+          "day_of_week": {
+            "title": "Day Of Week",
+            "type": "integer"
+          },
+          "opens_minute": {
+            "title": "Opens Minute",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day_of_week",
+          "opens_minute",
+          "closes_minute"
+        ],
+        "title": "WeeklyIntervalOut",
+        "type": "object"
+      },
+      "WeeklyScheduleSet": {
+        "additionalProperties": false,
+        "description": "The complete desired weekly schedule (idempotent full replacement).\n\nAn empty list is a valid schedule: never open. Per-day counts and\nweek-circle non-overlap (an overnight interval is checked against the\nfollowing day's openings) are validated here, so the service receives\na set that is internally consistent by construction.",
+        "properties": {
+          "intervals": {
+            "items": {
+              "$ref": "#/components/schemas/WeeklyIntervalIn"
+            },
+            "maxItems": 28,
+            "title": "Intervals",
+            "type": "array"
+          }
+        },
+        "required": [
+          "intervals"
+        ],
+        "title": "WeeklyScheduleSet",
         "type": "object"
       }
     }
@@ -6219,6 +6601,535 @@
         "summary": "Business Entitlements Get",
         "tags": [
           "businesses"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/hours": {
+      "get": {
+        "description": "The complete operating configuration in one read.",
+        "operationId": "hours_settings_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HoursSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Hours Settings Get",
+        "tags": [
+          "hours"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/hours/exceptions/{exception_date}": {
+      "delete": {
+        "description": "Remove one date's override; the weekly schedule resumes.",
+        "operationId": "hours_exception_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "exception_date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Exception Date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HoursDeletedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Hours Exception Delete",
+        "tags": [
+          "hours"
+        ]
+      },
+      "put": {
+        "description": "Create or replace one date's override (empty intervals = closed).",
+        "operationId": "hours_exception_set",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "exception_date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Exception Date",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleExceptionSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HoursSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Hours Exception Set",
+        "tags": [
+          "hours"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/hours/fulfillment": {
+      "put": {
+        "description": "Write the complete fulfillment policy (full-document command).",
+        "operationId": "hours_fulfillment_set",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FulfillmentSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HoursSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Hours Fulfillment Set",
+        "tags": [
+          "hours"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/hours/preview": {
+      "get": {
+        "description": "The computed availability at ``at`` (default: now) — a member probe.",
+        "operationId": "hours_availability_preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "at",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "At"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailabilityPreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Hours Availability Preview",
+        "tags": [
+          "hours"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/hours/weekly": {
+      "put": {
+        "description": "Replace the whole weekly schedule (idempotent full replacement).",
+        "operationId": "hours_weekly_set",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WeeklyScheduleSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HoursSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Hours Weekly Set",
+        "tags": [
+          "hours"
         ]
       }
     },
@@ -9086,6 +9997,100 @@
           }
         },
         "summary": "Platform Business Suspend",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/platform/businesses/{business_id}/timezone": {
+      "put": {
+        "description": "Assign the tenant IANA timezone (M5A, ADR-025 ruling D2; audited).",
+        "operationId": "platform_business_timezone_set",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BusinessTimezoneSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BusinessSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Platform Business Timezone Set",
         "tags": [
           "platform"
         ]
