@@ -70,6 +70,28 @@ function defaultManifests() {
         'static/chunks/a.css',
       ],
     },
+    // The M6C ordering routes (ADR-026) measure exactly like the content
+    // routes; the dynamic tracking segment keeps its bracketed name.
+    'order/page': {
+      '[project]/apps/storefront/app/layout': [
+        'static/chunks/a.css',
+        'static/chunks/b.css',
+      ],
+      '[project]/apps/storefront/app/order/page': [
+        'static/chunks/a.css',
+        'static/chunks/b.css',
+      ],
+    },
+    'order/track/[token]/page': {
+      '[project]/apps/storefront/app/layout': [
+        'static/chunks/a.css',
+        'static/chunks/b.css',
+      ],
+      '[project]/apps/storefront/app/order/track/[token]/page': [
+        'static/chunks/a.css',
+        'static/chunks/b.css',
+      ],
+    },
   };
 }
 
@@ -268,13 +290,13 @@ test('exactly one delivered row per route and variant', () => {
   const result = measure();
   assert.equal(result.status, 0);
   const rows = deliveredRows(result.stdout);
-  assert.equal(rows.length, 6);
+  assert.equal(rows.length, 12);
   const seen = new Map();
   for (const row of rows) {
     const key = `${row.route}|${row.variant}`;
     seen.set(key, (seen.get(key) ?? 0) + 1);
   }
-  for (const route of ['/', '/menu']) {
+  for (const route of ['/', '/menu', '/order', '/order/track/[token]']) {
     for (const variant of VARIANTS) {
       assert.equal(
         seen.get(`${route}|${variant}`),
