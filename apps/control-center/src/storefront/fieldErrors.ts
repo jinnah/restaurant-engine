@@ -114,6 +114,7 @@ export function dialogFieldFor(relativePath: string): string | null {
     'props.primary_action': 'primaryAction',
     'props.intro': 'intro',
     'props.body': 'body',
+    'props.show_open_now': 'showOpenNow',
     'props.phone': 'phone',
     'props.email': 'email',
     'props.image.media_id': 'image',

@@ -9,6 +9,7 @@ import {
   contactSection,
   gallerySection,
   heroSection,
+  hoursSection,
   imageFixture,
   menuSection,
   storySection,
@@ -22,6 +23,7 @@ describe('SectionList dispatch and ordering', () => {
       contactSection(),
       gallerySection(),
       menuSection(),
+      hoursSection(),
     ];
     render(<SectionList sections={sections} />);
     const headings = screen
@@ -33,6 +35,7 @@ describe('SectionList dispatch and ordering', () => {
       'Find us',
       'Gallery',
       'Our menu',
+      'Opening hours',
     ]);
   });
 

@@ -9,6 +9,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import {
   getPublishedStorefront,
+  loadPublicAvailability,
   loadPublicMenu,
   loadPublishedStorefront,
 } from '../../lib/server/storefront-data';
@@ -118,6 +119,42 @@ describe('loadPublicMenu', () => {
     expect(result.kind).toBe('ok');
     expect(server.requests[0]?.url).toBe('/api/v1/public/menu');
     expect(server.requests[0]?.headers.host).toBe(HOST);
+  });
+});
+
+describe('loadPublicAvailability', () => {
+  test('requests the availability projection with the tenant Host', async () => {
+    const server = await withStub({
+      body: JSON.stringify({
+        business: {
+          name: 'Tandoor House',
+          slug: 'tandoor',
+          timezone: 'America/New_York',
+          currency: 'USD',
+        },
+        is_open_now: false,
+        closes_at: null,
+        next_opens_at: null,
+        weekly: [],
+        exceptions: [],
+        pickup: { enabled: true, asap_enabled: true, next_pickup_at: null },
+      }),
+    });
+    const result = await loadPublicAvailability(HOST);
+    expect(result.kind).toBe('ok');
+    if (result.kind === 'ok') {
+      // The honestly-closed shape (M5B): no schedule is a real state.
+      expect(result.data.is_open_now).toBe(false);
+      expect(result.data.weekly).toEqual([]);
+    }
+    expect(server.requests[0]?.url).toBe('/api/v1/public/availability');
+    expect(server.requests[0]?.headers.host).toBe(HOST);
+  });
+
+  test('a missing Host is not-found without any backend call', async () => {
+    const server = await withStub({ body: '{}' });
+    expect(await loadPublicAvailability(null)).toEqual({ kind: 'not-found' });
+    expect(server.requests).toHaveLength(0);
   });
 });
 

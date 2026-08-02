@@ -8,8 +8,10 @@ import { safeJsonLdSerialize } from '../lib/json-ld';
 import { restaurantJsonLd } from '../lib/restaurant-json-ld';
 import {
   contactSection,
+  hoursDataFixture,
   storefrontFixture,
 } from '@restaurant-engine/storefront-renderer/fixtures';
+import type { PublicAvailability } from '@restaurant-engine/api-client';
 
 describe('safeJsonLdSerialize', () => {
   test('tenant text containing a script terminator cannot break out', () => {
@@ -51,11 +53,34 @@ describe('JsonLd component', () => {
   });
 });
 
+/** The availability projection over the renderer's hours fixture. */
+function availabilityFixture(
+  overrides: Partial<PublicAvailability> = {},
+): PublicAvailability {
+  const data = hoursDataFixture();
+  return {
+    business: {
+      name: 'Corner Kitchen',
+      slug: 'corner-kitchen',
+      timezone: data.timezone,
+      currency: 'USD',
+    },
+    is_open_now: data.is_open_now,
+    closes_at: data.closes_at,
+    next_opens_at: data.next_opens_at,
+    weekly: data.weekly,
+    exceptions: data.exceptions,
+    pickup: { enabled: true, asap_enabled: true, next_pickup_at: null },
+    ...overrides,
+  };
+}
+
 describe('restaurantJsonLd', () => {
   test('carries only supported published facts', () => {
     const data = restaurantJsonLd(
       storefrontFixture([contactSection()]),
       'https://corner-kitchen.example.com',
+      null,
     );
     expect(data).toEqual({
       '@context': 'https://schema.org',
@@ -68,7 +93,7 @@ describe('restaurantJsonLd', () => {
   });
 
   test('omits absent facts and never claims unmodeled ones', () => {
-    const data = restaurantJsonLd(storefrontFixture([]), null);
+    const data = restaurantJsonLd(storefrontFixture([]), null, null);
     expect(data).toEqual({
       '@context': 'https://schema.org',
       '@type': 'Restaurant',
@@ -85,6 +110,89 @@ describe('restaurantJsonLd', () => {
     ]) {
       expect(data).not.toHaveProperty(forbidden);
     }
+  });
+
+  test('models the weekly hours from the availability projection (M5D)', () => {
+    // Blueprint §12.2: hours are modeled, not decorative text — one
+    // OpeningHoursSpecification per stored interval, in the D1 order,
+    // independent of whether an hours SECTION is composed (the fixture
+    // composes none).
+    const data = restaurantJsonLd(
+      storefrontFixture([]),
+      null,
+      availabilityFixture({
+        weekly: [
+          { day_of_week: 0, opens_minute: 660, closes_minute: 1260 },
+          // D1 overnight: Saturday 17:00 into Sunday 02:00 — schema.org's
+          // own convention (closes earlier than opens spans the next day).
+          { day_of_week: 5, opens_minute: 1020, closes_minute: 1560 },
+          // Interval closing exactly at midnight: 00:00 is "earlier than
+          // opens", the same next-day convention.
+          { day_of_week: 6, opens_minute: 720, closes_minute: 1440 },
+        ],
+      }),
+    );
+    expect(data['openingHoursSpecification']).toEqual([
+      {
+        '@type': 'OpeningHoursSpecification',
+        dayOfWeek: 'Monday',
+        opens: '11:00',
+        closes: '21:00',
+      },
+      {
+        '@type': 'OpeningHoursSpecification',
+        dayOfWeek: 'Saturday',
+        opens: '17:00',
+        closes: '02:00',
+      },
+      {
+        '@type': 'OpeningHoursSpecification',
+        dayOfWeek: 'Sunday',
+        opens: '12:00',
+        closes: '00:00',
+      },
+    ]);
+  });
+
+  test('a full 24-hour day is stated as 00:00–23:59, never opens=closes', () => {
+    const data = restaurantJsonLd(
+      storefrontFixture([]),
+      null,
+      availabilityFixture({
+        weekly: [{ day_of_week: 2, opens_minute: 0, closes_minute: 1440 }],
+      }),
+    );
+    expect(data['openingHoursSpecification']).toEqual([
+      {
+        '@type': 'OpeningHoursSpecification',
+        dayOfWeek: 'Wednesday',
+        opens: '00:00',
+        closes: '23:59',
+      },
+    ]);
+  });
+
+  test('an empty schedule claims nothing at all', () => {
+    // An empty array would pretend hours are modeled; the honest claim
+    // for a business with no configured schedule is no claim.
+    const data = restaurantJsonLd(
+      storefrontFixture([]),
+      null,
+      availabilityFixture({ weekly: [] }),
+    );
+    expect(data).not.toHaveProperty('openingHoursSpecification');
+  });
+
+  test('exceptions are deliberately not claimed', () => {
+    // Transient overrides in a crawler's index would rot; the weekly
+    // schedule is the only structured-hours claim.
+    const data = restaurantJsonLd(
+      storefrontFixture([]),
+      null,
+      availabilityFixture(),
+    );
+    expect(JSON.stringify(data)).not.toContain('2026-12-25');
+    expect(data).not.toHaveProperty('specialOpeningHoursSpecification');
   });
 });
 

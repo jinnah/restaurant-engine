@@ -26,6 +26,7 @@ import { headers } from 'next/headers';
 import {
   createApiClient,
   type ApiResult,
+  type PublicAvailability,
   type PublicMenu,
 } from '@restaurant-engine/api-client';
 
@@ -82,6 +83,16 @@ export async function loadPublicMenu(
   return toStorefrontResult(await clientForHost(host).public.getMenu());
 }
 
+/** Uncached loader (exported for tests): structured hours for one host. */
+export async function loadPublicAvailability(
+  host: string | null,
+): Promise<StorefrontResult<PublicAvailability>> {
+  if (host === null) {
+    return { kind: 'not-found' };
+  }
+  return toStorefrontResult(await clientForHost(host).public.getAvailability());
+}
+
 export const getPublishedStorefront = cache(
   async (): Promise<StorefrontResult<PublicStorefront>> =>
     loadPublishedStorefront(await requestHost()),
@@ -90,6 +101,15 @@ export const getPublishedStorefront = cache(
 export const getPublicMenu = cache(
   async (): Promise<StorefrontResult<PublicMenu>> =>
     loadPublicMenu(await requestHost()),
+);
+
+// The availability projection is served `no-store` by the backend
+// (ADR-025 D4): this per-request memo is the same React.cache store the
+// other loaders use — it lives for exactly one server request and is not
+// a cache across requests, so the D4 ruling is respected by construction.
+export const getPublicAvailability = cache(
+  async (): Promise<StorefrontResult<PublicAvailability>> =>
+    loadPublicAvailability(await requestHost()),
 );
 
 /** The incoming request Host, for canonical-URL construction (cached). */

@@ -22,6 +22,18 @@ export const tenantPageClass: string = baseStyles['tenantPage'] ?? '';
 export { VariantLayout, type VariantLayoutProps } from './variants/registry';
 export { SectionList } from './sections/SectionList';
 export { MenuSection, type MenuSectionData } from './sections/MenuSection';
+export { HoursSection } from './sections/HoursSection';
+export { type HoursSectionData } from './sections/hours-data';
+export {
+  DAY_NAMES,
+  formatExceptionDate,
+  formatExceptionHours,
+  formatInstantDayTime,
+  formatInstantTime,
+  formatInterval,
+  formatMinute,
+  weeklyRows,
+} from './sections/hours-format';
 export { HeroSection } from './sections/HeroSection';
 export { StorySection, storyParagraphs } from './sections/StorySection';
 export { ContactSection } from './sections/ContactSection';
@@ -65,12 +77,15 @@ export type {
   PublicContactSection,
   PublicGallerySection,
   PublicHeroSection,
+  PublicHoursSection,
   PublicMenuSection,
+  PublicScheduleException,
   PublicSection,
   PublicStorefront,
   PublicStorefrontImage,
   PublicStorySection,
   PublicTheme,
   PublicThemeLogo,
+  PublicWeeklyInterval,
   TypePairingId,
 } from './contract';

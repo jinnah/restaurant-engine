@@ -69,6 +69,7 @@ export const SECTION_TYPES: readonly SectionType[] = [
   'story',
   'contact',
   'gallery',
+  'hours',
 ];
 
 /**
@@ -214,6 +215,15 @@ export function defaultSectionValues(type: SectionType): ConfigSection {
         enabled: true,
         props: { heading: null, images: [] },
       };
+    case 'hours':
+      // Presentation choices only (ADR-025 D5): the schedule itself is
+      // authored in the hours workspace and composed at render time.
+      return {
+        id: 'hours',
+        type: 'hours',
+        enabled: true,
+        props: { heading: '', intro: null, show_open_now: true },
+      };
   }
 }
 
@@ -228,6 +238,7 @@ export const SECTION_TYPE_LABELS: Record<SectionType, string> = {
   story: 'Story',
   contact: 'Contact',
   gallery: 'Gallery',
+  hours: 'Hours',
 };
 
 /**

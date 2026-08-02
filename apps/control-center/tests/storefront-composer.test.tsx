@@ -111,6 +111,57 @@ describe('first draft save (create intent)', () => {
     });
     expect(await screen.findByText('Draft saved.')).toBeInTheDocument();
   });
+
+  test('the hours section serializes presentation choices only (M5D, D5)', async () => {
+    const putDraft = vi.fn(async () => ok(draftView({ config: heroConfig() })));
+    const client = ownerClient({
+      storefront: {
+        get: vi.fn(async () => ok(storefrontOverview())),
+        putDraft,
+      },
+    });
+    await openStorefront(client);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add hours section' }));
+    const dialog = await screen.findByRole('dialog');
+    // The dialog offers no schedule input of any kind: the hours data is
+    // authored in the hours workspace, never in the composer.
+    expect(within(dialog).queryByLabelText(/monday/i)).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/time/i)).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText('Heading'), {
+      target: { value: 'Opening hours' },
+    });
+    // Turn the live status line off — the one display choice.
+    fireEvent.click(
+      within(dialog).getByLabelText("Show whether you're open right now"),
+    );
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => {
+      expect(putDraft).toHaveBeenCalledTimes(1);
+    });
+    const [, body] = putDraft.mock.calls[0] as unknown as [
+      string,
+      { config: { sections: unknown[] } },
+      string,
+    ];
+    expect(body.config.sections).toEqual([
+      {
+        id: 'hours',
+        type: 'hours',
+        enabled: true,
+        props: {
+          heading: 'Opening hours',
+          intro: null,
+          show_open_now: false,
+        },
+      },
+    ]);
+  });
 });
 
 describe('existing draft save (update intent)', () => {

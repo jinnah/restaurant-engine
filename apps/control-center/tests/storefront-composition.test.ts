@@ -35,6 +35,18 @@ describe('new section ids (E-10)', () => {
     const story = defaultSectionValues('story');
     expect(story.type === 'story' && story.props.body).toBe('');
   });
+
+  test('the hours seed is presentation-only (M5D, ADR-025 D5)', () => {
+    // No schedule field exists to seed: the section carries a heading, an
+    // optional intro, and the status-line toggle, and nothing else.
+    const hours = defaultSectionValues('hours');
+    expect(hours).toEqual({
+      id: 'hours',
+      type: 'hours',
+      enabled: true,
+      props: { heading: '', intro: null, show_open_now: true },
+    });
+  });
 });
 
 describe('round-tripping', () => {

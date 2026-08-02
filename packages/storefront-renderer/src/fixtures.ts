@@ -13,6 +13,7 @@ import type {
   PublicContactSection,
   PublicGallerySection,
   PublicHeroSection,
+  PublicHoursSection,
   PublicMenuSection,
   PublicSection,
   PublicStorefront,
@@ -21,6 +22,7 @@ import type {
   PublicTheme,
   PublicThemeLogo,
 } from './contract';
+import type { HoursSectionData } from './sections/hours-data';
 
 /**
  * The delivered presentation: the platform default accent plus the registry
@@ -162,6 +164,66 @@ export function gallerySection(
       ],
       ...props,
     },
+  };
+}
+
+export function hoursSection(
+  props: Partial<PublicHoursSection['props']> = {},
+): PublicHoursSection {
+  return {
+    id: 'hours-main',
+    type: 'hours',
+    props: {
+      heading: 'Opening hours',
+      intro: 'Kitchen closes 30 minutes early.',
+      show_open_now: true,
+      ...props,
+    },
+  };
+}
+
+/**
+ * A realistic availability composition (M5D): split weekday service, an
+ * overnight Saturday interval in the D1 encoding (`closes_minute` above
+ * 1440 ends on Sunday), a closed Monday, and one special-hours plus one
+ * closed-all-day exception. The instant facts are fixed UTC instants —
+ * the renderer only formats them, so no test depends on the wall clock.
+ */
+export function hoursDataFixture(
+  overrides: Partial<HoursSectionData> = {},
+): HoursSectionData {
+  return {
+    timezone: 'America/New_York',
+    is_open_now: true,
+    // 2026-08-07 is a Friday; 21:00 EDT = 01:00 UTC the next day.
+    closes_at: '2026-08-08T01:00:00Z',
+    next_opens_at: null,
+    weekly: [
+      // Tuesday–Friday lunch and dinner service (Monday closed).
+      { day_of_week: 1, opens_minute: 660, closes_minute: 840 },
+      { day_of_week: 1, opens_minute: 1020, closes_minute: 1260 },
+      { day_of_week: 2, opens_minute: 660, closes_minute: 840 },
+      { day_of_week: 2, opens_minute: 1020, closes_minute: 1260 },
+      { day_of_week: 3, opens_minute: 660, closes_minute: 840 },
+      { day_of_week: 3, opens_minute: 1020, closes_minute: 1260 },
+      { day_of_week: 4, opens_minute: 660, closes_minute: 1260 },
+      // Saturday 17:00 through 02:00 the next local day (D1 overnight).
+      { day_of_week: 5, opens_minute: 1020, closes_minute: 1560 },
+      { day_of_week: 6, opens_minute: 720, closes_minute: 1200 },
+    ],
+    exceptions: [
+      {
+        exception_date: '2026-11-26',
+        intervals: [{ opens_minute: 720, closes_minute: 960 }],
+        note: 'Thanksgiving — limited menu',
+      },
+      {
+        exception_date: '2026-12-25',
+        intervals: [],
+        note: null,
+      },
+    ],
+    ...overrides,
   };
 }
 

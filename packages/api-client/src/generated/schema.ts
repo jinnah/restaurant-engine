@@ -1967,6 +1967,45 @@ export interface components {
             opens_minute: number;
         };
         /**
+         * HoursProps
+         * @description Hours section: presentation choices only, never schedule data (D5).
+         *
+         *     Follows ``MenuProps`` to the letter: the section says *how* the hours
+         *     are introduced — heading, optional intro, and whether the live
+         *     open/closed status line is shown — while the weekly schedule,
+         *     exceptions, and instant facts are the hours domain's answer through
+         *     the public availability projection, composed at render time. A
+         *     schedule field here would be a second source of truth that publication
+         *     would freeze into immutable version history (ADR-025 D5).
+         */
+        HoursProps: {
+            /** Heading */
+            heading: string;
+            /** Intro */
+            intro?: string | null;
+            /**
+             * Show Open Now
+             * @default true
+             */
+            show_open_now: boolean;
+        };
+        /** HoursSection */
+        HoursSection: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Id */
+            id: string;
+            props: components["schemas"]["HoursProps"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "hours";
+        };
+        /**
          * HoursSettings
          * @description The complete operating configuration in one read.
          *
@@ -2756,6 +2795,35 @@ export interface components {
             /** Opens Minute */
             opens_minute: number;
         };
+        /** PublicHoursSection */
+        PublicHoursSection: {
+            /** Id */
+            id: string;
+            props: components["schemas"]["PublicHoursSectionProps"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "hours";
+        };
+        /**
+         * PublicHoursSectionProps
+         * @description Hours section: presentation choices only (ADR-025 D5).
+         *
+         *     Carries **no** schedule — the renderer composes this section with the
+         *     public availability projection (`public_availability_get`), which
+         *     remains the single source of the weekly schedule, exceptions, and the
+         *     live open/closed facts. `show_open_now` is the owner's display choice
+         *     for the status line, not a computed fact.
+         */
+        PublicHoursSectionProps: {
+            /** Heading */
+            heading: string;
+            /** Intro */
+            intro: string | null;
+            /** Show Open Now */
+            show_open_now: boolean;
+        };
         /**
          * PublicMenu
          * @description The complete public menu of the host-resolved Business.
@@ -2996,7 +3064,7 @@ export interface components {
             business: components["schemas"]["PublicSiteSummary"];
             design_variant: components["schemas"]["DesignVariant"];
             /** Sections */
-            sections: (components["schemas"]["PublicHeroSection"] | components["schemas"]["PublicMenuSection"] | components["schemas"]["PublicStorySection"] | components["schemas"]["PublicContactSection"] | components["schemas"]["PublicGallerySection"])[];
+            sections: (components["schemas"]["PublicHeroSection"] | components["schemas"]["PublicMenuSection"] | components["schemas"]["PublicStorySection"] | components["schemas"]["PublicContactSection"] | components["schemas"]["PublicGallerySection"] | components["schemas"]["PublicHoursSection"])[];
             theme: components["schemas"]["PublicTheme"];
         };
         /**
@@ -3275,7 +3343,7 @@ export interface components {
              */
             schema_version: 1;
             /** Sections */
-            sections?: (components["schemas"]["HeroSection"] | components["schemas"]["MenuSection"] | components["schemas"]["StorySection"] | components["schemas"]["ContactSection"] | components["schemas"]["GallerySection"])[];
+            sections?: (components["schemas"]["HeroSection"] | components["schemas"]["MenuSection"] | components["schemas"]["StorySection"] | components["schemas"]["ContactSection"] | components["schemas"]["GallerySection"] | components["schemas"]["HoursSection"])[];
             theme?: components["schemas"]["Theme"];
         };
         /**

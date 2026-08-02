@@ -10,13 +10,21 @@ The persisted shape is the blueprint §7.4 contract, unchanged::
     {"id": "hero-main", "type": "hero", "enabled": true, "props": {}}
 
 Five types ship in M4 (ruling D1): hero, menu, story, contact, gallery.
+M5D registers the sixth (ADR-025 D5): hours — presentation choices only,
+with the schedule itself arriving from the availability projection at
+render time, exactly as the menu section composes with the public menu.
 
 What is deliberately **absent**, and must not be smuggled into a generic
 field later:
 
-* **hours or "open now"** — structured hours are M5, and a free-text
-  "Mon-Fri 9-5" field is exactly the freeform storefront text docs/03
-  forbids;
+* **hours data** — the ``hours`` section carries a heading, an optional
+  intro, and one display toggle, and **no schedule of any kind**: no
+  intervals, no dates, no timezone, and no free-text "Mon-Fri 9-5" line
+  (the freeform storefront text docs/03 forbids). The structured hours
+  live in the hours domain and reach the page through
+  ``GET /api/v1/public/availability``; storing them here would create a
+  second source of truth and freeze live operational data into published
+  history (ADR-025 D5);
 * **ordering** — no ordering section and no "Order Online" action. The
   hero's ``primary_action`` is a closed enum whose only non-empty member is
   ``view_menu``, ordinary navigation to the menu. M6 extends that enum with
@@ -52,6 +60,7 @@ class SectionType(StrEnum):
     STORY = "story"
     CONTACT = "contact"
     GALLERY = "gallery"
+    HOURS = "hours"
 
 
 class HeroAction(StrEnum):
@@ -230,6 +239,23 @@ class ContactProps(StorefrontModel):
     email: Email = None
 
 
+class HoursProps(StorefrontModel):
+    """Hours section: presentation choices only, never schedule data (D5).
+
+    Follows ``MenuProps`` to the letter: the section says *how* the hours
+    are introduced — heading, optional intro, and whether the live
+    open/closed status line is shown — while the weekly schedule,
+    exceptions, and instant facts are the hours domain's answer through
+    the public availability projection, composed at render time. A
+    schedule field here would be a second source of truth that publication
+    would freeze into immutable version history (ADR-025 D5).
+    """
+
+    heading: Heading
+    intro: Intro = None
+    show_open_now: bool = True
+
+
 class GalleryProps(StorefrontModel):
     """A bounded set of images, in display order."""
 
@@ -278,11 +304,18 @@ class GallerySection(SectionBase):
     props: GalleryProps
 
 
+class HoursSection(SectionBase):
+    type: Literal[SectionType.HOURS]
+    props: HoursProps
+
+
 # The concrete union (every registered section model) and the discriminated
 # form used as a field annotation. Both exist because the plain union is
 # what type annotations elsewhere need — ``Annotated`` cannot be used as a
 # parameter type without dragging the discriminator into every signature.
-AnySection = HeroSection | MenuSection | StorySection | ContactSection | GallerySection
+AnySection = (
+    HeroSection | MenuSection | StorySection | ContactSection | GallerySection | HoursSection
+)
 
 Section = Annotated[AnySection, Field(discriminator="type")]
 
@@ -295,6 +328,7 @@ SECTION_MODELS: dict[SectionType, type[AnySection]] = {
     SectionType.STORY: StorySection,
     SectionType.CONTACT: ContactSection,
     SectionType.GALLERY: GallerySection,
+    SectionType.HOURS: HoursSection,
 }
 
 
