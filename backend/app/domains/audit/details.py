@@ -353,7 +353,11 @@ class ScheduleExceptionRemovedDetails(AuditDetails):
 
 
 class FulfillmentUpdatedDetails(AuditDetails):
-    """The fulfillment policy was written (full-document command)."""
+    """The fulfillment policy was written (full-document command).
+
+    ``max_orders_per_slot`` (M6A, ADR-026 D3) is None for "unlimited";
+    the read projection simply omits an absent cap.
+    """
 
     pickup: Literal["enabled", "disabled"]
     asap: Literal["enabled", "disabled"]
@@ -361,6 +365,7 @@ class FulfillmentUpdatedDetails(AuditDetails):
     slot_interval_minutes: int
     last_order_before_close_minutes: int
     max_days_ahead: int
+    max_orders_per_slot: int | None = None
 
 
 class BusinessTimezoneChangedDetails(AuditDetails):
@@ -372,3 +377,16 @@ class BusinessTimezoneChangedDetails(AuditDetails):
 
     timezone_from: str
     timezone_to: str
+
+
+class OrderPlacedDetails(AuditDetails):
+    """A guest placed an order (M6A, ADR-026 — a NULL-actor event).
+
+    Ids, counts, and totals only: never the customer's name, contact,
+    consents, instructions, or the tracking token (blueprint §7.8).
+    """
+
+    order_number: int
+    line_count: int
+    total_minor: int
+    pickup_kind: Literal["asap", "scheduled"]

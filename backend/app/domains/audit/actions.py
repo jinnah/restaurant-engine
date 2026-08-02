@@ -71,3 +71,7 @@ class AuditAction(StrEnum):
     # D2: the platform timezone correction re-interprets every stored
     # local time, which is why it is audited with both values.
     BUSINESS_TIMEZONE_CHANGED = "business.timezone_changed"
+    # M6A: guest ordering (ADR-026). Placement is a NULL-actor public
+    # event; typed details carry ids and totals, never customer PII or
+    # the tracking token.
+    ORDER_PLACED = "order.placed"

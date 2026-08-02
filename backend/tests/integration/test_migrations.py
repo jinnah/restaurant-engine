@@ -67,7 +67,8 @@ def test_upgrade_head_runs_on_empty_database(empty_database_url: str) -> None:
         tables = set(inspect(engine).get_table_names())
         # M2A identity/audit + M2B tenancy + M2D onboarding/recovery/
         # entitlements + M3A catalog core + M3B modifiers + M3C media +
-        # M4A storefront foundation + M5A hours and fulfillment.
+        # M4A storefront foundation + M5A hours and fulfillment + M6A
+        # orders, idempotency, and the transactional outbox.
         assert tables == {
             "alembic_version",
             "users",
@@ -89,6 +90,12 @@ def test_upgrade_head_runs_on_empty_database(empty_database_url: str) -> None:
             "business_hours",
             "schedule_exceptions",
             "fulfillment_settings",
+            "orders",
+            "order_lines",
+            "order_line_options",
+            "order_status_events",
+            "idempotency_keys",
+            "outbox_messages",
         }
         with engine.connect() as connection:
             version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar()

@@ -102,6 +102,24 @@ def set_entitlements(
     return sorted(features)
 
 
+def business_has_feature(db: Session, business_id: uuid.UUID, feature: FeatureKey) -> bool:
+    """Actor-free entitlement check for public, host-resolved surfaces (M6A).
+
+    The first anonymous entitlement read (ADR-026 D12): callers have
+    already resolved an **active** Business from the Host, so no actor
+    exists and no authorization question remains — only the fact. Keyed
+    on the registry enum, so an unknown stored key can never satisfy it
+    (fail-closed by construction, like every other read here).
+    """
+    row = db.execute(
+        select(FeatureEntitlement.id).where(
+            FeatureEntitlement.business_id == business_id,
+            FeatureEntitlement.feature_key == feature.value,
+        )
+    ).first()
+    return row is not None
+
+
 def get_effective_features(
     db: Session, actor: ActorContext, business_id: uuid.UUID
 ) -> list[FeatureKey]:

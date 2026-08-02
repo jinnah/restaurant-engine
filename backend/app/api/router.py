@@ -26,6 +26,7 @@ from app.domains.identity.router_recovery import (
     recovery_public_router,
 )
 from app.domains.media.router_admin import media_admin_router
+from app.domains.orders.router_public import orders_public_router
 from app.domains.storefront.router_admin import storefront_admin_router
 from app.domains.storefront.router_platform import storefront_platform_router
 from app.domains.storefront.router_public import storefront_public_router
@@ -74,3 +75,7 @@ api_v1_router.include_router(hours_admin_router)
 # Hours (M5B, ADR-025): the host-resolved public availability projection;
 # unauthenticated, neutral-404, never cacheable (ruling D4).
 api_v1_router.include_router(hours_public_router)
+# Orders (M6A, ADR-026): host-resolved guest order placement —
+# anonymous, browser-context-checked, idempotent, neutral-404 for every
+# ineligible cause including a missing ordering entitlement (D10).
+api_v1_router.include_router(orders_public_router)

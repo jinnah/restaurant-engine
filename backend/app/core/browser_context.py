@@ -15,6 +15,16 @@ non-browser clients — tests, scripts, server-side callers — must send an
 allowlisted ``Origin`` explicitly (docs/05). This check is one of two
 independent CSRF layers; the synchronizer token (identity dependency)
 is the other.
+
+**Self-origin acceptance (M6A, ADR-026 D9).** Public checkout is an
+anonymous unsafe request from a *tenant* host, and tenant subdomains
+cannot be enumerated in a static allowlist. The Origin and Referer
+branches therefore also accept evidence whose **host equals the
+request's own Host** — the definition of same-origin, per host:port
+(scheme comparison stays with the M8 proxy-trust decision, where the
+TLS boundary is defined). Review deliberately rejected a broader
+"any tenant host family" rule: on a legacy browser it would let one
+tenant's origin satisfy the check for another tenant's host.
 """
 
 from urllib.parse import urlsplit
@@ -35,6 +45,23 @@ def _origin_of(url: str) -> str | None:
     return f"{parts.scheme}://{parts.netloc}".lower()
 
 
+def _host_of(url: str) -> str | None:
+    """The host:port of an absolute URL, lowercased; None when unparsable."""
+    parts = urlsplit(url)
+    if not parts.scheme or not parts.netloc:
+        return None
+    return parts.netloc.lower()
+
+
+def _is_self_origin(request: Request, url: str) -> bool:
+    """Does this absolute URL's host equal the request's own Host? (D9)"""
+    request_host = request.headers.get("host")
+    if request_host is None:
+        return False
+    evidence_host = _host_of(url)
+    return evidence_host is not None and evidence_host == request_host.strip().lower()
+
+
 def check_browser_context(request: Request) -> None:
     """Raise ``ApiError`` (403 csrf_rejected) unless same-origin is proven."""
     trusted = request.app.state.settings.trusted_origin_set
@@ -47,14 +74,18 @@ def check_browser_context(request: Request) -> None:
 
     origin = request.headers.get("origin")
     if origin is not None:
-        if origin.strip().rstrip("/").lower() in trusted:
+        cleaned = origin.strip().rstrip("/")
+        if cleaned.lower() in trusted or _is_self_origin(request, cleaned):
             return
         raise _rejection("Request origin is not trusted.")
 
     referer = request.headers.get("referer")
     if referer is not None:
-        referer_origin = _origin_of(referer.strip())
-        if referer_origin is not None and referer_origin in trusted:
+        cleaned = referer.strip()
+        referer_origin = _origin_of(cleaned)
+        if referer_origin is not None and (
+            referer_origin in trusted or _is_self_origin(request, cleaned)
+        ):
             return
         raise _rejection("Request referrer is not trusted.")
 

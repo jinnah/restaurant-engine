@@ -1264,6 +1264,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Public Order Place
+         * @description Place a pickup order (idempotent — blueprint §7.7, ruling D2).
+         *
+         *     201 with the order and its tracking token on creation; 200 with the
+         *     stored order (and an empty token — the token is disclosed exactly
+         *     once) when the idempotency key replays. Typed 409s carry the honest
+         *     reason: ``cart_stale``, ``price_changed``, ``slot_unavailable``, or
+         *     ``idempotency_key_reused``.
+         */
+        post: operations["public_order_place"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/site": {
         parameters: {
             query?: never;
@@ -1376,7 +1402,7 @@ export interface components {
          * @description Machine-readable audit event names (append-only).
          * @enum {string}
          */
-        AuditAction: "auth.login_succeeded" | "auth.login_failed" | "auth.login_throttled" | "auth.logout" | "user.platform_admin_created" | "business.created" | "business.activated" | "business.suspended" | "business.reactivated" | "business.closed" | "business.invitation_issued" | "business.invitation_revoked" | "business.invitation_accepted" | "business.entitlement_granted" | "business.entitlement_revoked" | "auth.password_reset_issued" | "auth.password_reset_completed" | "catalog.category_created" | "catalog.category_updated" | "catalog.category_deleted" | "catalog.categories_reordered" | "catalog.item_created" | "catalog.item_updated" | "catalog.item_deleted" | "catalog.items_reordered" | "catalog.item_availability_changed" | "catalog.modifier_group_created" | "catalog.modifier_group_updated" | "catalog.modifier_group_deleted" | "catalog.modifier_groups_reordered" | "catalog.modifier_option_created" | "catalog.modifier_option_updated" | "catalog.modifier_option_deleted" | "catalog.modifier_options_reordered" | "media.asset_uploaded" | "media.asset_deleted" | "media.asset_expired" | "catalog.item_image_changed" | "storefront.published" | "storefront.version_restored" | "storefront.design_assigned" | "business.hours_updated" | "business.schedule_exception_set" | "business.schedule_exception_removed" | "business.fulfillment_updated" | "business.timezone_changed";
+        AuditAction: "auth.login_succeeded" | "auth.login_failed" | "auth.login_throttled" | "auth.logout" | "user.platform_admin_created" | "business.created" | "business.activated" | "business.suspended" | "business.reactivated" | "business.closed" | "business.invitation_issued" | "business.invitation_revoked" | "business.invitation_accepted" | "business.entitlement_granted" | "business.entitlement_revoked" | "auth.password_reset_issued" | "auth.password_reset_completed" | "catalog.category_created" | "catalog.category_updated" | "catalog.category_deleted" | "catalog.categories_reordered" | "catalog.item_created" | "catalog.item_updated" | "catalog.item_deleted" | "catalog.items_reordered" | "catalog.item_availability_changed" | "catalog.modifier_group_created" | "catalog.modifier_group_updated" | "catalog.modifier_group_deleted" | "catalog.modifier_groups_reordered" | "catalog.modifier_option_created" | "catalog.modifier_option_updated" | "catalog.modifier_option_deleted" | "catalog.modifier_options_reordered" | "media.asset_uploaded" | "media.asset_deleted" | "media.asset_expired" | "catalog.item_image_changed" | "storefront.published" | "storefront.version_restored" | "storefront.design_assigned" | "business.hours_updated" | "business.schedule_exception_set" | "business.schedule_exception_removed" | "business.fulfillment_updated" | "business.timezone_changed" | "order.placed";
         /**
          * AuditEventPage
          * @description Cursor page (``id DESC``); ``next_before_id`` feeds the next request.
@@ -1519,6 +1545,23 @@ export interface components {
         BusinessTimezoneSet: {
             /** Timezone */
             timezone: string;
+        };
+        /**
+         * CartLineIn
+         * @description One submitted cart line: references plus quantity, never prices.
+         */
+        CartLineIn: {
+            /**
+             * Item Id
+             * Format: uuid
+             */
+            item_id: string;
+            /** Item Instructions */
+            item_instructions?: string | null;
+            /** Option Ids */
+            option_ids?: string[];
+            /** Quantity */
+            quantity: number;
         };
         /**
          * CategoryCreate
@@ -1786,7 +1829,7 @@ export interface components {
          * @description Machine-readable error code registry (append-only).
          * @enum {string}
          */
-        ErrorCode: "validation_error" | "not_found" | "method_not_allowed" | "http_error" | "internal_error" | "dependency_unavailable" | "authentication_required" | "invalid_credentials" | "csrf_rejected" | "permission_denied" | "conflict" | "invalid_state" | "payload_too_large";
+        ErrorCode: "validation_error" | "not_found" | "method_not_allowed" | "http_error" | "internal_error" | "dependency_unavailable" | "authentication_required" | "invalid_credentials" | "csrf_rejected" | "permission_denied" | "conflict" | "invalid_state" | "payload_too_large" | "cart_stale" | "price_changed" | "slot_unavailable" | "idempotency_key_reused";
         /** ErrorDetail */
         ErrorDetail: {
             code: components["schemas"]["ErrorCode"];
@@ -1846,6 +1889,8 @@ export interface components {
             lead_time_minutes: number;
             /** Max Days Ahead */
             max_days_ahead: number;
+            /** Max Orders Per Slot */
+            max_orders_per_slot: number | null;
             /** Pickup Enabled */
             pickup_enabled: boolean;
             /** Slot Interval Minutes */
@@ -1855,9 +1900,14 @@ export interface components {
          * FulfillmentSet
          * @description The complete desired fulfillment policy (full-document, idempotent).
          *
-         *     Every field is required: partial updates would reintroduce the
+         *     Every M5A field is required: partial updates would reintroduce the
          *     lost-update shape the full-document convention exists to avoid.
-         *     Throttling is deliberately absent (ruling D3 — M6).
+         *     ``max_orders_per_slot`` (M6A, ADR-026 D3) is additive with a default
+         *     — the M4G-A compatibility mechanism: a document from a client
+         *     predating the field (the delivered M5C form, until M6D adds its
+         *     control) omits it, and omission is the null it defaults to, which
+         *     means unlimited. Nothing stored is silently changed by an old
+         *     client's save, because null is exactly what every row holds today.
          */
         FulfillmentSet: {
             /** Asap Enabled */
@@ -1868,6 +1918,8 @@ export interface components {
             lead_time_minutes: number;
             /** Max Days Ahead */
             max_days_ahead: number;
+            /** Max Orders Per Slot */
+            max_orders_per_slot?: number | null;
             /** Pickup Enabled */
             pickup_enabled: boolean;
             /** Slot Interval Minutes */
@@ -2629,6 +2681,60 @@ export interface components {
             updated_at: string;
         };
         /**
+         * OrderPlace
+         * @description The idempotent placement command (blueprint §7.7; rulings D2/D7/D8).
+         *
+         *     ``expected_total_minor`` is the client's displayed total — compared,
+         *     never used in arithmetic. The two consents are independent required
+         *     booleans (never a blended opt-in). ``requested_pickup_at`` is
+         *     required exactly when ``pickup_kind`` is ``scheduled``.
+         */
+        OrderPlace: {
+            /** Consent Marketing */
+            consent_marketing: boolean;
+            /** Consent Updates */
+            consent_updates: boolean;
+            /** Customer Email */
+            customer_email?: string | null;
+            /** Customer Name */
+            customer_name: string;
+            /** Customer Phone */
+            customer_phone: string;
+            /** Expected Total Minor */
+            expected_total_minor: number;
+            /**
+             * Idempotency Key
+             * Format: uuid
+             */
+            idempotency_key: string;
+            /** Lines */
+            lines: components["schemas"]["CartLineIn"][];
+            /** Order Instructions */
+            order_instructions?: string | null;
+            pickup_kind: components["schemas"]["PickupKind"];
+            /** Requested Pickup At */
+            requested_pickup_at?: string | null;
+        };
+        /**
+         * OrderPlacedResponse
+         * @description The placement answer: the order plus its tracking token.
+         *
+         *     The token appears here and nowhere else, ever (ruling D4): it is not
+         *     stored in clear, not logged, not audited, and not returned by the
+         *     tracking route it authorizes.
+         */
+        OrderPlacedResponse: {
+            order: components["schemas"]["PublicOrderView"];
+            /** Tracking Token */
+            tracking_token: string;
+        };
+        /**
+         * OrderStatus
+         * @description The closed §7.7 status vocabulary (append-only).
+         * @enum {string}
+         */
+        OrderStatus: "submitted" | "accepted" | "preparing" | "ready" | "completed" | "rejected" | "cancelled";
+        /**
          * PaletteId
          * @description Platform-authored colour schemes (append-only, five permanent values).
          *
@@ -2688,6 +2794,12 @@ export interface components {
              */
             status: "password_reset";
         };
+        /**
+         * PickupKind
+         * @description How the pickup promise was chosen at placement.
+         * @enum {string}
+         */
+        PickupKind: "asap" | "scheduled";
         /**
          * PublicAvailability
          * @description The structured hours of the host-resolved active Business.
@@ -2994,6 +3106,69 @@ export interface components {
             name: string;
             /** Price Delta Minor */
             price_delta_minor: number;
+        };
+        /** PublicOrderLine */
+        PublicOrderLine: {
+            /** Base Price Minor */
+            base_price_minor: number;
+            /** Display Name */
+            display_name: string;
+            /** Line Total Minor */
+            line_total_minor: number;
+            /** Options */
+            options: components["schemas"]["PublicOrderLineOption"][];
+            /** Quantity */
+            quantity: number;
+        };
+        /**
+         * PublicOrderLineOption
+         * @description One snapshotted option, as stored — never re-read from catalog.
+         */
+        PublicOrderLineOption: {
+            /** Group Name */
+            group_name: string;
+            /** Option Name */
+            option_name: string;
+            /** Price Delta Minor */
+            price_delta_minor: number;
+        };
+        /**
+         * PublicOrderView
+         * @description The customer-facing order projection (tracking and placement).
+         *
+         *     Carries the snapshot and the promise — and no customer PII (review
+         *     amendment): a tracking URL is shareable by design, so the name,
+         *     contact, consents, and instructions the order stores never appear
+         *     here.
+         */
+        PublicOrderView: {
+            business: components["schemas"]["PublicSiteSummary"];
+            /** Business Timezone */
+            business_timezone: string;
+            /** Currency */
+            currency: string;
+            /** Lines */
+            lines: components["schemas"]["PublicOrderLine"][];
+            /** Order Number */
+            order_number: number;
+            pickup_kind: components["schemas"]["PickupKind"];
+            /**
+             * Placed At
+             * Format: date-time
+             */
+            placed_at: string;
+            /**
+             * Promised Pickup At
+             * Format: date-time
+             */
+            promised_pickup_at: string;
+            status: components["schemas"]["OrderStatus"];
+            /** Subtotal Minor */
+            subtotal_minor: number;
+            /** Tax Minor */
+            tax_minor: number;
+            /** Total Minor */
+            total_minor: number;
         };
         /**
          * PublicPickup
@@ -7961,6 +8136,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    public_order_place: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderPlace"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderPlacedResponse"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderPlacedResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

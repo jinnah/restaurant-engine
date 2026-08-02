@@ -505,6 +505,9 @@ class TestFulfillment:
             "slot_interval_minutes": 15,
             "last_order_before_close_minutes": 30,
             "max_days_ahead": 0,
+            # M6A (ADR-026 D3): no cap by default — throttling is an
+            # explicit operational choice.
+            "max_orders_per_slot": None,
             "is_configured": False,
         }
         with migrated_engine.connect() as connection:
@@ -530,7 +533,13 @@ class TestFulfillment:
                 headers=csrf_headers(csrf),
             )
             assert response.status_code == 200, response.text
-            assert response.json()["fulfillment"] == {**FULFILLMENT, "is_configured": True}
+            # A document predating max_orders_per_slot (the delivered M5C
+            # form) omits it; omission is the null it defaults to (M6A).
+            assert response.json()["fulfillment"] == {
+                **FULFILLMENT,
+                "max_orders_per_slot": None,
+                "is_configured": True,
+            }
         rows = _audit_rows(migrated_engine, business_id, "business.fulfillment_updated")
         assert len(rows) == 1
         assert rows[0]["details"] == {
@@ -540,6 +549,7 @@ class TestFulfillment:
             "slot_interval_minutes": 15,
             "last_order_before_close_minutes": 30,
             "max_days_ahead": 3,
+            "max_orders_per_slot": None,
         }
 
     def test_bounds_are_schema_enforced(
@@ -556,6 +566,10 @@ class TestFulfillment:
             ("slot_interval_minutes", 121),
             ("last_order_before_close_minutes", 241),
             ("max_days_ahead", 31),
+            # M6A (ADR-026 D3): null means unlimited; zero and above-cap
+            # are rejected, never coerced.
+            ("max_orders_per_slot", 0),
+            ("max_orders_per_slot", 101),
         ):
             response = client.put(
                 f"{_base(business_id)}/fulfillment",

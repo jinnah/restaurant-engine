@@ -54,6 +54,12 @@ class ErrorCode(StrEnum):
     INVALID_STATE = "invalid_state"
     # M3C (ADR-017): the only new M3 error code, first used by media upload.
     PAYLOAD_TOO_LARGE = "payload_too_large"
+    # M6A (ADR-026): checkout's typed 409s — each drives a distinct honest
+    # storefront presentation, so a generic "conflict" would be a UX lie.
+    CART_STALE = "cart_stale"
+    PRICE_CHANGED = "price_changed"
+    SLOT_UNAVAILABLE = "slot_unavailable"
+    IDEMPOTENCY_KEY_REUSED = "idempotency_key_reused"
 
 
 _STATUS_CODES: dict[int, ErrorCode] = {

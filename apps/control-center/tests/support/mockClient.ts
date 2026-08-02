@@ -142,6 +142,9 @@ export function fulfillmentOut(
     slot_interval_minutes: 15,
     last_order_before_close_minutes: 30,
     max_days_ahead: 0,
+    // M6A (ADR-026 D3): null = unlimited, the registry default. The M5C
+    // form neither shows nor sends it until M6D adds the control.
+    max_orders_per_slot: null,
     is_configured: false,
     ...overrides,
   };

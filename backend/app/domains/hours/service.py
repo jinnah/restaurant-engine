@@ -143,6 +143,7 @@ def _fulfillment_out(row: FulfillmentSettings | None) -> FulfillmentOut:
             slot_interval_minutes=DEFAULT_POLICY.slot_interval_minutes,
             last_order_before_close_minutes=DEFAULT_POLICY.last_order_before_close_minutes,
             max_days_ahead=DEFAULT_POLICY.max_days_ahead,
+            max_orders_per_slot=DEFAULT_POLICY.max_orders_per_slot,
             is_configured=False,
         )
     return FulfillmentOut(
@@ -152,6 +153,7 @@ def _fulfillment_out(row: FulfillmentSettings | None) -> FulfillmentOut:
         slot_interval_minutes=row.slot_interval_minutes,
         last_order_before_close_minutes=row.last_order_before_close_minutes,
         max_days_ahead=row.max_days_ahead,
+        max_orders_per_slot=row.max_orders_per_slot,
         is_configured=True,
     )
 
@@ -226,6 +228,7 @@ def effective_policy(db: Session, business_id: uuid.UUID) -> FulfillmentPolicy:
         slot_interval_minutes=row.slot_interval_minutes,
         last_order_before_close_minutes=row.last_order_before_close_minutes,
         max_days_ahead=row.max_days_ahead,
+        max_orders_per_slot=row.max_orders_per_slot,
     )
 
 
@@ -401,6 +404,7 @@ def set_fulfillment(
         and row.slot_interval_minutes == payload.slot_interval_minutes
         and row.last_order_before_close_minutes == payload.last_order_before_close_minutes
         and row.max_days_ahead == payload.max_days_ahead
+        and row.max_orders_per_slot == payload.max_orders_per_slot
     ):
         return _settings_view(db, business)
     if row is None:
@@ -412,6 +416,7 @@ def set_fulfillment(
             slot_interval_minutes=payload.slot_interval_minutes,
             last_order_before_close_minutes=payload.last_order_before_close_minutes,
             max_days_ahead=payload.max_days_ahead,
+            max_orders_per_slot=payload.max_orders_per_slot,
         )
         repository.add(db, row)
     else:
@@ -421,6 +426,7 @@ def set_fulfillment(
         row.slot_interval_minutes = payload.slot_interval_minutes
         row.last_order_before_close_minutes = payload.last_order_before_close_minutes
         row.max_days_ahead = payload.max_days_ahead
+        row.max_orders_per_slot = payload.max_orders_per_slot
     recorder.record(
         db,
         AuditAction.BUSINESS_FULFILLMENT_UPDATED,
@@ -435,6 +441,7 @@ def set_fulfillment(
             slot_interval_minutes=payload.slot_interval_minutes,
             last_order_before_close_minutes=payload.last_order_before_close_minutes,
             max_days_ahead=payload.max_days_ahead,
+            max_orders_per_slot=payload.max_orders_per_slot,
         ),
     )
     db.commit()

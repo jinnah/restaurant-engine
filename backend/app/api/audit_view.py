@@ -26,6 +26,7 @@ from app.domains.audit.actions import AuditAction
 from app.domains.audit.models import AuditEvent
 from app.domains.catalog.policies import MAX_PRICE_MINOR
 from app.domains.media.policies import MAX_ASSET_OUTPUT_BYTES
+from app.domains.orders.policies import MAX_TOTAL_MINOR
 from app.domains.storefront.variants import DesignVariant
 
 _MAX_STRING = 320  # longest legitimate detail value (emails are <= 254)
@@ -92,6 +93,19 @@ _VARIANT_CHOICE = _choice(frozenset(variant.value for variant in DesignVariant))
 _EXCEPTION_KIND_CHOICE = _choice(frozenset({"closed_all_day", "special_hours"}))
 _NOTE_PRESENCE_CHOICE = _choice(frozenset({"present", "absent"}))
 _ENABLEMENT_CHOICE = _choice(frozenset({"enabled", "disabled"}))
+# M6A (ADR-026): the placement event's closed pickup vocabulary.
+_PICKUP_KIND_CHOICE = _choice(frozenset({"asap", "scheduled"}))
+
+
+def _total_int(value: object) -> int | None:
+    """Admit an order total within the orders policy bound (M6A).
+
+    Shares ``orders.policies.MAX_TOTAL_MINOR`` so every total the
+    placement service can store is faithfully retained by the projection.
+    """
+    if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= MAX_TOTAL_MINOR:
+        return value
+    return None
 
 
 def _byte_int(value: object) -> int | None:
@@ -297,10 +311,20 @@ _PROJECTIONS: dict[str, dict[str, _Extractor]] = {
         "slot_interval_minutes": _small_int,
         "last_order_before_close_minutes": _small_int,
         "max_days_ahead": _small_int,
+        # M6A (ADR-026 D3): absent when unlimited — the extractor drops None.
+        "max_orders_per_slot": _small_int,
     },
     AuditAction.BUSINESS_TIMEZONE_CHANGED.value: {
         "timezone_from": _short_str,
         "timezone_to": _short_str,
+    },
+    # M6A (ADR-026): the guest placement event. Totals use the orders
+    # bound (far above any single price); nothing here is customer PII.
+    AuditAction.ORDER_PLACED.value: {
+        "order_number": _small_int,
+        "line_count": _small_int,
+        "total_minor": _total_int,
+        "pickup_kind": _PICKUP_KIND_CHOICE,
     },
 }
 
