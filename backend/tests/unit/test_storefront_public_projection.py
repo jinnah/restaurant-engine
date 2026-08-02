@@ -59,11 +59,13 @@ _PUBLIC_MODELS = (
     public_schemas.PublicStorySection,
     public_schemas.PublicContactSection,
     public_schemas.PublicGallerySection,
+    public_schemas.PublicHoursSection,
     public_schemas.PublicHeroProps,
     public_schemas.PublicMenuSectionProps,
     public_schemas.PublicStoryProps,
     public_schemas.PublicContactProps,
     public_schemas.PublicGalleryProps,
+    public_schemas.PublicHoursSectionProps,
     public_schemas.PublicStorefrontImage,
     public_schemas.PublicStorefrontImageVariant,
     public_schemas.PublicThemeLogo,
@@ -97,6 +99,7 @@ class TestPublicSchemasCarryNoInternalField:
             public_schemas.PublicStorySection,
             public_schemas.PublicContactSection,
             public_schemas.PublicGallerySection,
+            public_schemas.PublicHoursSection,
         ):
             annotation = model.model_fields["type"].annotation
             assert annotation is not None
@@ -271,6 +274,39 @@ class TestSectionProjection:
         assert view.props.primary_action is HeroAction.VIEW_MENU
         # An unresolvable reference is absent, never a dead URL.
         assert view.props.image is None
+
+    def test_hours_projects_presentation_choices_and_no_schedule(self) -> None:
+        """The D5 seam on the read side: the projection carries the owner's
+        presentation choices verbatim and no hours data of any shape — the
+        schedule is the availability projection's answer, composed at
+        render time by the storefront application."""
+        config = parse_config(
+            {
+                "schema_version": 1,
+                "theme": {"accent": "#a34b2a"},
+                "sections": [
+                    {
+                        "id": "hours",
+                        "type": "hours",
+                        "enabled": True,
+                        "props": {"heading": "Opening hours", "show_open_now": False},
+                    }
+                ],
+            }
+        )
+        (section,) = config.sections
+        view = public_service._section_view(
+            section, {}, {}, public_service.preview_media_url_builder(uuid.uuid4())
+        )
+        assert isinstance(view, public_schemas.PublicHoursSection)
+        assert view.props.heading == "Opening hours"
+        assert view.props.intro is None
+        assert view.props.show_open_now is False
+        assert set(public_schemas.PublicHoursSectionProps.model_fields) == {
+            "heading",
+            "intro",
+            "show_open_now",
+        }
 
     def test_gallery_with_unresolvable_assets_projects_empty(self) -> None:
         config = parse_config(

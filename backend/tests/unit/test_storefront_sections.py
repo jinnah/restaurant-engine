@@ -156,7 +156,13 @@ def test_unknown_property_is_rejected_not_ignored() -> None:
 
 
 def test_no_section_may_carry_hours_or_open_now() -> None:
-    """Hours are M5; a free-text opening line here would pre-empt them."""
+    """Structured hours belong to the hours domain, never to a section.
+
+    M5D registered the ``hours`` section, but the D5 ruling stands: a
+    free-text opening line on *any* section — including the hours section
+    itself — would be the freeform storefront text docs/03 forbids and a
+    second source of truth beside the availability projection.
+    """
     for field in ("hours", "opening_hours", "open_now", "hours_text"):
         with pytest.raises(ValidationError):
             parse_config(
@@ -172,6 +178,64 @@ def test_no_section_may_carry_hours_or_open_now() -> None:
     assert not {name for name in contact_fields if "hour" in name or "open" in name}
 
 
+def test_hours_section_accepts_its_shape_and_defaults() -> None:
+    """The M5D section (ADR-025 D5): heading, optional intro, one toggle."""
+    config = parse_config(
+        _config(
+            {
+                "id": "hours",
+                "type": "hours",
+                "props": {"heading": "Opening hours", "intro": "Kitchen closes 30 min early."},
+            }
+        )
+    )
+    hours = config.sections[0]
+    assert isinstance(hours, sections.HoursSection)
+    assert hours.props.heading == "Opening hours"
+    assert hours.props.intro == "Kitchen closes 30 min early."
+    # The status line defaults to shown; hiding it is the owner's choice.
+    assert hours.props.show_open_now is True
+
+    minimal = parse_config(_config({"id": "hours", "type": "hours", "props": {"heading": "Hours"}}))
+    minimal_hours = minimal.sections[0]
+    assert isinstance(minimal_hours, sections.HoursSection)
+    assert minimal_hours.props.intro is None
+
+
+def test_hours_section_is_data_free() -> None:
+    """Ruling D5, made structural: presentation choices and nothing else.
+
+    The section stores no schedule in any shape — no intervals, dates,
+    minutes, timezone, or free-text hours line. The exact field set is
+    pinned so a data-bearing field cannot arrive without failing here,
+    and every smuggling attempt is a 422 through ``extra="forbid"``.
+    """
+    assert set(sections.HoursProps.model_fields) == {"heading", "intro", "show_open_now"}
+    for field, value in (
+        ("weekly", [{"day_of_week": 0, "opens_minute": 540, "closes_minute": 1020}]),
+        ("intervals", []),
+        ("timezone", "America/New_York"),
+        ("hours_text", "Mon-Fri 9-5"),
+        ("opens_minute", 540),
+        ("is_open_now", True),
+    ):
+        with pytest.raises(ValidationError):
+            parse_config(
+                _config(
+                    {
+                        "id": "hours",
+                        "type": "hours",
+                        "props": {"heading": "Hours", field: value},
+                    }
+                )
+            )
+
+
+def test_hours_section_references_no_media() -> None:
+    config = parse_config(_config({"id": "hours", "type": "hours", "props": {"heading": "Hours"}}))
+    assert sections.referenced_media_ids(config.sections[0]) == []
+
+
 def test_hero_action_is_a_closed_enum_without_ordering() -> None:
     """The M6 seam: ordering is not a member until M6 adds it."""
     assert {action.value for action in HeroAction} == {"none", "view_menu"}
@@ -182,7 +246,7 @@ def test_hero_action_is_a_closed_enum_without_ordering() -> None:
 
 def test_no_section_type_is_an_ordering_or_campaign_surface() -> None:
     registered = {section_type.value for section_type in SectionType}
-    assert registered == {"hero", "menu", "story", "contact", "gallery"}
+    assert registered == {"hero", "menu", "story", "contact", "gallery", "hours"}
     assert not registered & {"order", "ordering", "cart", "checkout", "campaign", "popup"}
 
 

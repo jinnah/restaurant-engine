@@ -172,6 +172,18 @@ def _contact(*, enabled: bool = True) -> dict[str, Any]:
     }
 
 
+def _hours(
+    *,
+    enabled: bool = True,
+    intro: str | None = "Kitchen closes 30 minutes early.",
+    show_open_now: bool = True,
+) -> dict[str, Any]:
+    props: dict[str, Any] = {"heading": "Opening hours", "show_open_now": show_open_now}
+    if intro is not None:
+        props["intro"] = intro
+    return {"id": "hours-main", "type": "hours", "enabled": enabled, "props": props}
+
+
 def _gallery(
     media_ids: list[uuid.UUID], *, enabled: bool = True, heading: str | None = None
 ) -> dict[str, Any]:
@@ -457,6 +469,34 @@ class TestPublicStorefrontShape:
             published_by=publisher,
         )
         assert _get(client).json()["theme"]["logo"] is None
+
+    def test_hours_section_projects_presentation_choices_and_no_schedule(
+        self,
+        client: TestClient,
+        create_business: CreateBusiness,
+        create_user: CreateUser,
+        migrated_engine: Engine,
+    ) -> None:
+        """The M5D section over the wire (ADR-025 D5): the published
+        projection carries the owner's heading, intro, and status toggle —
+        and no schedule of any shape. The weekly hours, exceptions, and
+        instant facts stay the availability projection's answer
+        (`GET /api/v1/public/availability`), composed at render time."""
+        _published_site(
+            create_business,
+            create_user,
+            migrated_engine,
+            sections=[_hero("Shalik Kitchen"), _hours(show_open_now=False)],
+        )
+        body = _get(client).json()
+        assert [section["type"] for section in body["sections"]] == ["hero", "hours"]
+        hours = body["sections"][1]
+        assert set(hours) == {"id", "type", "props"}
+        assert hours["props"] == {
+            "heading": "Opening hours",
+            "intro": "Kitchen closes 30 minutes early.",
+            "show_open_now": False,
+        }
 
     def test_disabled_sections_are_omitted_and_order_is_preserved(
         self,

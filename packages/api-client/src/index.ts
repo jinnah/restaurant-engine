@@ -130,6 +130,7 @@ export type {
   PublicContactSection,
   PublicGallerySection,
   PublicHeroSection,
+  PublicHoursSection,
   PublicMenu,
   PublicMenuCategory,
   PublicMenuImage,

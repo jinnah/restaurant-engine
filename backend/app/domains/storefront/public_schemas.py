@@ -112,6 +112,21 @@ class PublicGalleryProps(BaseModel):
     images: list[PublicStorefrontImage]
 
 
+class PublicHoursSectionProps(BaseModel):
+    """Hours section: presentation choices only (ADR-025 D5).
+
+    Carries **no** schedule — the renderer composes this section with the
+    public availability projection (`public_availability_get`), which
+    remains the single source of the weekly schedule, exceptions, and the
+    live open/closed facts. `show_open_now` is the owner's display choice
+    for the status line, not a computed fact.
+    """
+
+    heading: str
+    intro: str | None
+    show_open_now: bool
+
+
 class PublicHeroSection(BaseModel):
     id: str
     type: Literal[SectionType.HERO]
@@ -142,12 +157,19 @@ class PublicGallerySection(BaseModel):
     props: PublicGalleryProps
 
 
+class PublicHoursSection(BaseModel):
+    id: str
+    type: Literal[SectionType.HOURS]
+    props: PublicHoursSectionProps
+
+
 AnyPublicSection = (
     PublicHeroSection
     | PublicMenuSection
     | PublicStorySection
     | PublicContactSection
     | PublicGallerySection
+    | PublicHoursSection
 )
 
 # The discriminated form used as the field annotation (the sections.py

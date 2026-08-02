@@ -39,6 +39,9 @@ export type PublicContactSection =
   components['schemas']['PublicContactSection'];
 export type PublicGallerySection =
   components['schemas']['PublicGallerySection'];
+// M5D (ADR-025 D5): presentation choices only — the schedule itself is the
+// availability projection's answer, composed at render time.
+export type PublicHoursSection = components['schemas']['PublicHoursSection'];
 /**
  * One enabled section of the published projection (the members carry the
  * `type` discriminant). Named here because the OpenAPI document publishes

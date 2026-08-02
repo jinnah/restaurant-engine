@@ -1279,6 +1279,66 @@
         "title": "HoursInterval",
         "type": "object"
       },
+      "HoursProps": {
+        "additionalProperties": false,
+        "description": "Hours section: presentation choices only, never schedule data (D5).\n\nFollows ``MenuProps`` to the letter: the section says *how* the hours\nare introduced — heading, optional intro, and whether the live\nopen/closed status line is shown — while the weekly schedule,\nexceptions, and instant facts are the hours domain's answer through\nthe public availability projection, composed at render time. A\nschedule field here would be a second source of truth that publication\nwould freeze into immutable version history (ADR-025 D5).",
+        "properties": {
+          "heading": {
+            "title": "Heading",
+            "type": "string"
+          },
+          "intro": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intro"
+          },
+          "show_open_now": {
+            "default": true,
+            "title": "Show Open Now",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "heading"
+        ],
+        "title": "HoursProps",
+        "type": "object"
+      },
+      "HoursSection": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "props": {
+            "$ref": "#/components/schemas/HoursProps"
+          },
+          "type": {
+            "const": "hours",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "props"
+        ],
+        "title": "HoursSection",
+        "type": "object"
+      },
       "HoursSettings": {
         "description": "The complete operating configuration in one read.\n\n``timezone`` is the business's IANA zone — stated here because every\nminute value below is local wall time under exactly that zone.\nExceptions are the bounded window around today (tenant-local), sorted\nby date.",
         "properties": {
@@ -2907,6 +2967,60 @@
         "title": "PublicHoursInterval",
         "type": "object"
       },
+      "PublicHoursSection": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "props": {
+            "$ref": "#/components/schemas/PublicHoursSectionProps"
+          },
+          "type": {
+            "const": "hours",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "props"
+        ],
+        "title": "PublicHoursSection",
+        "type": "object"
+      },
+      "PublicHoursSectionProps": {
+        "description": "Hours section: presentation choices only (ADR-025 D5).\n\nCarries **no** schedule — the renderer composes this section with the\npublic availability projection (`public_availability_get`), which\nremains the single source of the weekly schedule, exceptions, and the\nlive open/closed facts. `show_open_now` is the owner's display choice\nfor the status line, not a computed fact.",
+        "properties": {
+          "heading": {
+            "title": "Heading",
+            "type": "string"
+          },
+          "intro": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intro"
+          },
+          "show_open_now": {
+            "title": "Show Open Now",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "heading",
+          "intro",
+          "show_open_now"
+        ],
+        "title": "PublicHoursSectionProps",
+        "type": "object"
+      },
       "PublicMenu": {
         "description": "The complete public menu of the host-resolved Business.\n\n`business` is the sole source of name, slug, timezone, and currency.\n`featured_item_ids` lists at most the featured-policy maximum and\nrefers only to items present in `categories`.",
         "properties": {
@@ -3360,6 +3474,7 @@
                   "contact": "#/components/schemas/PublicContactSection",
                   "gallery": "#/components/schemas/PublicGallerySection",
                   "hero": "#/components/schemas/PublicHeroSection",
+                  "hours": "#/components/schemas/PublicHoursSection",
                   "menu": "#/components/schemas/PublicMenuSection",
                   "story": "#/components/schemas/PublicStorySection"
                 },
@@ -3380,6 +3495,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/PublicGallerySection"
+                },
+                {
+                  "$ref": "#/components/schemas/PublicHoursSection"
                 }
               ]
             },
@@ -3864,6 +3982,7 @@
                   "contact": "#/components/schemas/ContactSection",
                   "gallery": "#/components/schemas/GallerySection",
                   "hero": "#/components/schemas/HeroSection",
+                  "hours": "#/components/schemas/HoursSection",
                   "menu": "#/components/schemas/MenuSection",
                   "story": "#/components/schemas/StorySection"
                 },
@@ -3884,10 +4003,13 @@
                 },
                 {
                   "$ref": "#/components/schemas/GallerySection"
+                },
+                {
+                  "$ref": "#/components/schemas/HoursSection"
                 }
               ]
             },
-            "maxItems": 5,
+            "maxItems": 6,
             "title": "Sections",
             "type": "array"
           },

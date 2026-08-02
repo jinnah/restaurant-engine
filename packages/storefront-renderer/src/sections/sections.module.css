@@ -114,3 +114,61 @@
 .menuLink {
   margin-top: var(--space-1);
 }
+
+/* Hours section (M5D). Live schedule composed from the availability
+   projection; presentation only — no motion (status must never be
+   animated content) and comfortable line heights for scanning. */
+.hoursStatus {
+  margin: 0 0 var(--space-1);
+}
+
+.hoursWeek {
+  margin: 0;
+}
+
+.hoursRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  justify-content: space-between;
+  line-height: 1.7;
+}
+
+.hoursDay {
+  font-weight: 600;
+  margin: 0;
+}
+
+.hoursTimes {
+  margin: 0;
+  text-align: right;
+}
+
+.hoursExceptions {
+  margin-top: var(--space-2);
+}
+
+.hoursExceptionsHeading {
+  font-size: calc(1.125rem * var(--type-scale, 1));
+  line-height: 1.3;
+  margin: 0 0 var(--space-1);
+}
+
+.hoursExceptionList {
+  line-height: 1.7;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hoursExceptionItem {
+  margin: 0;
+}
+
+.hoursExceptionDate {
+  font-weight: 600;
+}
+
+.hoursExceptionNote {
+  color: var(--color-muted);
+}

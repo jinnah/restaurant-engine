@@ -44,6 +44,7 @@ interface SectionFormValues {
   phone: string;
   email: string;
   images: SectionImageRef[];
+  showOpenNow: boolean;
 }
 
 const requiredText = (message: string) =>
@@ -66,6 +67,7 @@ const baseShape = {
   phone: z.string(),
   email: z.string(),
   images: z.array(z.custom<SectionImageRef>(() => true)),
+  showOpenNow: z.boolean(),
 };
 
 function schemaFor(
@@ -74,6 +76,7 @@ function schemaFor(
   switch (type) {
     case 'hero':
     case 'menu':
+    case 'hours':
       return z.object({
         ...baseShape,
         heading: requiredText('Enter a heading.'),
@@ -119,6 +122,7 @@ function formValuesFromSection(section: ConfigSection): SectionFormValues {
     phone: '',
     email: '',
     images: [],
+    showOpenNow: true,
   };
   switch (section.type) {
     case 'hero':
@@ -155,6 +159,11 @@ function formValuesFromSection(section: ConfigSection): SectionFormValues {
         media_id: image.media_id,
         alt_text: image.alt_text ?? null,
       }));
+      break;
+    case 'hours':
+      values.heading = section.props.heading;
+      values.intro = section.props.intro ?? '';
+      values.showOpenNow = section.props.show_open_now ?? true;
       break;
   }
   return values;
@@ -213,6 +222,17 @@ function buildSection(
         type,
         enabled: data.enabled,
         props: { heading: blankToNull(data.heading), images: data.images },
+      };
+    case 'hours':
+      return {
+        id,
+        type,
+        enabled: data.enabled,
+        props: {
+          heading: data.heading.trim(),
+          intro: blankToNull(data.intro),
+          show_open_now: data.showOpenNow,
+        },
       };
   }
 }
@@ -445,7 +465,8 @@ export function SectionEditDialog({
           {(type === 'hero' ||
             type === 'menu' ||
             type === 'story' ||
-            type === 'contact') && (
+            type === 'contact' ||
+            type === 'hours') && (
             <FormField
               id="section-heading"
               label="Heading"
@@ -541,7 +562,7 @@ export function SectionEditDialog({
             </>
           )}
 
-          {type === 'menu' && (
+          {(type === 'menu' || type === 'hours') && (
             <TextAreaField
               id="section-intro"
               label="Introduction (optional)"
@@ -549,6 +570,28 @@ export function SectionEditDialog({
               error={fieldError(form, 'intro')}
               {...registerClearing('intro')}
             />
+          )}
+
+          {type === 'hours' && (
+            <>
+              <CheckboxField
+                id="section-show-open-now"
+                label="Show whether you're open right now"
+                hint="The live status comes from your hours; visitors see it update automatically."
+                defaultChecked={form.getValues('showOpenNow')}
+                onChange={(event) => {
+                  form.setValue('showOpenNow', event.target.checked, {
+                    shouldDirty: true,
+                  });
+                  clearServerError('showOpenNow');
+                }}
+              />
+              <p className={styles.note}>
+                Your weekly schedule, special dates, and open/closed status come
+                from the Hours page — this section only chooses how they are
+                introduced.
+              </p>
+            </>
           )}
 
           {type === 'story' && (

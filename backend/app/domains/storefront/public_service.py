@@ -56,6 +56,8 @@ from app.domains.storefront.public_schemas import (
     PublicGallerySection,
     PublicHeroProps,
     PublicHeroSection,
+    PublicHoursSection,
+    PublicHoursSectionProps,
     PublicMenuSection,
     PublicMenuSectionProps,
     PublicStorefront,
@@ -71,6 +73,7 @@ from app.domains.storefront.sections import (
     ContactSection,
     GallerySection,
     HeroSection,
+    HoursSection,
     MenuSection,
     SectionImage,
     StorySection,
@@ -254,6 +257,18 @@ def _section_view(
                 address_lines=list(section.props.address_lines),
                 phone=section.props.phone,
                 email=section.props.email,
+            ),
+        )
+    if isinstance(section, HoursSection):
+        # Presentation choices only (ADR-025 D5): the schedule itself is
+        # the availability projection's answer, composed at render time.
+        return PublicHoursSection(
+            id=section.id,
+            type=section.type,
+            props=PublicHoursSectionProps(
+                heading=section.props.heading,
+                intro=section.props.intro,
+                show_open_now=section.props.show_open_now,
             ),
         )
     assert isinstance(section, GallerySection)  # noqa: S101 - closed registry union

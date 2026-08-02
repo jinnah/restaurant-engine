@@ -6,13 +6,18 @@
 
 import { notFound } from 'next/navigation';
 
-import type { PublicMenu } from '@restaurant-engine/api-client';
 import type {
+  PublicAvailability,
+  PublicMenu,
+} from '@restaurant-engine/api-client';
+import type {
+  HoursSectionData,
   MenuSectionData,
   PublicStorefront,
 } from '@restaurant-engine/storefront-renderer';
 
 import {
+  getPublicAvailability,
   getPublicMenu,
   getPublishedStorefront,
   type StorefrontResult,
@@ -34,6 +39,30 @@ export async function requirePublishedStorefront(): Promise<PublicStorefront> {
 
 export async function requirePublicMenu(): Promise<PublicMenu> {
   return unwrap(await getPublicMenu());
+}
+
+export async function requirePublicAvailability(): Promise<PublicAvailability> {
+  return unwrap(await getPublicAvailability());
+}
+
+/**
+ * The hours section's render-time composition (M5D, ADR-025 D5): the
+ * slice of the availability projection the renderer presents. Field
+ * names stay the contract's; the tenant timezone rides along so the
+ * instant facts are always formatted in the tenant's zone, never the
+ * server's.
+ */
+export function hoursSectionData(
+  availability: PublicAvailability,
+): HoursSectionData {
+  return {
+    timezone: availability.business.timezone,
+    is_open_now: availability.is_open_now,
+    closes_at: availability.closes_at,
+    next_opens_at: availability.next_opens_at,
+    weekly: availability.weekly,
+    exceptions: availability.exceptions,
+  };
 }
 
 /** Featured items in the projection's featured order, for the menu section. */

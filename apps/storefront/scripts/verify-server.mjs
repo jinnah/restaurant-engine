@@ -60,7 +60,39 @@ const STOREFRONT_PAYLOAD = {
       type: 'menu',
       props: { heading: 'Menu preview', intro: null },
     },
+    {
+      id: 'hours-main',
+      type: 'hours',
+      props: {
+        heading: 'Verification hours',
+        intro: null,
+        show_open_now: true,
+      },
+    },
   ],
+};
+
+// M5D (ADR-025): the availability projection the hours section and the
+// JSON-LD hours derive from. Fixed instants — the section formats them
+// in the tenant timezone; nothing recomputes openness.
+const AVAILABILITY_PAYLOAD = {
+  business: STOREFRONT_PAYLOAD.business,
+  is_open_now: true,
+  closes_at: '2026-08-08T01:00:00Z',
+  next_opens_at: null,
+  weekly: [
+    { day_of_week: 0, opens_minute: 660, closes_minute: 1260 },
+    // A D1 overnight interval: Saturday service ending 2:00 AM Sunday.
+    { day_of_week: 5, opens_minute: 1020, closes_minute: 1560 },
+  ],
+  exceptions: [
+    {
+      exception_date: '2026-12-25',
+      intervals: [],
+      note: 'Holiday closure',
+    },
+  ],
+  pickup: { enabled: true, asap_enabled: true, next_pickup_at: null },
 };
 
 const MENU_PAYLOAD = {
@@ -166,6 +198,13 @@ async function main() {
       respond(200, JSON.stringify(STOREFRONT_PAYLOAD));
     } else if (req.url === '/api/v1/public/menu') {
       respond(200, JSON.stringify(MENU_PAYLOAD));
+    } else if (req.url === '/api/v1/public/availability') {
+      // The real route is never cacheable (ADR-025 D4).
+      res.writeHead(200, {
+        'content-type': 'application/json',
+        'cache-control': 'no-store',
+      });
+      res.end(JSON.stringify(AVAILABILITY_PAYLOAD));
     } else {
       respond(404, NOT_FOUND_BODY);
     }
@@ -255,6 +294,30 @@ async function main() {
         home.body.includes('"@type":"Restaurant"') &&
         home.body.includes('"name":"Verify Kitchen"'),
     );
+    // M5D: the hours section renders the availability projection — the
+    // schedule in the tenant timezone and the server-computed status —
+    // and the JSON-LD models the weekly hours (blueprint section 12.2),
+    // including the D1 overnight interval in the schema.org convention
+    // (closes earlier than opens spans the next day).
+    check(
+      'home: hours section renders the composed schedule and status',
+      home.body.includes('Verification hours') &&
+        home.body.includes('Open now') &&
+        home.body.includes('11:00 AM – 9:00 PM') &&
+        home.body.includes('5:00 PM – 2:00 AM') &&
+        home.body.includes('December 25, 2026') &&
+        home.body.includes('Holiday closure'),
+    );
+    check(
+      'home: JSON-LD models the weekly hours including overnight',
+      home.body.includes('"openingHoursSpecification"') &&
+        home.body.includes(
+          '{"@type":"OpeningHoursSpecification","dayOfWeek":"Monday","opens":"11:00","closes":"21:00"}',
+        ) &&
+        home.body.includes(
+          '{"@type":"OpeningHoursSpecification","dayOfWeek":"Saturday","opens":"17:00","closes":"02:00"}',
+        ),
+    );
     check(
       'home: backend saw the tenant Host on every request',
       tenantRequests.length > 0 &&
@@ -294,14 +357,20 @@ async function main() {
       accentText !== undefined && accentText !== '#0f2f4f',
       String(accentText),
     );
-    // ADR-021 section 3: the measured render cost is TWO backend reads
-    // (projection + menu). The root layout reads the same argument-less
-    // React.cache loader the page body and generateMetadata already call,
-    // so it must deduplicate rather than add a third request.
+    // ADR-021 section 3 as amended by ADR-025 (M5D): the measured render
+    // cost is THREE backend reads (projection + menu + availability). The
+    // root layout reads the same argument-less React.cache loaders the
+    // page body and generateMetadata already call, so deduplication still
+    // holds — the third read is the availability projection, not a
+    // duplicate.
     check(
-      'home: render cost is exactly two backend reads',
-      homeRenderRequests.length === 2,
+      'home: render cost is exactly three backend reads',
+      homeRenderRequests.length === 3,
       `${String(homeRenderRequests.length)}: ${homeRenderRequests.join(', ')}`,
+    );
+    check(
+      'home: the third read is the availability projection',
+      homeRenderRequests.includes('/api/v1/public/availability'),
     );
 
     // --- Static assets keep the framework's immutable caching.
