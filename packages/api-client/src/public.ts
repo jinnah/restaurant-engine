@@ -47,6 +47,13 @@ export type PublicGallerySection =
  */
 export type PublicSection = PublicStorefront['sections'][number];
 export type HeroAction = components['schemas']['HeroAction'];
+// M5B (ADR-025): the host-resolved availability projection.
+export type PublicAvailability = components['schemas']['PublicAvailability'];
+export type PublicWeeklyInterval =
+  components['schemas']['PublicWeeklyInterval'];
+export type PublicScheduleException =
+  components['schemas']['PublicScheduleException'];
+export type PublicPickup = components['schemas']['PublicPickup'];
 
 export interface PublicApi {
   getSite(): Promise<ApiResult<PublicSiteSummary>>;
@@ -59,6 +66,14 @@ export interface PublicApi {
    * a draft.
    */
   getStorefront(): Promise<ApiResult<PublicStorefront>>;
+  /**
+   * The structured hours of the Host-resolved Business (M5B): weekly
+   * schedule, upcoming exceptions, open/closed instant facts, pickup.
+   * Every active business answers — no configured hours is honestly
+   * closed, not a 404. Never cached (ruling D4): consumers must not
+   * store it beyond the render that requested it.
+   */
+  getAvailability(): Promise<ApiResult<PublicAvailability>>;
 }
 
 export function createPublicApi(client: Client<paths>): PublicApi {
@@ -89,6 +104,17 @@ export function createPublicApi(client: Client<paths>): PublicApi {
       try {
         const { data, error, response } = await client.GET(
           '/api/v1/public/storefront',
+        );
+        return toResult(data, error, response);
+      } catch {
+        return { ok: false, status: null, envelope: null };
+      }
+    },
+
+    async getAvailability() {
+      try {
+        const { data, error, response } = await client.GET(
+          '/api/v1/public/availability',
         );
         return toResult(data, error, response);
       } catch {
