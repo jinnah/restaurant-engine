@@ -67,7 +67,8 @@
           "business.schedule_exception_removed",
           "business.fulfillment_updated",
           "business.timezone_changed",
-          "order.placed"
+          "order.placed",
+          "order.cancelled_by_customer"
         ],
         "title": "AuditAction",
         "type": "string"
@@ -1239,10 +1240,11 @@
         "type": "object"
       },
       "HeroAction": {
-        "description": "The hero's primary call to action — a closed enum, not free text.\n\n``view_menu`` is ordinary in-site navigation to the menu. It is **not**\nan ordering call to action: no ordering exists before M6, and this enum\nis the seam where an entitlement-gated ordering member will be added\nwhen it does.",
+        "description": "The hero's primary call to action — a closed enum, not free text.\n\n``view_menu`` is ordinary in-site navigation to the menu.\n``order_online`` is the M6 member this enum always reserved (M6B,\nADR-026): stored content stays a *choice*, and the renderer gates it\non the live ``ordering_enabled`` fact at render time — entitlement is\na platform fact that changes independently of published content, so\na hero authored with the ordering action degrades to the plain menu\nlink whenever ordering is off (the D12 render-time-gate ruling).",
         "enum": [
           "none",
-          "view_menu"
+          "view_menu",
+          "order_online"
         ],
         "title": "HeroAction",
         "type": "string"
@@ -3699,7 +3701,7 @@
         "type": "object"
       },
       "PublicPickup": {
-        "description": "The pickup facts a visitor may see before ordering exists (M6).\n\nDeliberately minimal: whether pickup is offered, whether \"as soon as\npossible\" is offered, and the earliest valid pickup instant. Lead\ntimes, slot intervals, and cut-offs are operational configuration and\nstay off the public surface until checkout (M6) needs them.",
+        "description": "The pickup facts a visitor may see (extended in M6B, ADR-026 D12).\n\nDeliberately minimal: whether pickup is offered, whether \"as soon as\npossible\" is offered, the earliest valid pickup instant, and — from\nM6B — ``ordering_enabled``, the live gate for the whole ordering\nsurface (the ``online_ordering`` entitlement AND ``pickup_enabled``,\ncomputed per request, never frozen into published content). Lead\ntimes, slot intervals, and cut-offs stay off the public surface;\ncheckout consumes them server-side.",
         "properties": {
           "asap_enabled": {
             "title": "Asap Enabled",
@@ -3720,14 +3722,37 @@
               }
             ],
             "title": "Next Pickup At"
+          },
+          "ordering_enabled": {
+            "title": "Ordering Enabled",
+            "type": "boolean"
           }
         },
         "required": [
           "enabled",
           "asap_enabled",
-          "next_pickup_at"
+          "next_pickup_at",
+          "ordering_enabled"
         ],
         "title": "PublicPickup",
+        "type": "object"
+      },
+      "PublicPickupSlots": {
+        "description": "The bounded, currently valid pickup instants (M6B).\n\nUTC instants on the tenant's slot grid, at most ``MAX_PUBLIC_SLOTS``\n— the same shared bound checkout validates against, so nothing here\nis offered that placement would refuse (clock movement aside, which\nplacement answers with the honest ``slot_unavailable``).",
+        "properties": {
+          "slots": {
+            "items": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "title": "Slots",
+            "type": "array"
+          }
+        },
+        "required": [
+          "slots"
+        ],
+        "title": "PublicPickupSlots",
         "type": "object"
       },
       "PublicScheduleException": {
@@ -11009,6 +11034,164 @@
           }
         },
         "summary": "Public Order Place",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/api/v1/public/orders/{tracking_token}": {
+      "get": {
+        "description": "The customer's order status by tracking token (M6B, ruling D4).\n\nToken possession plus the tenant Host, both required; every failure\nis the one neutral 404; the projection carries the stored snapshot\nand **no customer fields** (a tracking URL is shareable by design).",
+        "operationId": "public_order_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tracking_token",
+            "required": true,
+            "schema": {
+              "title": "Tracking Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicOrderView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Public Order Get",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/api/v1/public/orders/{tracking_token}/cancel": {
+      "post": {
+        "description": "Cancel a submitted order (M6B, ruling D11).\n\nIdempotent on an already-cancelled order; anything past\n``submitted`` refuses with 409 ``invalid_state`` (M7's machine).",
+        "operationId": "public_order_cancel",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tracking_token",
+            "required": true,
+            "schema": {
+              "title": "Tracking Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicOrderView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Public Order Cancel",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/api/v1/public/pickup-slots": {
+      "get": {
+        "description": "The bounded valid pickup instants for the scheduled picker (M6B).\n\nGated exactly like placement (ruling D10): ineligibility is the one\nneutral 404. Never cacheable — the list is time-derived.",
+        "operationId": "public_pickup_slots_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicPickupSlots"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "summary": "Public Pickup Slots Get",
         "tags": [
           "public"
         ]

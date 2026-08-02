@@ -102,6 +102,11 @@ EXPECTED_OPERATION_IDS = {
     # M6A (ADR-026): guest order placement — the first unsafe public
     # operation (browser-context-checked, idempotent, neutral-404).
     "public_order_place",
+    # M6B (ADR-026): tracking by token, the customer cancellation, and
+    # the bounded pickup-slot listing.
+    "public_order_get",
+    "public_order_cancel",
+    "public_pickup_slots_get",
 }
 
 
@@ -136,10 +141,11 @@ def test_exported_operation_ids_are_expected_and_unique() -> None:
     # M4C added the public storefront projection and the authenticated
     # draft preview (66); M5A added the six hours administration
     # operations and the platform timezone correction (73); M5B added the
-    # public availability projection (74); M6A adds guest order
-    # placement: the contract is exactly 75 operations. The four
+    # public availability projection (74); M6A added guest order
+    # placement (75); M6B adds tracking, cancellation, and the slot
+    # listing: the contract is exactly 78 operations. The four
     # schema-hidden HEAD companions add none (see below).
-    assert len(EXPECTED_OPERATION_IDS) == 75
+    assert len(EXPECTED_OPERATION_IDS) == 78
 
 
 def test_public_media_documents_no_validation_error() -> None:

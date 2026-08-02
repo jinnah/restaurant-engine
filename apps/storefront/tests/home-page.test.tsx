@@ -51,7 +51,12 @@ function availabilityFixture(): PublicAvailability {
     next_opens_at: data.next_opens_at,
     weekly: data.weekly,
     exceptions: data.exceptions,
-    pickup: { enabled: true, asap_enabled: true, next_pickup_at: null },
+    pickup: {
+      enabled: true,
+      asap_enabled: true,
+      next_pickup_at: null,
+      ordering_enabled: false,
+    },
   };
 }
 

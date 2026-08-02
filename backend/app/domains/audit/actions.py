@@ -75,3 +75,5 @@ class AuditAction(StrEnum):
     # event; typed details carry ids and totals, never customer PII or
     # the tracking token.
     ORDER_PLACED = "order.placed"
+    # M6B: the customer's own cancellation (ruling D11) — also NULL-actor.
+    ORDER_CANCELLED_BY_CUSTOMER = "order.cancelled_by_customer"

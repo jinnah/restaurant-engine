@@ -54,6 +54,7 @@ export default async function HomePage() {
           sections={storefront.sections}
           menuData={menuData}
           hoursData={hoursSectionData(availability)}
+          orderingEnabled={availability.pickup.ordering_enabled}
         />
       </VariantLayout>
       <JsonLd data={restaurantJsonLd(storefront, origin, availability)} />

@@ -22,10 +22,10 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.errors import ApiError, ErrorCode, ResourceNotFoundError
+from app.core.errors import ApiError, ErrorCode, InvalidStateError, ResourceNotFoundError
 from app.domains.audit import recorder
 from app.domains.audit.actions import AuditAction
-from app.domains.audit.details import OrderPlacedDetails
+from app.domains.audit.details import OrderCancelledByCustomerDetails, OrderPlacedDetails
 from app.domains.businesses import repository as businesses_repository
 from app.domains.businesses.entitlements import business_has_feature
 from app.domains.businesses.features import FeatureKey
@@ -55,6 +55,7 @@ from app.domains.orders.schemas import (
     PublicOrderLine,
     PublicOrderLineOption,
     PublicOrderView,
+    PublicPickupSlots,
 )
 
 OUTBOX_TOPIC_ORDER_PLACED = "order.placed"
@@ -438,6 +439,100 @@ def _persist_snapshot(
                     price_delta_minor=option.price_delta_minor,
                 ),
             )
+
+
+def _order_by_token(db: Session, business: ResolvedBusiness, tracking_token: str) -> Order:
+    """Token possession plus Host, both required (ruling D4).
+
+    The token is compared only as its SHA-256 digest under the already
+    host-resolved Business; a wrong token, a foreign business's token,
+    and a malformed token are one neutral 404. Deliberately **not**
+    entitlement-gated (D10 as amended in review): an order already
+    placed stays trackable after the platform revokes ordering.
+    """
+    digest = hashlib.sha256(tracking_token.encode("utf-8")).hexdigest()
+    order = repository.get_order_by_token_digest(
+        db, business_id=business.business_id, digest=digest
+    )
+    if order is None:
+        raise ResourceNotFoundError("Not found.")
+    return order
+
+
+def get_order_by_token(
+    db: Session, business: ResolvedBusiness, tracking_token: str
+) -> PublicOrderView:
+    """The customer tracking projection (M6B) — stored snapshot only."""
+    order = _order_by_token(db, business, tracking_token)
+    return _order_view(db, business, order)
+
+
+def cancel_by_token(
+    db: Session, business: ResolvedBusiness, tracking_token: str
+) -> PublicOrderView:
+    """Customer cancellation (ruling D11): legal only from ``submitted``.
+
+    Idempotent on a cancelled order (repeating the cancel returns the
+    order unchanged — a double-tap is not an error); anything past
+    ``submitted`` is M7's machine and refuses with ``invalid_state``.
+    Runs under the Business row lock so the D3 slot count and a racing
+    placement serialize against the release of this order's slot.
+    """
+    locked = businesses_repository.get_for_update(db, business.business_id)
+    if locked is None or locked.status != BusinessStatus.ACTIVE.value:
+        raise ResourceNotFoundError("Not found.")
+    order = _order_by_token(db, business, tracking_token)
+    if order.status == OrderStatus.CANCELLED.value:
+        return _order_view(db, business, order)
+    if order.status != OrderStatus.SUBMITTED.value:
+        raise InvalidStateError("This order can no longer be cancelled online.")
+    order.status = OrderStatus.CANCELLED.value
+    repository.add(
+        db,
+        OrderStatusEvent(
+            business_id=business.business_id,
+            order_id=order.id,
+            from_status=OrderStatus.SUBMITTED.value,
+            to_status=OrderStatus.CANCELLED.value,
+            actor_kind=StatusActorKind.CUSTOMER.value,
+            actor_user_id=None,
+        ),
+    )
+    recorder.record(
+        db,
+        AuditAction.ORDER_CANCELLED_BY_CUSTOMER,
+        actor_user_id=None,
+        business_id=business.business_id,
+        target_type="order",
+        target_id=str(order.id),
+        details=OrderCancelledByCustomerDetails(order_number=order.order_number),
+    )
+    db.commit()
+    return _order_view(db, business, order)
+
+
+def list_pickup_slots(db: Session, business: ResolvedBusiness) -> PublicPickupSlots:
+    """The bounded slot enumeration for the scheduled-pickup picker (M6B).
+
+    Gated exactly like placement (ruling D10): no entitlement or no
+    pickup is the one neutral 404. The bound is the shared
+    ``MAX_PUBLIC_SLOTS`` policy, so what this lists and what checkout
+    accepts are one set by construction.
+    """
+    _require_ordering_enabled(db, business)
+    now = datetime.now(UTC)
+    policy = effective_policy(db, business.business_id)
+    weekly, exceptions, tz = _hours_inputs(db, business)
+    return PublicPickupSlots(
+        slots=pickup_slots(
+            now,
+            weekly=weekly,
+            exceptions=exceptions,
+            policy=policy,
+            tz=tz,
+            limit=policies.MAX_PUBLIC_SLOTS,
+        )
+    )
 
 
 def _replay(

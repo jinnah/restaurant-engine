@@ -26,10 +26,18 @@ function renderSection(
   menuData: MenuSectionData | null,
   hoursData: HoursSectionData | null,
   links: LinkMode,
+  orderingEnabled: boolean,
 ) {
   switch (section.type) {
     case 'hero':
-      return <HeroSection key={section.id} section={section} links={links} />;
+      return (
+        <HeroSection
+          key={section.id}
+          section={section}
+          links={links}
+          orderingEnabled={orderingEnabled}
+        />
+      );
     case 'menu':
       return (
         <MenuSection
@@ -63,16 +71,25 @@ export function SectionList({
   menuData = null,
   hoursData = null,
   links = 'active',
+  orderingEnabled = false,
 }: {
   sections: PublicSection[];
   menuData?: MenuSectionData | null;
   hoursData?: HoursSectionData | null;
   links?: LinkMode;
+  /**
+   * The live D12 gate (M6B): the hero's `order_online` action renders
+   * as ordering navigation only when true, degrading to the menu link
+   * otherwise. Defaults false, so a consumer without the availability
+   * composition (the workspace preview) never fabricates an ordering
+   * affordance.
+   */
+  orderingEnabled?: boolean;
 }) {
   return (
     <>
       {sections.map((section) =>
-        renderSection(section, menuData, hoursData, links),
+        renderSection(section, menuData, hoursData, links, orderingEnabled),
       )}
     </>
   );

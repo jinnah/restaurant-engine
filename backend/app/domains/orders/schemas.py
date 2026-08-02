@@ -180,6 +180,18 @@ class PublicOrderView(BaseModel):
     lines: list[PublicOrderLine]
 
 
+class PublicPickupSlots(BaseModel):
+    """The bounded, currently valid pickup instants (M6B).
+
+    UTC instants on the tenant's slot grid, at most ``MAX_PUBLIC_SLOTS``
+    — the same shared bound checkout validates against, so nothing here
+    is offered that placement would refuse (clock movement aside, which
+    placement answers with the honest ``slot_unavailable``).
+    """
+
+    slots: list[datetime]
+
+
 class OrderPlacedResponse(BaseModel):
     """The placement answer: the order plus its tracking token.
 

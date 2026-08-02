@@ -236,10 +236,20 @@ def test_hours_section_references_no_media() -> None:
     assert sections.referenced_media_ids(config.sections[0]) == []
 
 
-def test_hero_action_is_a_closed_enum_without_ordering() -> None:
-    """The M6 seam: ordering is not a member until M6 adds it."""
-    assert {action.value for action in HeroAction} == {"none", "view_menu"}
-    for rejected in ("order_online", "order", "checkout", "https://example.com"):
+def test_hero_action_is_a_closed_enum_with_the_m6_ordering_member() -> None:
+    """The M6 seam, filled exactly as reserved (M6B, ADR-026).
+
+    ``order_online`` is a stored *choice*; the renderer gates it on the
+    live ``ordering_enabled`` fact at render time (ruling D12), so
+    content never freezes an entitlement. The enum stays closed:
+    anything else remains a 422.
+    """
+    assert {action.value for action in HeroAction} == {"none", "view_menu", "order_online"}
+    accepted = parse_config(_config(_hero(primary_action="order_online")))
+    hero = accepted.sections[0]
+    assert isinstance(hero, sections.HeroSection)
+    assert hero.props.primary_action is HeroAction.ORDER_ONLINE
+    for rejected in ("order", "checkout", "buy_now", "https://example.com"):
         with pytest.raises(ValidationError):
             parse_config(_config(_hero(primary_action=rejected)))
 

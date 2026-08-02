@@ -92,7 +92,14 @@ const AVAILABILITY_PAYLOAD = {
       note: 'Holiday closure',
     },
   ],
-  pickup: { enabled: true, asap_enabled: true, next_pickup_at: null },
+  // ordering_enabled false: the M6C ordering surface is not built yet,
+  // so the built server must keep rendering the plain storefront.
+  pickup: {
+    enabled: true,
+    asap_enabled: true,
+    next_pickup_at: null,
+    ordering_enabled: false,
+  },
 };
 
 const MENU_PAYLOAD = {

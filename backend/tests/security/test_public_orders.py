@@ -643,6 +643,256 @@ class TestNeutralityAndBrowserContext:
         assert response.status_code == 201, response.text
 
 
+class TestTracking:
+    def test_token_plus_host_reads_the_pii_free_projection(
+        self,
+        client: TestClient,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        _, item_id, _ = _seed_ordering_business(
+            client, migrated_engine, create_user, create_business, create_membership
+        )
+        placed = _place(client, _payload(item_id))
+        token = placed.json()["tracking_token"]
+        response = client.get(f"{_ORDERS}/{token}", headers={"host": "shalik.localhost"})
+        assert response.status_code == 200, response.text
+        assert response.headers["cache-control"] == "no-store"
+        body = response.json()
+        assert body["order_number"] == 1
+        assert body["status"] == "submitted"
+        # The share-safe shape (review amendment): no customer fields,
+        # and the token itself is never echoed back.
+        assert "customer_name" not in body
+        assert token not in response.text
+
+    def test_wrong_foreign_and_malformed_tokens_are_one_neutral_404(
+        self,
+        client: TestClient,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        _, item_a, _ = _seed_ordering_business(
+            client, migrated_engine, create_user, create_business, create_membership
+        )
+        _seed_ordering_business(
+            client,
+            migrated_engine,
+            create_user,
+            create_business,
+            create_membership,
+            slug="tandoor",
+            owner_email="owner-b@example.com",
+        )
+        token = _place(client, _payload(item_a)).json()["tracking_token"]
+        for candidate, host in (
+            ("not-a-real-token", "shalik.localhost"),
+            (token, "tandoor.localhost"),  # right token, wrong tenant Host
+            ("x", "shalik.localhost"),  # trivially short, still one 404
+        ):
+            response = client.get(f"{_ORDERS}/{candidate}", headers={"host": host})
+            assert response.status_code == 404, (candidate, host)
+            assert response.json()["error"]["code"] == "not_found"
+
+    def test_tracking_survives_entitlement_revocation(
+        self,
+        client: TestClient,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        # D10 as amended in review: an order already placed is a fact the
+        # customer must be able to follow after ordering is switched off.
+        business_id, item_id, _ = _seed_ordering_business(
+            client, migrated_engine, create_user, create_business, create_membership
+        )
+        token = _place(client, _payload(item_id)).json()["tracking_token"]
+        with migrated_engine.begin() as connection:
+            connection.execute(
+                text("DELETE FROM feature_entitlements WHERE business_id = :bid"),
+                {"bid": str(business_id)},
+            )
+        # Placement is now the neutral 404 …
+        assert _place(client, _payload(item_id)).status_code == 404
+        # … while tracking and cancellation keep working by possession.
+        assert (
+            client.get(f"{_ORDERS}/{token}", headers={"host": "shalik.localhost"}).status_code
+            == 200
+        )
+        cancelled = client.post(f"{_ORDERS}/{token}/cancel", headers=_public_headers())
+        assert cancelled.status_code == 200
+        assert cancelled.json()["status"] == "cancelled"
+
+
+class TestCancellation:
+    def test_customer_cancels_a_submitted_order_once(
+        self,
+        client: TestClient,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business_id, item_id, _ = _seed_ordering_business(
+            client, migrated_engine, create_user, create_business, create_membership
+        )
+        token = _place(client, _payload(item_id)).json()["tracking_token"]
+        first = client.post(f"{_ORDERS}/{token}/cancel", headers=_public_headers())
+        assert first.status_code == 200, first.text
+        assert first.json()["status"] == "cancelled"
+        # Idempotent on repeat: same answer, no second event, no second
+        # audit row — a double-tap is not an error (ruling D11).
+        second = client.post(f"{_ORDERS}/{token}/cancel", headers=_public_headers())
+        assert second.status_code == 200
+        assert second.json()["status"] == "cancelled"
+        assert _count(migrated_engine, "order_status_events", business_id) == 2
+        with migrated_engine.connect() as connection:
+            events = connection.execute(
+                text(
+                    "SELECT from_status, to_status, actor_kind FROM order_status_events"
+                    " ORDER BY occurred_at, from_status NULLS FIRST"
+                )
+            ).all()
+            audits = connection.execute(
+                text(
+                    "SELECT actor_user_id, details::text FROM audit_events"
+                    " WHERE action = 'order.cancelled_by_customer'"
+                )
+            ).all()
+        assert [(e.from_status, e.to_status, e.actor_kind) for e in events] == [
+            (None, "submitted", "customer"),
+            ("submitted", "cancelled", "customer"),
+        ]
+        assert len(audits) == 1
+        assert audits[0].actor_user_id is None
+        assert "Amina" not in audits[0][1]
+
+    def test_cancel_requires_browser_context(
+        self,
+        client: TestClient,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        _, item_id, _ = _seed_ordering_business(
+            client, migrated_engine, create_user, create_business, create_membership
+        )
+        token = _place(client, _payload(item_id)).json()["tracking_token"]
+        naked = client.post(f"{_ORDERS}/{token}/cancel", headers={"host": "shalik.localhost"})
+        assert naked.status_code == 403
+        assert naked.json()["error"]["code"] == "csrf_rejected"
+
+    def test_past_submitted_refuses_with_invalid_state(
+        self,
+        client: TestClient,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        # The accepted state is M7's to produce; it is legal in the DB
+        # today, so the refusal is exercised directly.
+        business_id, item_id, _ = _seed_ordering_business(
+            client, migrated_engine, create_user, create_business, create_membership
+        )
+        token = _place(client, _payload(item_id)).json()["tracking_token"]
+        with migrated_engine.begin() as connection:
+            connection.execute(
+                text("UPDATE orders SET status = 'accepted' WHERE business_id = :bid"),
+                {"bid": str(business_id)},
+            )
+        response = client.post(f"{_ORDERS}/{token}/cancel", headers=_public_headers())
+        assert response.status_code == 409
+        assert response.json()["error"]["code"] == "invalid_state"
+
+    def test_unknown_token_is_neutral_404(
+        self,
+        client: TestClient,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        _seed_ordering_business(
+            client, migrated_engine, create_user, create_business, create_membership
+        )
+        response = client.post(f"{_ORDERS}/never-issued/cancel", headers=_public_headers())
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "not_found"
+
+
+class TestPickupSlotListing:
+    def test_slots_are_bounded_sorted_future_instants(
+        self,
+        client: TestClient,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        _, item_id, _ = _seed_ordering_business(
+            client, migrated_engine, create_user, create_business, create_membership
+        )
+        response = client.get("/api/v1/public/pickup-slots", headers={"host": "shalik.localhost"})
+        assert response.status_code == 200, response.text
+        assert response.headers["cache-control"] == "no-store"
+        slots = [datetime.fromisoformat(value) for value in response.json()["slots"]]
+        assert 0 < len(slots) <= 100
+        assert slots == sorted(slots)
+        # Lead time is zero in the fixture; every slot is current or later.
+        assert slots[0] >= datetime.now(UTC) - timedelta(minutes=15)
+        # A listed slot is a placeable slot (the shared bound, §5) — the
+        # third listed instant is comfortably clear of the boundary the
+        # clock is walking over.
+        placed = _place(
+            client,
+            _payload(
+                item_id,
+                pickup_kind="scheduled",
+                requested_pickup_at=slots[2].isoformat(),
+            ),
+        )
+        assert placed.status_code == 201, placed.text
+
+    def test_ineligible_hosts_are_neutral_404(
+        self,
+        client: TestClient,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        # Entitled but pickup disabled; and pickup on but unentitled —
+        # the same neutral 404 as an unknown host (ruling D10).
+        business_id = create_business("noent2", status="active")
+        create_membership(business_id, create_user("noent2@example.com"), role="owner")
+        csrf = login_as(client, "noent2@example.com")
+        assert (
+            client.put(
+                f"/api/v1/businesses/{business_id}/hours/fulfillment",
+                json={
+                    "pickup_enabled": True,
+                    "asap_enabled": True,
+                    "lead_time_minutes": 0,
+                    "slot_interval_minutes": 15,
+                    "last_order_before_close_minutes": 0,
+                    "max_days_ahead": 3,
+                },
+                headers=csrf_headers(csrf),
+            ).status_code
+            == 200
+        )
+        for host in ("noent2.localhost", "nope.localhost"):
+            response = client.get("/api/v1/public/pickup-slots", headers={"host": host})
+            assert response.status_code == 404, host
+
+
 class TestIsolation:
     def test_numbering_and_carts_do_not_cross_tenants(
         self,

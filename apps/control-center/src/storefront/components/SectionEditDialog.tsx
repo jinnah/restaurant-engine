@@ -36,7 +36,7 @@ interface SectionFormValues {
   enabled: boolean;
   heading: string;
   subheading: string;
-  primaryAction: 'none' | 'view_menu';
+  primaryAction: 'none' | 'view_menu' | 'order_online';
   image: SectionImageRef | null;
   intro: string;
   body: string;
@@ -59,7 +59,7 @@ const baseShape = {
   enabled: z.boolean(),
   heading: z.string(),
   subheading: z.string(),
-  primaryAction: z.enum(['none', 'view_menu']),
+  primaryAction: z.enum(['none', 'view_menu', 'order_online']),
   image: z.custom<SectionImageRef | null>(() => true),
   intro: z.string(),
   body: z.string(),
@@ -494,12 +494,13 @@ export function SectionEditDialog({
               <SelectField
                 id="section-action"
                 label="Button"
-                hint='"View menu" links to your menu page.'
+                hint='"View menu" links to your menu page. "Order online" shows only while online ordering is available; otherwise visitors see the menu link.'
                 error={fieldError(form, 'primaryAction')}
                 {...registerClearing('primaryAction')}
               >
                 <option value="none">No button</option>
                 <option value="view_menu">View menu</option>
+                <option value="order_online">Order online</option>
               </SelectField>
               <div className={styles.imageField}>
                 <span className={styles.imageFieldLabel}>Photo (optional)</span>

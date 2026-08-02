@@ -146,6 +146,7 @@ export type {
   PublicOrderLineOption,
   PublicOrderView,
   PublicPickup,
+  PublicPickupSlots,
   PublicScheduleException,
   PublicSection,
   PublicSiteSummary,

@@ -85,6 +85,35 @@ describe('hero', () => {
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
     expect(screen.queryByText(/family recipes/i)).not.toBeInTheDocument();
   });
+
+  test('order_online renders ordering navigation only when the gate is on (M6B, D12)', () => {
+    render(
+      <SectionList
+        sections={[heroSection({ primary_action: 'order_online' })]}
+        orderingEnabled
+      />,
+    );
+    expect(screen.getByRole('link', { name: 'Order online' })).toHaveAttribute(
+      'href',
+      '/order',
+    );
+  });
+
+  test('order_online degrades to the menu link when ordering is off', () => {
+    // Entitlement is live platform state; published content never
+    // freezes it. Default (no availability composition, e.g. the
+    // workspace preview) is off — never a fabricated affordance.
+    render(
+      <SectionList
+        sections={[heroSection({ primary_action: 'order_online' })]}
+      />,
+    );
+    expect(screen.queryByText('Order online')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'View menu' })).toHaveAttribute(
+      'href',
+      '/menu',
+    );
+  });
 });
 
 describe('story', () => {

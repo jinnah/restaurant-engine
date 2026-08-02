@@ -17,6 +17,8 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
+from app.domains.businesses.entitlements import business_has_feature
+from app.domains.businesses.features import FeatureKey
 from app.domains.businesses.resolution import ResolvedBusiness
 from app.domains.businesses.schemas import PublicSiteSummary
 from app.domains.hours import policies, repository
@@ -110,6 +112,13 @@ def assemble_availability(
             enabled=policy.pickup_enabled,
             asap_enabled=policy.asap_enabled,
             next_pickup_at=facts.next_pickup_at,
+            # The D12 gate (M6B, ADR-026): a live fact computed per
+            # request — entitlement AND pickup — so the storefront's
+            # whole ordering surface follows platform state instantly,
+            # at zero request cost (the home render already reads this
+            # projection since M5D).
+            ordering_enabled=policy.pickup_enabled
+            and business_has_feature(db, business.business_id, FeatureKey.ONLINE_ORDERING),
         ),
     )
 

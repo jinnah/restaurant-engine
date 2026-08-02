@@ -1290,6 +1290,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/orders/{tracking_token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public Order Get
+         * @description The customer's order status by tracking token (M6B, ruling D4).
+         *
+         *     Token possession plus the tenant Host, both required; every failure
+         *     is the one neutral 404; the projection carries the stored snapshot
+         *     and **no customer fields** (a tracking URL is shareable by design).
+         */
+        get: operations["public_order_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/orders/{tracking_token}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Public Order Cancel
+         * @description Cancel a submitted order (M6B, ruling D11).
+         *
+         *     Idempotent on an already-cancelled order; anything past
+         *     ``submitted`` refuses with 409 ``invalid_state`` (M7's machine).
+         */
+        post: operations["public_order_cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/pickup-slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public Pickup Slots Get
+         * @description The bounded valid pickup instants for the scheduled picker (M6B).
+         *
+         *     Gated exactly like placement (ruling D10): ineligibility is the one
+         *     neutral 404. Never cacheable — the list is time-derived.
+         */
+        get: operations["public_pickup_slots_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/site": {
         parameters: {
             query?: never;
@@ -1402,7 +1472,7 @@ export interface components {
          * @description Machine-readable audit event names (append-only).
          * @enum {string}
          */
-        AuditAction: "auth.login_succeeded" | "auth.login_failed" | "auth.login_throttled" | "auth.logout" | "user.platform_admin_created" | "business.created" | "business.activated" | "business.suspended" | "business.reactivated" | "business.closed" | "business.invitation_issued" | "business.invitation_revoked" | "business.invitation_accepted" | "business.entitlement_granted" | "business.entitlement_revoked" | "auth.password_reset_issued" | "auth.password_reset_completed" | "catalog.category_created" | "catalog.category_updated" | "catalog.category_deleted" | "catalog.categories_reordered" | "catalog.item_created" | "catalog.item_updated" | "catalog.item_deleted" | "catalog.items_reordered" | "catalog.item_availability_changed" | "catalog.modifier_group_created" | "catalog.modifier_group_updated" | "catalog.modifier_group_deleted" | "catalog.modifier_groups_reordered" | "catalog.modifier_option_created" | "catalog.modifier_option_updated" | "catalog.modifier_option_deleted" | "catalog.modifier_options_reordered" | "media.asset_uploaded" | "media.asset_deleted" | "media.asset_expired" | "catalog.item_image_changed" | "storefront.published" | "storefront.version_restored" | "storefront.design_assigned" | "business.hours_updated" | "business.schedule_exception_set" | "business.schedule_exception_removed" | "business.fulfillment_updated" | "business.timezone_changed" | "order.placed";
+        AuditAction: "auth.login_succeeded" | "auth.login_failed" | "auth.login_throttled" | "auth.logout" | "user.platform_admin_created" | "business.created" | "business.activated" | "business.suspended" | "business.reactivated" | "business.closed" | "business.invitation_issued" | "business.invitation_revoked" | "business.invitation_accepted" | "business.entitlement_granted" | "business.entitlement_revoked" | "auth.password_reset_issued" | "auth.password_reset_completed" | "catalog.category_created" | "catalog.category_updated" | "catalog.category_deleted" | "catalog.categories_reordered" | "catalog.item_created" | "catalog.item_updated" | "catalog.item_deleted" | "catalog.items_reordered" | "catalog.item_availability_changed" | "catalog.modifier_group_created" | "catalog.modifier_group_updated" | "catalog.modifier_group_deleted" | "catalog.modifier_groups_reordered" | "catalog.modifier_option_created" | "catalog.modifier_option_updated" | "catalog.modifier_option_deleted" | "catalog.modifier_options_reordered" | "media.asset_uploaded" | "media.asset_deleted" | "media.asset_expired" | "catalog.item_image_changed" | "storefront.published" | "storefront.version_restored" | "storefront.design_assigned" | "business.hours_updated" | "business.schedule_exception_set" | "business.schedule_exception_removed" | "business.fulfillment_updated" | "business.timezone_changed" | "order.placed" | "order.cancelled_by_customer";
         /**
          * AuditEventPage
          * @description Cursor page (``id DESC``); ``next_before_id`` feeds the next request.
@@ -1960,13 +2030,16 @@ export interface components {
          * HeroAction
          * @description The hero's primary call to action — a closed enum, not free text.
          *
-         *     ``view_menu`` is ordinary in-site navigation to the menu. It is **not**
-         *     an ordering call to action: no ordering exists before M6, and this enum
-         *     is the seam where an entitlement-gated ordering member will be added
-         *     when it does.
+         *     ``view_menu`` is ordinary in-site navigation to the menu.
+         *     ``order_online`` is the M6 member this enum always reserved (M6B,
+         *     ADR-026): stored content stays a *choice*, and the renderer gates it
+         *     on the live ``ordering_enabled`` fact at render time — entitlement is
+         *     a platform fact that changes independently of published content, so
+         *     a hero authored with the ordering action degrades to the plain menu
+         *     link whenever ordering is off (the D12 render-time-gate ruling).
          * @enum {string}
          */
-        HeroAction: "none" | "view_menu";
+        HeroAction: "none" | "view_menu" | "order_online";
         /**
          * HeroProps
          * @description Opening section: headline, optional supporting line, optional image.
@@ -3172,12 +3245,15 @@ export interface components {
         };
         /**
          * PublicPickup
-         * @description The pickup facts a visitor may see before ordering exists (M6).
+         * @description The pickup facts a visitor may see (extended in M6B, ADR-026 D12).
          *
          *     Deliberately minimal: whether pickup is offered, whether "as soon as
-         *     possible" is offered, and the earliest valid pickup instant. Lead
-         *     times, slot intervals, and cut-offs are operational configuration and
-         *     stay off the public surface until checkout (M6) needs them.
+         *     possible" is offered, the earliest valid pickup instant, and — from
+         *     M6B — ``ordering_enabled``, the live gate for the whole ordering
+         *     surface (the ``online_ordering`` entitlement AND ``pickup_enabled``,
+         *     computed per request, never frozen into published content). Lead
+         *     times, slot intervals, and cut-offs stay off the public surface;
+         *     checkout consumes them server-side.
          */
         PublicPickup: {
             /** Asap Enabled */
@@ -3186,6 +3262,21 @@ export interface components {
             enabled: boolean;
             /** Next Pickup At */
             next_pickup_at: string | null;
+            /** Ordering Enabled */
+            ordering_enabled: boolean;
+        };
+        /**
+         * PublicPickupSlots
+         * @description The bounded, currently valid pickup instants (M6B).
+         *
+         *     UTC instants on the tenant's slot grid, at most ``MAX_PUBLIC_SLOTS``
+         *     — the same shared bound checkout validates against, so nothing here
+         *     is offered that placement would refuse (clock movement aside, which
+         *     placement answers with the honest ``slot_unavailable``).
+         */
+        PublicPickupSlots: {
+            /** Slots */
+            slots: string[];
         };
         /**
          * PublicScheduleException
@@ -8205,6 +8296,133 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    public_order_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tracking_token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicOrderView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    public_order_cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tracking_token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicOrderView"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    public_pickup_slots_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPickupSlots"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
         };

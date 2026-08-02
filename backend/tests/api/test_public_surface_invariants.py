@@ -173,6 +173,12 @@ class TestPublicExemptionIsMethodScoped:
         ]
         assert {(route.path, route.operation_id) for route in unsafe} == {
             (f"{PUBLIC_PATH_PREFIX}orders", "public_order_place"),
+            # M6B (ruling D11): the customer's own cancellation — token
+            # possession plus Host, and the same browser-context guard.
+            (
+                f"{PUBLIC_PATH_PREFIX}orders/{{tracking_token}}/cancel",
+                "public_order_cancel",
+            ),
         }
         for route in unsafe:
             calls = _effective_calls(route.dependant)

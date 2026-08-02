@@ -60,6 +60,8 @@ export type PublicOrderView = components['schemas']['PublicOrderView'];
 export type PublicOrderLine = components['schemas']['PublicOrderLine'];
 export type PublicOrderLineOption =
   components['schemas']['PublicOrderLineOption'];
+// M6B (ADR-026): tracking, cancellation, and the slot listing.
+export type PublicPickupSlots = components['schemas']['PublicPickupSlots'];
 export type PublicWeeklyInterval =
   components['schemas']['PublicWeeklyInterval'];
 export type PublicScheduleException =
@@ -93,6 +95,23 @@ export interface PublicApi {
    * pickup disabled, any resolution failure) is the one neutral 404.
    */
   placeOrder(payload: OrderPlace): Promise<ApiResult<OrderPlacedResponse>>;
+  /**
+   * The customer's order by tracking token (M6B): possession plus the
+   * tenant Host, both required; every failure is the one neutral 404;
+   * the projection is PII-free by design (a tracking URL is shareable).
+   */
+  getOrder(trackingToken: string): Promise<ApiResult<PublicOrderView>>;
+  /**
+   * Cancel a submitted order by token (M6B, ruling D11): idempotent on
+   * an already-cancelled order; past `submitted` answers 409
+   * `invalid_state` (the M7 machine owns everything beyond).
+   */
+  cancelOrder(trackingToken: string): Promise<ApiResult<PublicOrderView>>;
+  /**
+   * The bounded valid pickup instants for the scheduled picker (M6B).
+   * Gated exactly like placement; never cacheable (time-derived).
+   */
+  getPickupSlots(): Promise<ApiResult<PublicPickupSlots>>;
 }
 
 export function createPublicApi(client: Client<paths>): PublicApi {
@@ -146,6 +165,41 @@ export function createPublicApi(client: Client<paths>): PublicApi {
         const { data, error, response } = await client.POST(
           '/api/v1/public/orders',
           { body: payload },
+        );
+        return toResult(data, error, response);
+      } catch {
+        return { ok: false, status: null, envelope: null };
+      }
+    },
+
+    async getOrder(trackingToken) {
+      try {
+        const { data, error, response } = await client.GET(
+          '/api/v1/public/orders/{tracking_token}',
+          { params: { path: { tracking_token: trackingToken } } },
+        );
+        return toResult(data, error, response);
+      } catch {
+        return { ok: false, status: null, envelope: null };
+      }
+    },
+
+    async cancelOrder(trackingToken) {
+      try {
+        const { data, error, response } = await client.POST(
+          '/api/v1/public/orders/{tracking_token}/cancel',
+          { params: { path: { tracking_token: trackingToken } } },
+        );
+        return toResult(data, error, response);
+      } catch {
+        return { ok: false, status: null, envelope: null };
+      }
+    },
+
+    async getPickupSlots() {
+      try {
+        const { data, error, response } = await client.GET(
+          '/api/v1/public/pickup-slots',
         );
         return toResult(data, error, response);
       } catch {

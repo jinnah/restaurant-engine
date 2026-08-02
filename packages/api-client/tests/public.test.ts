@@ -426,4 +426,68 @@ describe('public.placeOrder', () => {
     const result = await client.public.placeOrder(PLACE);
     expect(result).toEqual({ ok: false, status: null, envelope: null });
   });
+
+  it('getOrder addresses the tracking route by token (M6B)', async () => {
+    const requests: Request[] = [];
+    const client = clientCapturing(jsonResponse(200, PLACED.order), requests);
+    const result = await client.public.getOrder('the-token');
+    expect(new URL(requests[0]!.url).pathname).toBe(
+      '/api/v1/public/orders/the-token',
+    );
+    expect(requests[0]?.method).toBe('GET');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.status).toBe('submitted');
+      // PII-free by design: the projection carries no customer fields.
+      expect(result.data).not.toHaveProperty('customer_name');
+    }
+  });
+
+  it('cancelOrder POSTs the cancel command and narrows invalid_state', async () => {
+    const requests: Request[] = [];
+    const client = clientCapturing(
+      jsonResponse(200, { ...PLACED.order, status: 'cancelled' }),
+      requests,
+    );
+    const result = await client.public.cancelOrder('the-token');
+    expect(new URL(requests[0]!.url).pathname).toBe(
+      '/api/v1/public/orders/the-token/cancel',
+    );
+    expect(requests[0]?.method).toBe('POST');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.status).toBe('cancelled');
+    }
+    const refused = clientCapturing(
+      jsonResponse(409, {
+        error: {
+          code: 'invalid_state',
+          message: 'This order can no longer be cancelled online.',
+          field_errors: [],
+          correlation_id: 'x',
+        },
+      }),
+    );
+    const late = await refused.public.cancelOrder('the-token');
+    expect(late.ok).toBe(false);
+    if (!late.ok) {
+      expect(late.envelope?.error.code).toBe('invalid_state');
+    }
+  });
+
+  it('getPickupSlots GETs the bounded listing with no tenant input', async () => {
+    const requests: Request[] = [];
+    const client = clientCapturing(
+      jsonResponse(200, { slots: ['2026-08-02T17:15:00Z'] }),
+      requests,
+    );
+    const result = await client.public.getPickupSlots();
+    const url = new URL(requests[0]!.url);
+    expect(url.pathname).toBe('/api/v1/public/pickup-slots');
+    expect([...url.searchParams.keys()]).toEqual([]);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.slots).toEqual(['2026-08-02T17:15:00Z']);
+    }
+  });
 });
