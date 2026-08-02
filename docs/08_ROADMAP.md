@@ -18,17 +18,17 @@ initial architecture-contract commit.
 
 ## Status
 
-| Milestone                                                      | State                                                  |
-| -------------------------------------------------------------- | ------------------------------------------------------ |
-| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                              |
-| M1 — Platform foundation                                       | **Complete** (2026-07-15)                              |
-| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                              |
-| M3 — Catalog and media                                         | **Complete** (2026-07-23)                              |
-| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                              |
-| M4G — Curated storefront design and motion (extension)         | **Complete** (2026-08-01; M4G-A–M4G-D, ADR-024)        |
-| M5 — Hours and pickup readiness                                | **In progress** (M5A–M5D complete 2026-08-02, ADR-025) |
-| M6 – M8 — Ordering, operations, pilot                          | Not started                                            |
-| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23)       |
+| Milestone                                                      | State                                            |
+| -------------------------------------------------------------- | ------------------------------------------------ |
+| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                        |
+| M1 — Platform foundation                                       | **Complete** (2026-07-15)                        |
+| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                        |
+| M3 — Catalog and media                                         | **Complete** (2026-07-23)                        |
+| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                        |
+| M4G — Curated storefront design and motion (extension)         | **Complete** (2026-08-01; M4G-A–M4G-D, ADR-024)  |
+| M5 — Hours and pickup readiness                                | **Complete** (2026-08-02; M5A–M5E, ADR-025)      |
+| M6 – M8 — Ordering, operations, pilot                          | Not started                                      |
+| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23) |
 
 ## Milestone 5 delivery decision (2026-08-01)
 
@@ -43,7 +43,114 @@ them.
 | **M5B** — Public availability | `GET /api/v1/public/availability`, neutral failure semantics, `no-store` (D4), isolation tests                                                                                                                          | **Complete** (2026-08-02, ADR-025) |
 | **M5C** — Hours workspace UI  | `/businesses/:id/hours`: weekly editor with DST-gap warning, exceptions, fulfillment settings                                                                                                                           | **Complete** (2026-08-02, ADR-025) |
 | **M5D** — Storefront display  | `hours` section + three renderer arms + composer control (one slice), JSON-LD hours, request-cost assertion update                                                                                                      | **Complete** (2026-08-02, ADR-025) |
-| **M5E** — E2E and close-out   | journeys, per-variant acceptance for the new section, documentation, exit-criteria verification                                                                                                                         | Not started                        |
+| **M5E** — E2E and close-out   | journeys, per-variant acceptance for the new section, documentation, exit-criteria verification                                                                                                                         | **Complete** (2026-08-02, ADR-025) |
+
+## Milestone 5 close-out (2026-08-02)
+
+Milestone 5 is **complete**. M5E (the browser-level hours journeys,
+per-variant acceptance for the hours section, and this close-out) is
+delivered, completing the M5A–M5E progression. The blueprint §19 exit
+criteria are verified:
+
+- **DST, closure, lead-time, and next-opening tests pass.** The pure
+  `hours.timekeeping`/`hours.availability` core takes `now` as an
+  argument and is proven exhaustively at the unit layer (M5A): every
+  minute of the New York spring-forward gap moves to the gap's end;
+  fall-back openings take the earlier occurrence and closings the
+  later, so the open window is the union; overnight intervals convert
+  end-to-end across transitions; exceptions replace their date while
+  an overnight interval still belongs to the service day that opened
+  it; lead time, cut-off, and the service-day horizon govern pickup
+  slots; and every next-opening scan is bounded, across
+  America/New_York, America/Phoenix, Australia/Sydney, and
+  Australia/Lord_Howe.
+- **Public availability derives from structured settings.** The
+  projection (M5B) is computed per request through the pure core from
+  the D1-encoded weekly schedule, exceptions, and fulfillment policy —
+  never from freeform text — and the M5E journey proves the derivation
+  end to end in a real browser: hours authored in the workspace UI
+  render on the anonymous tenant host with the correct live status,
+  and an empty schedule renders honestly closed.
+
+**Stated plainly, as ADR-025 requires:** the pickup-slot service is
+proven by its unit suite and the public `next_pickup_at` fact — not by
+a real checkout. It ships without a consumer; M6's checkout is its
+genuine proving ground, and order throttling (ruling D3) is likewise
+M6's obligation, alongside the UTC-plus-tenant-timezone order
+timestamp rule.
+
+Merge evidence (PR #50): reviewed feature head
+`ec39d8b6615273c6c4c094d308e5798fa5057130`, merged to `main` as
+`4d97eefefda4822821603ab4b885b57296b66fb9` (ordered parents
+`032b06406fa2` then the reviewed head; merge tree `880bf978` equal to
+the reviewed feature-head tree). Exact-head PR CI run `30752173747`
+and exact-merge push CI run `30752361747` both completed successfully
+— five jobs green, zero artifacts, attempt 1; both executed the full
+twenty-five-test browser suite on Linux through the three-server
+orchestration with proven cleanup.
+
+The four retained risks stand open and recorded (the unexplained
+dirty-navigation failure from run `30652179044`; the unidentified
+local E2E non-zero exit; the unexercised accent-sweep 15-second
+allowance; the keep-alive reading, unfalsified through every clean
+merge-CI e2e run since PR #44). Owner-facing UAT of the hours surface
+has not been conducted. No ordering, cart, or checkout behavior exists
+— Milestone 6 has not begun and requires its own architecture
+discovery and authorization.
+
+### M5E close-out (2026-08-02)
+
+M5E delivered the browser-level closure — a test-only change entirely
+under `e2e/` (+389/−29 across five files), growing `pnpm e2e` from
+twenty-three to **twenty-five** Playwright tests, with no application,
+contract, schema, CI-workflow, or dependency change.
+
+**The hours journey** drives every Milestone 5 surface through the
+real product UI: the owner authors the all-day weekly schedule in the
+M5C weekly editor (each day 00:00 to midnight-next-day through the D1
+next-day choice), saves it through the full-week replacement, adds a
+dated closed-all-day exception with a D6 note through the exception
+dialog, composes the hours section in the M5D composer — asserting
+the dialog offers **no schedule input of any kind** — saves and
+publishes as the owner, and then an anonymous visitor under the tenant
+host sees the section heading and intro, the live "Open now" status,
+all seven day rows, the special-hours block with the exception's date
+and note as plain text, and the JSON-LD `openingHoursSpecification`
+carrying seven entries in the 00:00–23:59 full-day encoding. **A
+second spec pins the honestly-closed state**: a published hours
+section over an empty schedule renders "Closed now" with no fabricated
+next opening, seven honest "Closed" rows, no special-hours block, and
+no JSON-LD hours claim.
+
+**Time-robustness is structural, not incidental** (the ADR-025 trap):
+the server computes `is_open_now` from the real current instant, so
+the specs never touch the browser clock — around-the-clock and
+no-schedule are exactly the two states whose status is
+time-independent, and instant-exact DST facts stay in the M5A unit
+matrix where the clock is injected.
+
+**Per-variant acceptance.** The seeding fixture gained an opt-in hours
+option — `'open-all-day'` seeds the schedule through the real hours
+API with the owner's own session and includes the section;
+`'unscheduled'` includes the section over an empty schedule; callers
+passing nothing submit exactly the document they always did. The
+classic six-viewport responsive matrix, the editorial/express
+per-variant matrix (same shared geometric floors), and the public axe
+scan now run over the six-section page with a live schedule and status
+line; the workspace axe scan adds the M5C hours page over its real
+populated state. The hygiene watcher applies to both new specs.
+
+**Verification.** Locally: focused hours specs green, complete suite
+**25 passed** with full disposable cleanup, orchestrator regression 42
+passed + 1 known Windows-symlink skip, `next-env.d.ts` restored to its
+tracked baseline, and the full standing gate re-run green (backend
+1,245 exit 0, every workspace suite unchanged, contract byte-current,
+builds, budget, and built-server verification). Merge evidence is
+recorded in the Milestone 5 close-out above.
+
+**Boundary.** No ordering behavior (M6), no owner-facing UAT, no
+production or CI-workflow change. The four retained risks stand
+unchanged.
 
 ### M5D close-out (2026-08-02)
 
