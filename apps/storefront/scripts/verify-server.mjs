@@ -52,7 +52,10 @@ const STOREFRONT_PAYLOAD = {
         heading: 'Verification hero heading',
         subheading: 'Verification subheading',
         image: null,
-        primary_action: 'view_menu',
+        // M6C: the ordering CTA — with the gate on (below), the wire
+        // document must carry the "Order online" navigation (M6B's
+        // renderer arm, proven from the built server).
+        primary_action: 'order_online',
       },
     },
     {
@@ -92,13 +95,14 @@ const AVAILABILITY_PAYLOAD = {
       note: 'Holiday closure',
     },
   ],
-  // ordering_enabled false: the M6C ordering surface is not built yet,
-  // so the built server must keep rendering the plain storefront.
+  // ordering_enabled true (M6C): the D12 gate is on, so the ordering
+  // surface — hero CTA, menu affordances, the /order route — must all
+  // exist on the wire.
   pickup: {
     enabled: true,
     asap_enabled: true,
     next_pickup_at: null,
-    ordering_enabled: false,
+    ordering_enabled: true,
   },
 };
 
@@ -283,6 +287,12 @@ async function main() {
       home.body.includes('Verify Kitchen') &&
         home.body.includes('Verification hero heading'),
     );
+    // M6C: the gated ordering CTA renders as navigation to /order —
+    // the D12 gate is on in the availability fixture.
+    check(
+      'home: the hero renders the Order online navigation',
+      home.body.includes('Order online') && home.body.includes('href="/order"'),
+    );
     check(
       'home: composes featured item with exact price',
       home.body.includes('Verification dish') && home.body.includes('$12.50'),
@@ -416,10 +426,58 @@ async function main() {
       menuBodyTag.includes('--color-bg:#14171c'),
       menuBodyTag.slice(0, 200),
     );
+    // M6C (ADR-026): the menu page reads the availability projection
+    // for the D12 gate — three backend reads, the home route's M5D
+    // precedent applied to /menu.
     check(
-      'menu: render cost is exactly two backend reads',
-      menuRenderRequests.length === 2,
+      'menu: render cost is exactly three backend reads',
+      menuRenderRequests.length === 3,
       `${String(menuRenderRequests.length)}: ${menuRenderRequests.join(', ')}`,
+    );
+    check(
+      'menu: the third read is the availability projection',
+      menuRenderRequests.includes('/api/v1/public/availability'),
+    );
+    check(
+      'menu: orderable items carry the add-to-order affordance',
+      menu.body.includes('Add to order'),
+    );
+
+    // --- The checkout surface (M6C): exists only while the gate is on.
+    tenantRequests.length = 0;
+    const order = await request(appPort, '/order', tenantHost);
+    check('order: 200 with the gate on', order.status === 200);
+    check(
+      'order: no-store',
+      order.headers['cache-control'] === 'no-store',
+      String(order.headers['cache-control']),
+    );
+    check(
+      'order: renders the checkout shell, noindex',
+      order.body.includes('Your order') && order.body.includes('noindex'),
+    );
+    const orderRenderRequests = tenantRequests.map((r) => r.url);
+    check(
+      'order: render cost is exactly two backend reads',
+      orderRenderRequests.length === 2,
+      `${String(orderRenderRequests.length)}: ${orderRenderRequests.join(', ')}`,
+    );
+
+    // --- The tracking shell (M6C): storefront chrome only — never the
+    // availability projection (D10 as amended: not entitlement-gated).
+    tenantRequests.length = 0;
+    const track = await request(appPort, '/order/track/some-token', tenantHost);
+    check('track: 200 under the published chrome', track.status === 200);
+    check(
+      'track: renders the tracker shell, noindex',
+      track.body.includes('Order status') && track.body.includes('noindex'),
+    );
+    const trackRenderRequests = tenantRequests.map((r) => r.url);
+    check(
+      'track: render cost is exactly one backend read (no entitlement gate)',
+      trackRenderRequests.length === 1 &&
+        !trackRenderRequests.includes('/api/v1/public/availability'),
+      `${String(trackRenderRequests.length)}: ${trackRenderRequests.join(', ')}`,
     );
 
     // --- Neutral 404 for an unresolved host.
@@ -443,6 +501,10 @@ async function main() {
       robots.status === 200 &&
         robots.body.includes('Allow: /') &&
         robots.body.includes(`http://${tenantHost}/sitemap.xml`),
+    );
+    check(
+      'robots: the transactional /order prefix is disallowed (M6C)',
+      robots.body.includes('Disallow: /order'),
     );
     const robotsUnknown = await request(appPort, '/robots.txt', unknownHost);
     check(

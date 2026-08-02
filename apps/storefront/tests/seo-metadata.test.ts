@@ -70,6 +70,31 @@ describe('storefrontMetadata', () => {
     expect(metadata.description).toBeUndefined();
   });
 
+  test('ordering pages are non-indexable with honest titles (M6C)', async () => {
+    mockStorefront.mockResolvedValue({
+      kind: 'ok',
+      data: storefrontFixture([]),
+    });
+    const order = await storefrontMetadata('order');
+    expect(order.title).toBe('Order — Corner Kitchen');
+    expect(order.robots).toEqual({ index: false, follow: false });
+    expect(order.alternates?.canonical).toBe('/order');
+    const track = await storefrontMetadata('track');
+    expect(track.title).toBe('Order status — Corner Kitchen');
+    expect(track.robots).toEqual({ index: false, follow: false });
+    // A tracking URL is per-order: no canonical is ever claimed.
+    expect(track.alternates).toBeUndefined();
+  });
+
+  test('the indexed pages carry no robots restriction', async () => {
+    mockStorefront.mockResolvedValue({
+      kind: 'ok',
+      data: storefrontFixture([]),
+    });
+    expect((await storefrontMetadata('home')).robots).toBeUndefined();
+    expect((await storefrontMetadata('menu')).robots).toBeUndefined();
+  });
+
   test('a hero without a subheading yields no description (never fabricated)', async () => {
     mockStorefront.mockResolvedValue({
       kind: 'ok',
@@ -96,8 +121,10 @@ describe('robots.txt', () => {
     const response = await robotsGet();
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
+    // The /order prefix disallow (M6C, ADR-026) covers checkout and
+    // every tracking URL beneath it.
     expect(await response.text()).toBe(
-      'User-agent: *\nAllow: /\n\nSitemap: https://corner-kitchen.example.com/sitemap.xml\n',
+      'User-agent: *\nAllow: /\nDisallow: /order\n\nSitemap: https://corner-kitchen.example.com/sitemap.xml\n',
     );
   });
 

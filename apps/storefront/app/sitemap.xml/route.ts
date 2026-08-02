@@ -1,8 +1,12 @@
-// Per-host sitemap (ADR-021): exactly the routes that exist — `/` and
-// `/menu` — as absolute URLs on the deterministic canonical origin
-// (ADR-020 §1: the sitemap emits only routes that exist; no /order until
-// M6). A host without a published storefront has no public site and no
-// sitemap: the same neutral 404 as its pages. A backend outage is 503.
+// Per-host sitemap (ADR-021): exactly the indexable content routes —
+// `/` and `/menu` — as absolute URLs on the deterministic canonical
+// origin. The M6C ordering routes (`/order`, `/order/track/…`) are
+// deliberately absent (ADR-026): they are transactional, non-indexable
+// surfaces whose existence is a live entitlement fact, disallowed in
+// robots.txt and marked noindex — a sitemap must never advertise a
+// capability the host may not show tomorrow. A host without a published
+// storefront has no public site and no sitemap: the same neutral 404 as
+// its pages. A backend outage is 503.
 
 import { canonicalOrigin } from '../../lib/canonical';
 import {

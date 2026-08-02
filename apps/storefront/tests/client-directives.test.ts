@@ -1,16 +1,25 @@
 // @vitest-environment node
 
-// The structural JavaScript budget (ADR-021): the storefront ships zero
-// client components beyond the framework-required route error boundary.
-// This scan is the budget's teeth — a new 'use client' directive anywhere
-// in the application fails the suite until the allowlist (and ADR-021)
-// are deliberately amended.
+// The structural JavaScript budget (ADR-021, amended by ADR-026 M6C):
+// the storefront ships exactly the framework-required route error
+// boundary plus the five named ordering islands (§12.1's allowed
+// islands — the cart affordances, the modifier dialog, the checkout
+// form, and the tracker). This scan is the budget's teeth — a new
+// 'use client' directive anywhere else fails the suite until the
+// allowlist (and the ADR) are deliberately amended.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
-const ALLOWED_CLIENT_FILES = ['app/error.tsx'];
+const ALLOWED_CLIENT_FILES = [
+  'app/error.tsx',
+  'components/ordering/AddToCartButton.tsx',
+  'components/ordering/CartLink.tsx',
+  'components/ordering/CheckoutForm.tsx',
+  'components/ordering/ModifierPickerDialog.tsx',
+  'components/ordering/OrderTracker.tsx',
+];
 
 function clientDirectiveFiles(root: string, dirs: string[]): string[] {
   const hits: string[] = [];

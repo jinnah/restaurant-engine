@@ -12,6 +12,8 @@ export interface RecordedRequest {
   headers: http.IncomingHttpHeaders;
   /** Raw header names in arrival order (case preserved, no folding). */
   rawHeaderNames: string[];
+  /** The received request body, decoded as UTF-8 (empty for GET/HEAD). */
+  body: string;
 }
 
 export interface StubResponsePlan {
@@ -36,28 +38,33 @@ export async function startHttpStub(
   let plan = initial;
   const requests: RecordedRequest[] = [];
   const server = http.createServer((req, res) => {
-    requests.push({
-      method: req.method ?? '',
-      url: req.url ?? '',
-      headers: req.headers,
-      rawHeaderNames: req.rawHeaders.filter((_, i) => i % 2 === 0),
-    });
-    const send = (): void => {
-      res.writeHead(plan.status ?? 200, {
-        'content-type': 'application/json',
-        ...plan.headers,
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('end', () => {
+      requests.push({
+        method: req.method ?? '',
+        url: req.url ?? '',
+        headers: req.headers,
+        rawHeaderNames: req.rawHeaders.filter((_, i) => i % 2 === 0),
+        body: Buffer.concat(chunks).toString('utf-8'),
       });
-      if (req.method === 'HEAD') {
-        res.end();
+      const send = (): void => {
+        res.writeHead(plan.status ?? 200, {
+          'content-type': 'application/json',
+          ...plan.headers,
+        });
+        if (req.method === 'HEAD') {
+          res.end();
+        } else {
+          res.end(plan.body ?? '{}');
+        }
+      };
+      if (plan.delayMs !== undefined) {
+        setTimeout(send, plan.delayMs);
       } else {
-        res.end(plan.body ?? '{}');
+        send();
       }
-    };
-    if (plan.delayMs !== undefined) {
-      setTimeout(send, plan.delayMs);
-    } else {
-      send();
-    }
+    });
   });
   await new Promise<void>((resolve) => {
     server.listen(0, '127.0.0.1', resolve);
