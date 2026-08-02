@@ -2,7 +2,55 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M5E — delivered 2026-08-02; Milestone 5 complete)
+## Current state (M6A — delivered 2026-08-02)
+
+M6A adds the orders domain's coverage (ADR-026) at the unit, API,
+security, and isolation layers. The backend suite grows from **1,245**
+to **1,290** and the api-client suite from **109** to **112**; every
+other suite is unchanged — M6A ships no UI, so no browser-level
+coverage was added (deliberately M6C–M6D).
+
+- **The pure pricing core, proven without a database.** Authoritative
+  totals from the checkout view (base + option deltas × quantity, the
+  D6/D7 frozen zeros); the projection's orderability formula applied as
+  a refusal; every staleness reason named per line in one pass
+  (unknown/hidden as one indistinguishable answer, sold-out,
+  unsatisfiable required group, unknown/unavailable/duplicate options,
+  per-group selection rules); the total guard; and the placement
+  schema's text policy (normalize, control-character rejection, the
+  pickup-shape validator, independent consents, strict unknown-field
+  rejection).
+- **The browser-context suite (D9).** The delivered ADR-010 branches
+  pinned first, then every self-origin case: tenant self-origin passes
+  (with and without ports), port mismatch rejects, **cross-tenant
+  origin rejects** (the reviewed refinement), case normalizes, Referer
+  behaves identically, and a missing request Host fails closed.
+- **The placement API matrix.** The happy path asserts the whole
+  transactional record — order, snapshot lines/options, the
+  `→ submitted` event, the pending outbox message, the idempotency row
+  — plus the exact PII-free public shape, the digest-only token
+  storage, and the PII-free audit and outbox payloads. Idempotent
+  replay returns the one stored order with an empty token; key reuse
+  is the typed 409; `price_changed` carries the real totals and writes
+  nothing; scheduled slots revalidate against the grid and refuse the
+  past; the D3 cap counts non-cancelled orders (a cancelled order
+  releases its slot); neutrality covers unknown/non-active hosts and —
+  identically — missing entitlement and disabled pickup (D10);
+  browser-context evidence is required and cross-tenant carts collapse
+  to `item_unknown` with no existence disclosure, while order numbering
+  stays per-business.
+- **The permanent invariants moved deliberately.** The public-surface
+  test that once asserted "no unsafe public routes" now pins the
+  reviewed set exactly — `POST /public/orders` and nothing else — and
+  proves both the Host resolver and the browser-context check sit in
+  its dependency graph. The migration walker and the scratch-database
+  census cover the six new tables and the fulfillment column.
+
+Deliberate limits: no storefront or CC surface exists yet (M6C/M6D own
+the browser evidence); the outbox accumulates `pending` rows with no
+worker (D14). The four retained risks stand unchanged.
+
+## Earlier state (M5E — delivered 2026-08-02; Milestone 5 complete)
 
 M5E adds the browser-level closure for Milestone 5 (ADR-025): the
 Playwright suite grows from **23** to **25**, and the per-variant

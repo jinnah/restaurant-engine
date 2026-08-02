@@ -1,6 +1,6 @@
 # ADR-026: Cart and guest pickup ordering (Milestone 6)
 
-- **Status:** Accepted — delivery per §13; M6A under review in its own PR
+- **Status:** Accepted — M6A delivered (2026-08-02); M6B–M6D not started
 - **Date:** 2026-08-02
 - **Deciders:** Jinnah (product owner / principal architect), Claude (senior engineer)
 
@@ -481,5 +481,61 @@ edits; end-to-end checkout passes.
 
 ## Delivery record
 
-Delivery records are appended here as each §13 slice closes, with merge
-evidence, per the ADR-025 precedent.
+### M6A — Orders domain foundation: delivered, 2026-08-02
+
+Delivered exactly the §13 M6A scope. Migration `e7a2c94d51b8` (from
+`c3d8f5a21e47`) lands the five order tables, the platform-global
+outbox, and the nullable `fulfillment_settings.max_orders_per_slot`
+column — discharging ADR-025's D3 deferral with the hours domain owning
+the setting (additive default, so the delivered M5C form stays valid)
+and the orders checkout owning the count of non-cancelled orders per
+promised slot. The pure pricing core validates and reprices the whole
+cart against the new explicit `catalog.checkout_view` interface,
+applying the public projection's own orderability formula
+authoritatively and collecting every problem before failing; the
+placement transaction runs under the Business row lock (D5) and commits
+the order, the FK-free snapshot (D1), the `→ submitted` event, the
+`order.placed` outbox message (D14 — no worker), the idempotency row
+(D2 — replays return the current representation of the one stored
+order; reuse with a different payload is `409 idempotency_key_reused`;
+the concurrent race resolves to the winner), and the NULL-actor audit
+event together. `POST /api/v1/public/orders` is the first unsafe public
+route: neutral-404 for every ineligible cause including missing
+entitlement or disabled pickup (D10, via the first actor-free
+entitlement primitive), guarded by the browser-context check extended
+with self-origin acceptance (D9 as amended in review), and pinned by
+the public-surface invariant test to carry both guards. Four new error
+codes (`cart_stale`, `price_changed`, `slot_unavailable`,
+`idempotency_key_reused`); tracking tokens digest-stored and disclosed
+exactly once (D4); consents independent (D7); `tax_minor` and the M9
+promotion columns present and CHECK-frozen (D6/D7); `placed_at` UTC
+plus `business_timezone` records the ADR-025 timestamp pair. Contract
+**74 → 75** (`public_order_place`); the public facade gains
+`placeOrder()`.
+
+One implementation note worth recording: the orders mappers declare no
+`relationship()` links by design (snapshots are data, not an object
+graph), and SQLAlchemy's unit of work orders INSERTs by relationship
+dependency — bare FK metadata alone does not sequence mappers — so the
+placement transaction pins parent rows with explicit flush points.
+
+Verification: backend **1,290** (from 1,245 — the pure
+pricing/staleness matrix, the placement schema text policy, the full
+browser-context suite including every D9 rejection case, and the
+placement API matrix covering the transactional record, PII-free audit
+and outbox payloads, idempotent replay and key reuse, authoritative
+totals, stale-cart problems, scheduled-slot revalidation, the slot cap
+counting non-cancelled orders, neutrality, browser-context enforcement,
+and cross-tenant isolation); api-client **112** (from 109); every other
+suite, budget, and build gate unchanged and green; `pnpm e2e` 25.
+Merge evidence: PR #52, reviewed head `f4f73f84`, SHA-bound merge
+`77f2b73e8eb6d4c5c64c2d3ae05ec80945b519b9` (parents `b01c93f1` then the
+reviewed head; merge tree `34bb67a0` equal to the reviewed head tree);
+exact-head CI run `30761169052` and exact-merge push CI run
+`30761377392` both green 5/5 with zero artifacts on attempt 1.
+
+Deliberately not delivered (their own slices): tracking, cancellation,
+the public slot listing, `ordering_enabled`, and `HeroAction` (M6B);
+the storefront ordering UI (M6C); the CC throttle field and the
+ordering journeys (M6D); the outbox worker (D14 — the first channel
+milestone).
