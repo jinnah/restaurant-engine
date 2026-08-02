@@ -65,12 +65,15 @@ const CATEGORY = 'House specialties';
 const ITEM = 'Clay-oven lamb shank with saffron rice';
 const IMAGE_ALT = 'The dining room set for dinner service';
 
+// M5E: the hours section joins the composed page in both variants, so
+// the per-variant matrix proves the schedule holds the same floors.
 const SECTION_HEADINGS = [
   HERO_HEADING,
   'From our kitchen',
   'Our story',
   'Visit us',
   'The dining room',
+  'Opening hours',
 ];
 
 interface ResponsiveCase {
@@ -110,6 +113,7 @@ for (const testCase of CASES) {
         variant: testCase.variant,
         logo: true,
         theme: { palette: testCase.palette },
+        hours: 'open-all-day',
       },
     );
 

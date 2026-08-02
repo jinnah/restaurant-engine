@@ -52,12 +52,15 @@ const VIEWPORTS = [
 // verification evidence, never committed baselines or pixel gates).
 const CAPTURE = new Set(['320x900', '390x844', '768x1024', '1280x900']);
 
+// M5E: the hours section joins the composed page, so the matrix now
+// proves the schedule's day/times rows hold the geometric floors too.
 const SECTION_HEADINGS = [
   HERO_HEADING,
   'From our kitchen',
   'Our story',
   'Visit us',
   'The dining room',
+  'Opening hours',
 ];
 
 /**
@@ -73,14 +76,18 @@ test('the classic storefront is responsive on both public routes at every suppor
 }) => {
   test.setTimeout(420_000);
 
-  await seedPublishedStorefront(ns, {
-    category: CATEGORY,
-    item: ITEM,
-    imageAlt: IMAGE_ALT,
-    heroHeading: HERO_HEADING,
-    heroSubheading: HERO_SUBHEADING,
-    storyBody: STORY_BODY,
-  });
+  await seedPublishedStorefront(
+    ns,
+    {
+      category: CATEGORY,
+      item: ITEM,
+      imageAlt: IMAGE_ALT,
+      heroHeading: HERO_HEADING,
+      heroSubheading: HERO_SUBHEADING,
+      storyBody: STORY_BODY,
+    },
+    { hours: 'open-all-day' },
+  );
 
   const context = await visitorContext(browser);
   try {

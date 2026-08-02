@@ -277,6 +277,41 @@ export async function uploadPendingMedia(
 }
 
 /**
+ * The complete all-day weekly schedule, seeded through the real hours
+ * API (M5E, ADR-025): every ISO day open 00:00–24:00 in the D1 encoding
+ * (`closes_minute` 1440 ends at the following local midnight). This is
+ * the deliberately time-robust shape for browser assertions — the server
+ * computes `is_open_now` from the real current instant, so a business
+ * open around the clock is "Open now" whenever the suite runs, in any
+ * timezone. Never assert an instant-exact DST fact here; those live in
+ * the backend unit matrix (ADR-025).
+ */
+export async function seedAllDayWeeklyHours(
+  ns: SpecNamespace,
+  businessId: string,
+): Promise<void> {
+  const owner = await ownerApi(ns);
+  try {
+    const response = await owner.api.put(
+      `/api/v1/businesses/${businessId}/hours/weekly`,
+      {
+        data: {
+          intervals: [0, 1, 2, 3, 4, 5, 6].map((day) => ({
+            day_of_week: day,
+            opens_minute: 0,
+            closes_minute: 1440,
+          })),
+        },
+        headers: { 'X-CSRF-Token': owner.csrf },
+      },
+    );
+    await expectOk(response, `seed all-day weekly hours for ${ns.slug}`);
+  } finally {
+    await owner.dispose();
+  }
+}
+
+/**
  * The curated theme selections a spec may make (ADR-024 §3).
  *
  * Every field is optional and omitted keys are simply absent from the
@@ -302,7 +337,10 @@ export interface ThemeSelection {
  *
  * M4G-D adds the optional curated theme selections. They are spread in
  * only when supplied, so an existing caller submits exactly the document
- * it submitted before.
+ * it submitted before. M5E adds the optional `hours` section the same
+ * way: opt-in, appended after the five delivered types, presentation
+ * choices only (ADR-025 D5) — the schedule itself is seeded through the
+ * hours API and composed at render time.
  */
 export function storefrontConfigFixture(
   content: {
@@ -311,6 +349,7 @@ export function storefrontConfigFixture(
     storyBody: string;
     mediaId: string;
     imageAlt: string;
+    hours?: boolean;
   } & ThemeSelection,
 ): Record<string, unknown> {
   return {
@@ -373,6 +412,20 @@ export function storefrontConfigFixture(
           images: [{ media_id: content.mediaId, alt_text: content.imageAlt }],
         },
       },
+      ...(content.hours === true
+        ? [
+            {
+              id: 'hours',
+              type: 'hours',
+              enabled: true,
+              props: {
+                heading: 'Opening hours',
+                intro: 'Kitchen closes 30 minutes before the dining room.',
+                show_open_now: true,
+              },
+            },
+          ]
+        : []),
     ],
   };
 }
@@ -387,6 +440,13 @@ export function storefrontConfigFixture(
  * then presents that draft's exact lock version instead of claiming
  * create-intent. Omitting `design` entirely leaves the original
  * create-intent path exactly as the M4F specs exercise it.
+ *
+ * M5E adds `design.hours`: `'open-all-day'` seeds the all-day weekly
+ * schedule through the hours API AND includes the hours section in the
+ * published composition, so per-variant acceptance covers the sixth
+ * registered type with a real schedule behind it; `'unscheduled'`
+ * includes the section over an empty schedule — the honestly-closed
+ * state the storefront must render.
  */
 export async function seedPublishedStorefront(
   ns: SpecNamespace,
@@ -402,6 +462,7 @@ export async function seedPublishedStorefront(
     variant?: DesignVariantId;
     theme?: ThemeSelection;
     logo?: boolean;
+    hours?: 'open-all-day' | 'unscheduled';
   },
 ): Promise<{ businessId: string; mediaId: string; logoMediaId?: string }> {
   const { businessId } = await provisionActiveBusinessWithOwner(ns);
@@ -413,6 +474,9 @@ export async function seedPublishedStorefront(
 
   if (design?.variant !== undefined) {
     await assignDesign(businessId, design.variant);
+  }
+  if (design?.hours === 'open-all-day') {
+    await seedAllDayWeeklyHours(ns, businessId);
   }
   const logoMediaId =
     design?.logo === true
@@ -450,6 +514,7 @@ export async function seedPublishedStorefront(
           imageAlt: content.imageAlt,
           ...design?.theme,
           ...(logoMediaId === undefined ? {} : { logoMediaId }),
+          ...(design?.hours === undefined ? {} : { hours: true }),
         }),
         ...(existing === null
           ? {}
