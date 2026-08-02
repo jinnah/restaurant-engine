@@ -1,6 +1,6 @@
 # ADR-025: Hours, exceptions, and fulfillment settings (Milestone 5)
 
-- **Status:** Accepted — M5A delivered (2026-08-01), M5B, M5C, and M5D delivered (2026-08-02); M5E not started
+- **Status:** Accepted — delivered in full: M5A (2026-08-01), M5B–M5E (2026-08-02); Milestone 5 complete
 - **Date:** 2026-08-01
 - **Deciders:** Jinnah (product owner / principal architect), Claude (senior engineer)
 
@@ -373,6 +373,52 @@ green 5/5) widened the orchestrated E2E backend's keep-alive window —
 no assertion weakened, no production change. If the signature ever
 reappears with the flag in place, the keep-alive reading is falsified
 and the investigation must reopen.
+
+### M5E — E2E and close-out: delivered, 2026-08-02
+
+Delivered exactly the §12 M5E scope, entirely under `e2e/` (a test-only
+change; no application, contract, schema, CI-workflow, or dependency
+change). The Playwright suite grew 23 → **25**. The hours journey
+drives the real product surfaces end to end: an owner authors the
+all-day weekly schedule in the M5C weekly editor (the D1 next-day
+choice) and a dated closed-all-day exception with a D6 note, composes
+the hours section in the M5D composer — whose dialog provably offers
+no schedule input — publishes, and an anonymous visitor on the tenant
+host sees the schedule, the exception with its note, the live "Open
+now" status, and the JSON-LD `openingHoursSpecification`. A second
+spec pins the honestly-closed state: a published hours section over an
+empty schedule renders "Closed now" with no fabricated next opening,
+seven honest "Closed" rows, no special-hours block, and no JSON-LD
+hours claim. Both are **time-robust by construction** (the trap this
+ADR records): the server computes `is_open_now` from the real current
+instant, so nothing overrides the browser clock — open-around-the-clock
+and no-schedule are the two states whose status holds whenever and
+wherever the suite runs, and instant-exact DST assertions stay in the
+unit matrix, where the clock is injected. Per-variant acceptance now
+covers the six-section page: the seeding fixture gained an opt-in
+hours option (existing callers submit exactly the document they always
+did), and the classic responsive matrix, the editorial/express
+per-variant matrix, and both axe scans run over a live schedule, with
+the M5C hours workspace added to the workspace scan.
+
+**The pickup-slot service ships proven by its unit suite and the
+public `next_pickup_at` — not by a real checkout.** No consumer exists
+until M6's checkout, which is its genuine proving ground; this is the
+plain statement the Consequences section required.
+
+Verification: `pnpm e2e` 25 passed (Windows and the Linux CI runs
+below); orchestrator regression 42 + 1 known Windows-symlink skip;
+every other suite and gate unchanged and green (backend 1,245 exit 0
+on the exact tree, contract byte-current at 74 operations, budgets
+unmoved). Merge evidence: PR #50, reviewed head `ec39d8b6`, SHA-bound
+merge `4d97eefefda4822821603ab4b885b57296b66fb9` (parents `032b0640`
+then the reviewed head; merge tree `880bf978` equal to the reviewed
+head tree); exact-head CI run `30752173747` and exact-merge push CI
+run `30752361747` both green 5/5 with zero artifacts on attempt 1.
+
+With M5E delivered, every §12 slice is complete and the blueprint §19
+exit criteria are verified — the Milestone 5 close-out in docs/08 is
+the completion record.
 
 ### M5D — Storefront display: delivered, 2026-08-02
 

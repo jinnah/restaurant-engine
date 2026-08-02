@@ -2,7 +2,48 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M5D — delivered 2026-08-02)
+## Current state (M5E — delivered 2026-08-02; Milestone 5 complete)
+
+M5E adds the browser-level closure for Milestone 5 (ADR-025): the
+Playwright suite grows from **23** to **25**, and the per-variant
+acceptance matrices now cover the six-section page. Every other suite
+is unchanged — M5E is a test-only change under `e2e/`.
+
+- **The hours journey, through the real product UI.** The owner
+  authors the all-day weekly schedule in the M5C weekly editor (the
+  D1 next-day choice), saves the full-week replacement, adds a dated
+  closed-all-day exception with a D6 note, composes the hours section
+  in the M5D composer — asserted to offer no schedule input of any
+  kind — publishes, and an anonymous visitor under the tenant host
+  sees the schedule, the exception with its note, the live "Open now"
+  status, and the JSON-LD `openingHoursSpecification` (seven entries,
+  the 00:00–23:59 full-day encoding).
+- **The honestly-closed state.** A published hours section over an
+  empty schedule renders "Closed now" with no fabricated next
+  opening, seven honest "Closed" rows, no special-hours block, and no
+  JSON-LD hours claim.
+- **Time-robust by construction** (the ADR-025 trap): the server
+  computes `is_open_now` from the real current instant, so the specs
+  never touch the browser clock — around-the-clock and no-schedule
+  are the two states whose status holds whenever the suite runs, and
+  instant-exact DST facts stay in the M5A unit matrix, where the
+  clock is injected.
+- **Per-variant acceptance over a live schedule.** The seeding
+  fixture's opt-in hours option seeds the schedule through the real
+  hours API (existing callers submit exactly the document they always
+  did); the classic six-viewport matrix, the editorial/express
+  matrix, and the public axe scan run over the six-section page; the
+  workspace axe scan adds the M5C hours page. The hygiene watcher
+  applies to both new specs.
+
+**Stated plainly (ADR-025's obligation):** the pickup-slot service is
+proven by its unit suite and the public `next_pickup_at` — not by a
+real checkout; M6's checkout is its genuine proving ground.
+
+The four retained risks stand unchanged. Owner-facing UAT of the
+hours surface has not been conducted.
+
+## Earlier state (M5D — delivered 2026-08-02)
 
 M5D adds the hours storefront section's coverage (ADR-025, ruling D5)
 at every layer the slice touched. The backend suite grows from
