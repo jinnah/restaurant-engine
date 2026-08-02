@@ -1,6 +1,6 @@
 # ADR-026: Cart and guest pickup ordering (Milestone 6)
 
-- **Status:** Accepted — M6A–M6B delivered (2026-08-02); M6C–M6D not started
+- **Status:** Accepted — M6A–M6C delivered (2026-08-02); M6D not started
 - **Date:** 2026-08-02
 - **Deciders:** Jinnah (product owner / principal architect), Claude (senior engineer)
 
@@ -607,3 +607,105 @@ Deliberately not delivered (their own slices): the storefront ordering
 UI — cart, modifier picker, `/order`, tracker (M6C); the CC
 fulfillment-throttle field and the ordering e2e journeys (M6D); the
 outbox worker (D14 — the first channel milestone).
+
+### M6C — The storefront ordering surface: delivered, 2026-08-02
+
+Delivered exactly the §13 M6C scope. No backend change; the contract
+stays at 78 operations. The §6 surface ships as the five named client
+islands — `AddToCartButton`, `ModifierPickerDialog`, `CartLink`,
+`CheckoutForm`, `OrderTracker` — with **zero new runtime
+dependencies** (D13) and the `'use client'` allowlist grown by exactly
+those files.
+
+- **The cart (D13):** a pure, versioned client value
+  (`schema_version` 1) persisted in localStorage under the tenant
+  origin — isolation is structural, no tenant key exists — with
+  anything unrecognized dropped cleanly to empty. Identical choices
+  merge; the contract bounds (30 lines, quantity 50) are mirrored,
+  never invented. The modifier picker is a native `<dialog>` (with a
+  progressive-enhancement fallback where `showModal` is absent)
+  enforcing the projection's own selection rules locally while the
+  server stays authoritative.
+- **`/menu`:** reads the availability projection for the D12 gate —
+  **three backend reads now**, the home route's M5D precedent, pinned
+  by the built-server verification. Ordering on: orderable items carry
+  the add-to-order affordance (`is_orderable` finally renders as the
+  fact it always was) and the floating cart link appears. Ordering
+  off: byte-identical to the pre-ordering menu.
+- **`/order`:** the checkout surface, server-gated on
+  `ordering_enabled` with the one neutral 404 (D10). Contact fields,
+  item and order instructions, ASAP-or-scheduled from the public slot
+  listing, the two independent never-pre-checked consents (D7), and
+  the required `expected_total_minor` (D8). Every typed 409 renders
+  honestly: `cart_stale` marks the offending lines per reason,
+  `price_changed` adopts the authoritative total for a deliberate
+  retry (the displayed total is always what is submitted),
+  `slot_unavailable` clears and refreshes the listing,
+  `idempotency_key_reused` mints a fresh key. The idempotency key (D2)
+  is held per submission content — kept across pure retries, dropped
+  on any payload-relevant change.
+- **`/order/track/{token}`:** published-chrome-gated only,
+  deliberately NOT entitlement-gated (D10 as amended — structural: the
+  shell never reads availability, proven by test and by the
+  built-server request count). The tracker island polls the public
+  tracking GET at 15 s, stops on terminal statuses, and offers the
+  two-step D11 cancellation while `submitted`.
+- **Transport (D9):** islands fetch relative same-origin paths (no
+  api-client runtime in the bundle — generated types only). The
+  dev-only forwarder gains POST for `/api/v1/public/` paths only,
+  carrying the body and the browser-context evidence verbatim through
+  its own `node:http` leg; the read-only SSR tenant transport is
+  untouched and production stays disabled.
+- **SEO decision recorded:** the ordering routes are transactional and
+  their existence is a live entitlement fact, so they are noindex,
+  robots-disallowed (`Disallow: /order`, covering tracking URLs by
+  prefix), and never in the sitemap — which stays exactly `/` and
+  `/menu`.
+- **Renderer seam:** `MenuListing` gains an optional per-item
+  `itemAction` slot (absent → byte-identical output, so the workspace
+  preview and an ordering-disabled storefront render no affordance);
+  the package exports `./money` so islands reuse the exact formatter
+  without the barrel's CSS side effects.
+
+**Budget, and a measurement discovery.** The ADR-021 ceiling method is
+unchanged and green: 456,694 B against the 502,201 B ceiling on all
+four public routes. Discovered while extending the measurement:
+`rootMainFiles` does **not** name the app-router client-components
+chunk (~58 KB) every route has always loaded, so the recorded baseline
+under-measures the real first load by that constant — on every route,
+before and after M6C alike. The ceiling therefore keeps its original
+recorded meaning, and the budget script now **additionally measures
+and reports** each route's marginal island JavaScript (the ADR-024 §11
+measure-and-report precedent, no threshold): `/menu` 9,703 B, `/order`
+16,332 B, `/order/track` 7,429 B, home 0. A corrected-baseline ADR-021
+amendment is the recorded candidate fix, for review — never a silent
+re-baseline.
+
+Verification: storefront **143** (from 78 — the pure cart matrix
+including the versioned drop; storage round-trip and change
+announcements; the picker rules; the checkout matrix across every
+typed 409, the payload discipline, and validation; the tracker matrix
+including terminal-stop polling and the refused cancel; the `/order`
+gate and the ungated track shell; noindex metadata; the forwarder POST
+leg including namespace refusal and header verbatimness); renderer
+**165** (from 163 — the `itemAction` seam); api-client 115,
+control-center 480, backend 1,301 unchanged and green; contract
+byte-current; production builds green; built-server verification
+extended to the ordering surface (the hero "Order online" CTA on the
+wire, menu at exactly three reads, `/order` at two, track at one with
+no entitlement read, robots Disallow, sitemap unchanged); `pnpm e2e`
+green with full disposable cleanup.
+Merge evidence: PR #56, reviewed head
+`7e7db449188210f145bef287cd3649fc3a1c77f9` (the first pushed head
+`44217c85` failed exact-head CI run `30766259767` on the CSS
+regression suite — the fixtures needed the new routes; the follow-up
+commit extended them), SHA-bound merge
+`84a533cf28c7886ed25fe4b5dde3cb69549cf80a` (parents `385ac2b1` then
+the reviewed head; merge tree `164ea191` equal to the reviewed head
+tree); exact-head CI run `30766483548` and exact-merge push CI run
+`30766673037` both green — five jobs, zero artifacts, attempt 1.
+
+Deliberately not delivered (its own slice): the CC fulfillment-throttle
+field, the ordering e2e journeys, and the responsive/a11y acceptance
+for the ordering surfaces (M6D); the outbox worker (D14). Milestone 6
+is not complete until the §19 exit criteria are proven at M6D.

@@ -2,7 +2,73 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M6B — delivered 2026-08-02)
+## Current state (M6C — delivered 2026-08-02)
+
+M6C adds the ordering surface's coverage (ADR-026) at the component,
+utility, transport, and built-server layers. The storefront suite grows
+from **78** to **143** and the renderer suite from **163** to **165**;
+backend (1,301), api-client (115), and control-center (480) are
+unchanged — M6C ships no backend or CC change.
+
+- **The pure cart matrix.** Arithmetic by identity ((base + deltas) ×
+  quantity); identical choices merge with the quantity cap held;
+  different options or instructions append; the 30-line cap refuses
+  with the cart unchanged; quantity edits stay inside the contract
+  bounds; the placement payload carries references and quantities,
+  never prices; and the versioned persisted schema round-trips exactly
+  while every unrecognized form — wrong version, malformed JSON,
+  structural mismatch, out-of-bounds values — drops cleanly to empty.
+  Storage round-trips through real localStorage and announces changes
+  across island roots.
+- **The picker rules.** Confirm stays disabled until every required
+  group is satisfied; single-choice groups replace like radios; max
+  caps refuse without unchecking; the running total composes base,
+  deltas, and quantity; confirming persists the composed line.
+- **The checkout matrix.** The D2/D7/D8 payload discipline proven on
+  the wire shape (consents never pre-checked and submitted as-is, the
+  displayed total as `expected_total_minor`, references-only lines);
+  scheduled pickup requires and submits a chosen slot; missing contact
+  fields block the request entirely; and every typed 409 renders its
+  honest state — `cart_stale` marks the offending line and the refused
+  key dies (the retry is provably a new key), `price_changed` adopts
+  the authoritative total for the deliberate retry, `slot_unavailable`
+  clears and refreshes the listing, plus the 404 "ordering is gone"
+  and transport-failure states. Editing the cart returns a stale
+  refusal to idle.
+- **The tracker matrix.** The snapshot renders in the tenant timezone;
+  polling stops once the status is terminal (proven under fake
+  timers); cancellation is two-step with nothing sent before the
+  explicit confirmation; a 409 on cancel is the honest too-late answer
+  followed by a fresh read; unknown tokens and transport failures are
+  distinct honest states.
+- **The shells.** `/order` renders checkout with the tenant facts only
+  when the D12 gate is on and is the one neutral 404 otherwise; the
+  track shell passes the path token verbatim and provably never reads
+  the availability projection (D10 as amended, made structural).
+  Ordering metadata is noindex with honest titles; the indexed pages
+  carry no robots restriction; robots.txt disallows the `/order`
+  prefix; the sitemap stays exactly two URLs.
+- **The forwarder POST leg (D9).** Body, Host, and the browser-context
+  evidence forwarded verbatim against a live loopback stub; cookies
+  and authorization never travel; POST outside `/api/v1/public/`
+  forwards nothing; production disables the leg; an unreachable
+  backend is a bounded 502.
+- **The built server.** The ordering surface proven on the wire: the
+  hero "Order online" CTA, the menu affordance, `/menu` at exactly
+  three backend reads, `/order` at two, the track shell at one with no
+  entitlement read, and the robots/sitemap policy.
+- **The renderer seam.** `MenuListing.itemAction` absent renders no
+  affordance markup (byte-identical output); present, every item is
+  offered and the consumer's gate decides.
+
+Deliberate limits: no ordering e2e journey exists yet and no CC
+throttle field (M6D owns the browser evidence and the last CC touch);
+the outbox still accumulates `pending` rows with no worker (D14). The
+budget-measurement discovery (the ~58 KB chunk `rootMainFiles` never
+counted) is recorded in the M6C close-out with the island report as
+the interim answer. The four retained risks stand unchanged.
+
+## Earlier state (M6B — delivered 2026-08-02)
 
 M6B adds the public ordering-surface coverage (ADR-026) at the API,
 security, and component layers. The backend suite grows from **1,290**
