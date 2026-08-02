@@ -18,6 +18,7 @@ from app.domains.businesses.router_platform import platform_router
 from app.domains.businesses.router_public import public_router
 from app.domains.catalog.router_admin import catalog_admin_router
 from app.domains.catalog.router_public import catalog_public_router
+from app.domains.hours.router_admin import hours_admin_router
 from app.domains.identity.router import auth_router
 from app.domains.identity.router_recovery import (
     recovery_platform_router,
@@ -66,3 +67,6 @@ api_v1_router.include_router(storefront_platform_router)
 # Storefront (M4C, ADR-020): the host-resolved public projection of the
 # currently published version; unauthenticated, neutral-404.
 api_v1_router.include_router(storefront_public_router)
+# Hours (M5A, ADR-025): business-scoped weekly schedule, exceptions,
+# fulfillment settings, and the member availability preview.
+api_v1_router.include_router(hours_admin_router)

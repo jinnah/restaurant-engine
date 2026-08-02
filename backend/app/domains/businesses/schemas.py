@@ -71,6 +71,28 @@ class BusinessCreate(BaseModel):
         return upper
 
 
+class BusinessTimezoneSet(BaseModel):
+    """Platform command (M5A, ADR-025 ruling D2): assign the IANA timezone.
+
+    The first correction path for a creation-time tenancy fact: every
+    hours computation is a function of this column, and changing it
+    re-interprets every stored local time — which is exactly why the
+    command is platform-only and audited.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    timezone: str
+
+    @field_validator("timezone")
+    @classmethod
+    def _known_timezone(cls, value: str) -> str:
+        if value not in zoneinfo.available_timezones():
+            msg = f"unknown IANA timezone: {value!r}"
+            raise ValueError(msg)
+        return value
+
+
 class EmptyCommand(BaseModel):
     """Body for no-argument lifecycle commands.
 

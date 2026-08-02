@@ -24,6 +24,7 @@ export type {
   BusinessCreate,
   BusinessPage,
   BusinessSummary,
+  BusinessTimezoneSet,
   DesignAssignment,
   DesignAssignmentResult,
   EntitlementSet,
@@ -91,6 +92,20 @@ export type {
   MediaVariant,
   MediaVariantView,
 } from './media';
+export type {
+  AvailabilityPreview,
+  FulfillmentOut,
+  FulfillmentSet,
+  HoursApi,
+  HoursDeletedResponse,
+  HoursInterval,
+  HoursSettings,
+  ScheduleExceptionOut,
+  ScheduleExceptionSet,
+  WeeklyIntervalIn,
+  WeeklyIntervalOut,
+  WeeklyScheduleSet,
+} from './hours';
 export type {
   DesignVariant,
   DraftPut,

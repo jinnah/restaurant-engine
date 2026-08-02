@@ -22,6 +22,7 @@ from app.domains.businesses.schemas import (
     BusinessCreate,
     BusinessPage,
     BusinessSummary,
+    BusinessTimezoneSet,
     EmptyCommand,
     EntitlementSet,
     EntitlementsResponse,
@@ -145,6 +146,21 @@ def platform_business_close(
 ) -> BusinessSummary:
     """suspended → closed (terminal)."""
     return service.close(db, actor, business_id)
+
+
+@platform_router.put(
+    "/{business_id}/timezone",
+    operation_id="platform_business_timezone_set",
+    responses=_ENVELOPES_STATE,
+)
+def platform_business_timezone_set(
+    business_id: uuid.UUID,
+    payload: BusinessTimezoneSet,
+    db: Annotated[Session, Depends(get_session)],
+    actor: Annotated[ActorContext, Depends(csrf_protected_actor)],
+) -> BusinessSummary:
+    """Assign the tenant IANA timezone (M5A, ADR-025 ruling D2; audited)."""
+    return service.set_timezone(db, actor, business_id, payload)
 
 
 # --- Invitations (M2D, ADR-014) ---------------------------------------------
