@@ -21,10 +21,16 @@ const BOUNDS = {
 
 type NumericKey = keyof typeof BOUNDS;
 
+// The D3 throttle (ADR-026, delivered M6D): nullable — empty means no
+// cap. Bounds mirror the backend CHECK (1–100).
+const THROTTLE_BOUNDS = { min: 1, max: 100 } as const;
+
 interface FormState {
   pickupEnabled: boolean;
   asapEnabled: boolean;
   numbers: Record<NumericKey, string>;
+  /** Empty string means unlimited (stored NULL). */
+  maxOrdersPerSlot: string;
 }
 
 function stateFromSettings(fulfillment: FulfillmentOut): FormState {
@@ -39,7 +45,27 @@ function stateFromSettings(fulfillment: FulfillmentOut): FormState {
       ),
       max_days_ahead: String(fulfillment.max_days_ahead),
     },
+    maxOrdersPerSlot:
+      fulfillment.max_orders_per_slot === null
+        ? ''
+        : String(fulfillment.max_orders_per_slot),
   };
+}
+
+/** The throttle's save-blocking problem, or null. Empty is unlimited. */
+function throttleError(value: string): string | null {
+  if (value.trim() === '') {
+    return null;
+  }
+  const parsed = Number(value);
+  if (
+    !Number.isInteger(parsed) ||
+    parsed < THROTTLE_BOUNDS.min ||
+    parsed > THROTTLE_BOUNDS.max
+  ) {
+    return `Use a whole number between ${String(THROTTLE_BOUNDS.min)} and ${String(THROTTLE_BOUNDS.max)}, or leave it empty for no cap.`;
+  }
+  return null;
 }
 
 /** The field's save-blocking problem, or null. Never blocks typing. */
@@ -66,7 +92,8 @@ interface FulfillmentPanelProps {
  * would reintroduce the lost-update shape the convention avoids). When no
  * row exists yet (`is_configured === false`) the values shown are the
  * platform defaults, said plainly — the first save materializes them.
- * Throttling is deliberately absent (ADR-025 ruling D3 — M6).
+ * The D3 per-slot throttle (ADR-026, M6D) is the nullable exception:
+ * empty means no cap, and the full document always says which.
  */
 export function FulfillmentPanel({
   businessId,
@@ -107,6 +134,12 @@ export function FulfillmentPanel({
           <dd>{fulfillment.last_order_before_close_minutes} minutes</dd>
           <dt>Orders ahead</dt>
           <dd>{fulfillment.max_days_ahead} days</dd>
+          <dt>Orders per slot</dt>
+          <dd>
+            {fulfillment.max_orders_per_slot === null
+              ? 'No cap'
+              : fulfillment.max_orders_per_slot}
+          </dd>
         </dl>
       </section>
     );
@@ -127,7 +160,10 @@ export function FulfillmentPanel({
     ),
     max_days_ahead: numberError('max_days_ahead', form.numbers.max_days_ahead),
   };
-  const invalid = Object.values(errors).some((error) => error !== null);
+  const throttleProblem = throttleError(form.maxOrdersPerSlot);
+  const invalid =
+    Object.values(errors).some((error) => error !== null) ||
+    throttleProblem !== null;
   const dirty = JSON.stringify(form) !== JSON.stringify(baseline);
   const pending = setFulfillment.isPending;
 
@@ -152,6 +188,10 @@ export function FulfillmentPanel({
         form.numbers.last_order_before_close_minutes,
       ),
       max_days_ahead: Number(form.numbers.max_days_ahead),
+      max_orders_per_slot:
+        form.maxOrdersPerSlot.trim() === ''
+          ? null
+          : Number(form.maxOrdersPerSlot),
     };
     setFulfillment.mutate(body, {
       onSuccess: (saved) => {
@@ -181,7 +221,7 @@ export function FulfillmentPanel({
       <CheckboxField
         id="fulfillment-pickup"
         label="Pickup enabled"
-        hint="Whether customers can place pickup orders at all (ordering arrives in a later milestone)."
+        hint="Whether customers can place pickup orders at all."
         checked={form.pickupEnabled}
         disabled={pending}
         onChange={(event) => {
@@ -262,6 +302,24 @@ export function FulfillmentPanel({
         error={errors.max_days_ahead ?? undefined}
         onChange={(event) => {
           setNumber('max_days_ahead', event.target.value);
+        }}
+      />
+      <FormField
+        id="fulfillment-orders-per-slot"
+        name="max_orders_per_slot"
+        label="Orders per slot"
+        hint="Refuse a pickup time once this many orders already share it. Leave empty for no cap."
+        type="number"
+        min={THROTTLE_BOUNDS.min}
+        max={THROTTLE_BOUNDS.max}
+        value={form.maxOrdersPerSlot}
+        disabled={pending}
+        error={throttleProblem ?? undefined}
+        onChange={(event) => {
+          setForm((current) => ({
+            ...current,
+            maxOrdersPerSlot: event.target.value,
+          }));
         }}
       />
       <div className={styles.actions}>
