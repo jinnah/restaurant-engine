@@ -18,18 +18,92 @@ initial architecture-contract commit.
 
 ## Status
 
-| Milestone                                                      | State                                            |
-| -------------------------------------------------------------- | ------------------------------------------------ |
-| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                        |
-| M1 — Platform foundation                                       | **Complete** (2026-07-15)                        |
-| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                        |
-| M3 — Catalog and media                                         | **Complete** (2026-07-23)                        |
-| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                        |
-| M4G — Curated storefront design and motion (extension)         | **Complete** (2026-08-01; M4G-A–M4G-D, ADR-024)  |
-| M5 — Hours and pickup readiness                                | **Complete** (2026-08-02; M5A–M5E, ADR-025)      |
-| M6 — Cart and guest pickup ordering                            | **Complete** (2026-08-02; M6A–M6D, ADR-026)      |
-| M7 – M8 — Order operations, pilot                              | Not started                                      |
-| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23) |
+| Milestone                                                      | State                                              |
+| -------------------------------------------------------------- | -------------------------------------------------- |
+| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                          |
+| M1 — Platform foundation                                       | **Complete** (2026-07-15)                          |
+| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                          |
+| M3 — Catalog and media                                         | **Complete** (2026-07-23)                          |
+| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                          |
+| M4G — Curated storefront design and motion (extension)         | **Complete** (2026-08-01; M4G-A–M4G-D, ADR-024)    |
+| M5 — Hours and pickup readiness                                | **Complete** (2026-08-02; M5A–M5E, ADR-025)        |
+| M6 — Cart and guest pickup ordering                            | **Complete** (2026-08-02; M6A–M6D, ADR-026)        |
+| M7 — Restaurant order operations                               | **In progress** (M7A complete 2026-08-02, ADR-027) |
+| M8 — Production hardening and pilot                            | Not started                                        |
+| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23)   |
+
+## Milestone 7 delivery decision (2026-08-02)
+
+The approved M7 architecture (ADR-027, with binding rulings D1–D12 as
+amended in review and in delivery) subdivides M7 into four
+independently reviewed slices, one PR each. M7B and M7C depend on M7A;
+M7D depends on all of them.
+
+| Slice                              | Scope                                                                                                                                                                                                            | State                              |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| **M7A** — Order operations backend | migration (estimate + pause), `business.orders.operate`, the six named member commands, order-number-cursor list + detail/timeline + metrics, slot release on refusal, the pause command + enforcement, contract | **Complete** (2026-08-02, ADR-027) |
+| **M7B** — Storefront pause state   | the paused `/order` presentation, availability-projection consumption, the tracker estimate line                                                                                                                 | Not started                        |
+| **M7C** — The order board          | board, drawer, timeline, guarded actions, estimate control, search/filters, metrics strip, chime + toggle, print ticket, pause control + hours-page display                                                      | Not started                        |
+| **M7D** — E2E and close-out        | journey 5 (staff accept → prepare → ready; the tracker reflects each transition), the API-level concurrency race proof, board responsive/a11y acceptance, §19 exit-criteria verification                         | Not started                        |
+
+### M7A close-out (2026-08-02)
+
+M7A delivered **the order operations backend** — the first Milestone 7
+slice. One additive migration (`b3e1f0a7c254`: the prep-estimate column
+and the three pause fields, server-defaulted unpaused); contract
+**78 → 89**; backend **1,301 → 1,317**.
+
+**The member half of the §7.7 machine ships as named commands
+(D1/D4):** accept/reject from `submitted`, start-preparing, mark-ready,
+complete, and the member cancellation (from `submitted` only) — each
+validating the current state under the locked order row, appending the
+member-actor status event, and auditing in one transaction; an illegal
+command is `409 invalid_state` carrying the current status, so a
+racing device refetches the truth and state cannot corrupt. The D3
+amendment lands proven: the throttle count excludes **rejected**
+alongside cancelled, and the releasing commands take the Business lock
+first — a test fills a one-order slot, watches a second placement
+refuse, rejects the first, and watches the same placement succeed.
+
+**One named authority (D2):** `business.orders.operate` for owner,
+manager, AND staff — reads and commands alike, because the operational
+surface carries customer PII by design; platform administrators hold
+no membership and get the neutral 404.
+
+**Reads (D6, as amended in delivery):** the list pages newest-first
+behind an exclusive cursor on the dense tenant-scoped **order number**
+— the delivery correction to the ADR's UUIDv7 assumption (order ids
+are random UUID4; the number is monotonic under the Business lock and
+the existing unique serves it) — with status/date filters and bounded
+search that doubles as customer order history; the detail carries the
+full counter projection plus the append-only timeline; metrics (D11)
+are computed today-in-tenant-zone reads.
+
+**The estimate (D7)** is its own PUT, legal in accepted/preparing,
+audited set/cleared with exact no-op suppression, and rides
+`PublicOrderView` — the tracker round-trip is proven by test.
+**Pause/resume (D8)** is its own command on hours-write authority
+(never a fulfillment-document field — the amendment that keeps the
+delivered M6D panel from silently unpausing a business); effective
+pause is computed, an expired pause reads as resumed, placement
+refuses with the typed customer-visible `409 ordering_paused` checked
+after the idempotency replay lookup, and the public availability
+projection carries the effective facts.
+
+Merge evidence (PR #60): reviewed head
+`03c1d8135d143db5f26b271341c9e4a97ee5ab2f`, merged to `main` as
+`5f1c9a94244072485796ba96e8acb208da4d1d04` (ordered parents `c662d8e4`
+then the reviewed head; merge tree `f685a763` equal to the reviewed
+head tree). Exact-head CI run `30779327478` and exact-merge push CI
+run `30779525969` both completed successfully — five jobs green, zero
+artifacts, attempt 1. Full local gate green: every suite, ruff/mypy,
+typecheck/lint/format, builds, budget/CSS/built-server verification,
+contract byte-current, e2e 29 with disposable cleanup.
+
+**Boundary.** No storefront pause presentation or tracker estimate
+line (M7B); no order board (M7C); no operations e2e journeys (M7D); no
+refunds, notifications, SSE, or per-IP rate limiting (recorded
+triggers). The four retained risks stand unchanged.
 
 ## Milestone 6 delivery decision (2026-08-02)
 
