@@ -28,7 +28,7 @@ initial architecture-contract commit.
 | M4G — Curated storefront design and motion (extension)         | **Complete** (2026-08-01; M4G-A–M4G-D, ADR-024)  |
 | M5 — Hours and pickup readiness                                | **Complete** (2026-08-02; M5A–M5E, ADR-025)      |
 | M6 — Cart and guest pickup ordering                            | **Complete** (2026-08-02; M6A–M6D, ADR-026)      |
-| M7 — Restaurant order operations                               | **In progress** (M7A–M7C complete, ADR-027)      |
+| M7 — Restaurant order operations                               | **Complete** (2026-08-03; M7A–M7D, ADR-027)      |
 | M8 — Production hardening and pilot                            | Not started                                      |
 | M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23) |
 
@@ -44,7 +44,97 @@ M7D depends on all of them.
 | **M7A** — Order operations backend | migration (estimate + pause), `business.orders.operate`, the six named member commands, order-number-cursor list + detail/timeline + metrics, slot release on refusal, the pause command + enforcement, contract | **Complete** (2026-08-02, ADR-027) |
 | **M7B** — Storefront pause state   | the paused `/order` presentation, availability-projection consumption, the tracker estimate line                                                                                                                 | **Complete** (2026-08-03, ADR-027) |
 | **M7C** — The order board          | board, drawer, timeline, guarded actions, estimate control, search/filters, metrics strip, chime + toggle, print ticket, pause control + hours-page display                                                      | **Complete** (2026-08-03, ADR-027) |
-| **M7D** — E2E and close-out        | journey 5 (staff accept → prepare → ready; the tracker reflects each transition), the API-level concurrency race proof, board responsive/a11y acceptance, §19 exit-criteria verification                         | Not started                        |
+| **M7D** — E2E and close-out        | journey 5 (staff accept → prepare → ready; the tracker reflects each transition), the API-level concurrency race proof, board responsive/a11y acceptance, §19 exit-criteria verification                         | **Complete** (2026-08-03, ADR-027) |
+
+## Milestone 7 close-out (2026-08-03)
+
+**Milestone 7 is complete** (M7A–M7D, ADR-027, PRs #60–#68). Every
+blueprint §19 exit criterion is now proven, at the layer where its
+proof is honest — the M5 and M6 pattern.
+
+- **Staff permissions and the state machine pass.** One named authority
+  (D2, `business.orders.operate`) gates the PII-bearing reads and the
+  six named commands for owner, manager, and staff alike, with the
+  platform administrator's neutral 404. The M7A authority and
+  transition matrices prove it at the API; journey 5 proves it in a
+  browser with a real `staff` membership that is offered Orders and no
+  storefront section at all.
+- **Two staff actions cannot corrupt state.** Proven deterministically
+  under a real PostgreSQL row lock: the second command is observed
+  _waiting_ on the lock the first holds, then re-reads the row it now
+  owns and refuses with `409 invalid_state` carrying the current
+  status — appending no event and auditing nothing. Illegal is refused,
+  never resolved, so the losing device shows the truth.
+- **The customer tracker reflects transitions.** Journey 5 never
+  reloads the visitor's page: acceptance, the kitchen's estimate, the
+  start of preparation, and ready each arrive through the 15-second
+  poll the M6C tracker already does.
+- **Mobile and tablet usability is verified.** The board, the drawer,
+  its in-drawer confirmation, the estimate control and the pause dialog
+  hold the axe A/AA boundary and the 44px and no-horizontal-scroll
+  floors at a phone and a desktop width — and that acceptance found two
+  real defects in the delivered board, both fixed before this close-out
+  (a drawer dismissible only by keyboard, and an empty live region kept
+  out of the accessibility tree).
+
+The strengthened 2026-07-23 commitments land as promised: prep
+estimates the customer sees, pause/resume with a customer-visible
+explanation and a cart that survives it, dashboard metrics, print
+tickets, search, and history. Deferred by design and recorded: refunds
+and payment status (post-pilot, with payments); customer notifications
+and the outbox worker (ADR-026 D14 — rows still accumulate `pending`,
+operationally visible); SSE (D9's own measurement trigger); rejection
+reasons (D5); a real KDS (the multi-station trigger); per-IP rate
+limiting (M8). The evidence claimed for accessibility is the automated
+A/AA boundary plus the geometric floors — no assistive-technology
+testing was performed and no conformance is claimed. Owner-facing UAT
+of the ordering and operations surfaces remains deferred to the end at
+Jinnah's decision, with the M4G design batches and the hours surface.
+The four retained risks stand unchanged. Milestone 7 hands M8 a
+complete order lifecycle: placed by a customer, run by a counter, and
+honestly visible to both.
+
+### M7D close-out (2026-08-03)
+
+M7D delivered **the operations journeys and the board's acceptance** —
+the final Milestone 7 slice. Playwright **29 → 31**; control-center
+**513 → 515**; backend **1,319 → 1,320**; no schema or contract change.
+
+The concurrency proof is deterministic rather than timed: transaction A
+holds the order row the D1 commands take, the production command is
+seen waiting on that lock in `pg_stat_activity` before A commits, and
+the loser refuses with the current status once it can read the row.
+Journey 5 runs staff accept → prepare → ready in a browser with a
+genuine `staff` membership invited by the owner, while an anonymous
+visitor's tracker — never reloaded — picks up every transition and the
+kitchen's estimate through its own polling. The acceptance spec holds
+the board and every dialog state it can reach to the axe A/AA boundary
+and the 44px and no-overflow floors at 375px and 1280px, and pins the
+M7C choices a scan cannot see: `aria-pressed` chips in a named group,
+exactly one dialog and one `dialog-title` at a time, and a print ticket
+present in the document but absent from the accessibility tree.
+
+Two product fixes the acceptance forced, both in the delivered drawer.
+A **Close** control, because Escape is not a control on a tablet and
+every other dialog in the control center offers one — rendered in every
+state, including the one where the detail failed to load. And the
+new-order live region, which was `display: none` while empty and
+therefore out of the accessibility tree, so the first arrival would
+have been a region appearing rather than updating — the one thing
+ruling D10 asks it not to be; it is visually hidden now, and the
+acceptance finds it by role before anything arrives.
+
+Merge evidence (PR #67): reviewed head
+`ff6244f30814bea78f83b275ef2cbd42bdcad169` → merge
+`bacde45710fa4c3a39898a0245220596eccb3564` (ordered parents `ec329071`
+then the reviewed head; merge tree `aadc4e12` equal to the reviewed
+head tree). Exact-head CI run `30857565174` and exact-merge push CI run
+`30857933978` both green — five jobs, zero artifacts, attempt 1, the
+`frontend` job among them, so retained risk 1 did not recur on either.
+Full local gate green: `pnpm e2e` 31 with disposable
+cleanup, every unit suite, ruff/format/mypy, typecheck/lint/prettier,
+builds, budget unchanged, CSS, contract byte-current, built-server
+verification.
 
 ### M7C close-out (2026-08-03)
 
