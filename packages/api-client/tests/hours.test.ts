@@ -33,6 +33,10 @@ const SETTINGS: HoursSettings = {
     max_days_ahead: 0,
     // M6A (ADR-026 D3): null = unlimited, the registry default.
     max_orders_per_slot: null,
+    // M7A (ADR-027 D8): unpaused, the registry default.
+    ordering_paused: false,
+    pause_note: null,
+    pause_resume_at: null,
     is_configured: false,
   },
 };

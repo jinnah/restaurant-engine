@@ -26,6 +26,9 @@ export type ScheduleExceptionOut =
   components['schemas']['ScheduleExceptionOut'];
 export type FulfillmentSet = components['schemas']['FulfillmentSet'];
 export type FulfillmentOut = components['schemas']['FulfillmentOut'];
+// M7A (ADR-027 D8): pause/resume — its own command, never a
+// fulfillment-document field.
+export type OrderingPauseSet = components['schemas']['OrderingPauseSet'];
 export type AvailabilityPreview = components['schemas']['AvailabilityPreview'];
 export type HoursDeletedResponse =
   components['schemas']['HoursDeletedResponse'];
@@ -69,6 +72,12 @@ export interface HoursApi {
   setFulfillment(
     businessId: string,
     body: FulfillmentSet,
+    csrfToken: string,
+  ): Promise<ApiResult<HoursSettings>>;
+  /** Pause or resume ordering (M7A, ADR-027 D8) — its own command. */
+  setOrderingPause(
+    businessId: string,
+    body: OrderingPauseSet,
     csrfToken: string,
   ): Promise<ApiResult<HoursSettings>>;
 }
@@ -158,6 +167,18 @@ export function createHoursApi(client: Client<paths>): HoursApi {
       try {
         const { data, error, response } = await client.PUT(
           '/api/v1/businesses/{business_id}/hours/fulfillment',
+          { ...path(businessId), body, headers: csrf(csrfToken) },
+        );
+        return toResult(data, error, response);
+      } catch {
+        return { ok: false, status: null, envelope: null };
+      }
+    },
+
+    async setOrderingPause(businessId, body, csrfToken) {
+      try {
+        const { data, error, response } = await client.PUT(
+          '/api/v1/businesses/{business_id}/hours/pause',
           { ...path(businessId), body, headers: csrf(csrfToken) },
         );
         return toResult(data, error, response);

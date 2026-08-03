@@ -107,6 +107,20 @@ EXPECTED_OPERATION_IDS = {
     "public_order_get",
     "public_order_cancel",
     "public_pickup_slots_get",
+    # M7A (ADR-027): the operational order surface — board reads, the
+    # named member transition commands (D1/D4), the estimate (D7), the
+    # metrics read (D11), and the hours-owned pause command (D8).
+    "orders_admin_list",
+    "orders_admin_metrics",
+    "order_admin_get",
+    "order_accept",
+    "order_reject",
+    "order_start_preparing",
+    "order_mark_ready",
+    "order_complete",
+    "order_cancel_by_member",
+    "order_estimate_set",
+    "hours_ordering_pause_set",
 }
 
 
@@ -145,7 +159,7 @@ def test_exported_operation_ids_are_expected_and_unique() -> None:
     # placement (75); M6B adds tracking, cancellation, and the slot
     # listing: the contract is exactly 78 operations. The four
     # schema-hidden HEAD companions add none (see below).
-    assert len(EXPECTED_OPERATION_IDS) == 78
+    assert len(EXPECTED_OPERATION_IDS) == 89
 
 
 def test_public_media_documents_no_validation_error() -> None:

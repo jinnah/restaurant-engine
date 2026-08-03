@@ -66,6 +66,9 @@ function availabilityFixture(
       asap_enabled: asapEnabled,
       next_pickup_at: null,
       ordering_enabled: orderingEnabled,
+      ordering_paused: false,
+      pause_note: null,
+      pause_resumes_at: null,
     },
   };
 }

@@ -123,6 +123,7 @@ export interface ClientOverrides {
   media?: Partial<ApiClient['media']>;
   storefront?: Partial<ApiClient['storefront']>;
   hours?: Partial<ApiClient['hours']>;
+  orders?: Partial<ApiClient['orders']>;
 }
 
 // --- Hours fixtures (M5C, ADR-025) ---------------------------------------
@@ -145,6 +146,10 @@ export function fulfillmentOut(
     // M6A (ADR-026 D3): null = unlimited, the registry default. The M5C
     // form neither shows nor sends it until M6D adds the control.
     max_orders_per_slot: null,
+    // M7A (ADR-027 D8): unpaused defaults; the workspace control is M7C.
+    ordering_paused: false,
+    pause_note: null,
+    pause_resume_at: null,
     is_configured: false,
     ...overrides,
   };
@@ -451,7 +456,23 @@ export function makeClient(overrides: ClientOverrides = {}): ApiClient {
       setException: vi.fn(async () => neutralNotFound()),
       deleteException: vi.fn(async () => neutralNotFound()),
       setFulfillment: vi.fn(async () => neutralNotFound()),
+      setOrderingPause: vi.fn(async () => neutralNotFound()),
       ...overrides.hours,
+    },
+    // M7A (ADR-027): the operational order surface — the board arrives
+    // in M7C; defaults fail loudly like every other group until then.
+    orders: {
+      list: vi.fn(async () => neutralNotFound()),
+      get: vi.fn(async () => neutralNotFound()),
+      metrics: vi.fn(async () => neutralNotFound()),
+      accept: vi.fn(async () => neutralNotFound()),
+      reject: vi.fn(async () => neutralNotFound()),
+      startPreparing: vi.fn(async () => neutralNotFound()),
+      markReady: vi.fn(async () => neutralNotFound()),
+      complete: vi.fn(async () => neutralNotFound()),
+      cancel: vi.fn(async () => neutralNotFound()),
+      setEstimate: vi.fn(async () => neutralNotFound()),
+      ...overrides.orders,
     },
     // A surface the control center never touches; present so accidental use
     // fails loudly rather than silently returning undefined.

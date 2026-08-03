@@ -173,6 +173,10 @@ class PublicOrderView(BaseModel):
     business_timezone: str
     pickup_kind: PickupKind
     promised_pickup_at: datetime
+    # M7A (ADR-027 D7): the kitchen's live estimate, when one is set —
+    # a fact about the order, not the customer, so the shareable
+    # projection may carry it.
+    estimated_ready_at: datetime | None
     currency: str
     subtotal_minor: int
     tax_minor: int
@@ -202,3 +206,116 @@ class OrderPlacedResponse(BaseModel):
 
     tracking_token: str
     order: PublicOrderView
+
+
+# --- The operational surface (M7A, ADR-027) ----------------------------------
+
+
+class AdminOrderSummary(BaseModel):
+    """One board row (ruling D6).
+
+    Customer name ON PURPOSE: the operational surface is the counter,
+    and its authority is the named ``business.orders.operate``
+    capability — never inherited from ``business.view``.
+    """
+
+    id: uuid.UUID
+    order_number: int
+    status: OrderStatus
+    placed_at: datetime
+    pickup_kind: PickupKind
+    promised_pickup_at: datetime
+    estimated_ready_at: datetime | None
+    customer_name: str
+    total_minor: int
+    currency: str
+
+
+class AdminOrderList(BaseModel):
+    """One newest-first page behind the exclusive order-number cursor.
+
+    ``next_before_number`` is the cursor for the following page, or None
+    at the end (the ADR-014 audit pagination shape over the dense,
+    tenant-scoped number).
+    """
+
+    orders: list[AdminOrderSummary]
+    next_before_number: int | None
+
+
+class StatusEventView(BaseModel):
+    """One append-only timeline entry (ruling D7: events only)."""
+
+    from_status: OrderStatus | None
+    to_status: OrderStatus
+    actor_kind: str
+    occurred_at: datetime
+
+
+class AdminOrderDetail(BaseModel):
+    """The full operational projection (ruling D6).
+
+    Everything the counter needs — including the customer's contact and
+    both instruction fields the public projection deliberately omits.
+    ``payment`` and ``source`` are today's display constants ("pay at
+    pickup"; "online"): real data arrives with their milestones.
+    """
+
+    id: uuid.UUID
+    order_number: int
+    status: OrderStatus
+    placed_at: datetime
+    business_timezone: str
+    pickup_kind: PickupKind
+    promised_pickup_at: datetime
+    estimated_ready_at: datetime | None
+    customer_name: str
+    customer_phone: str
+    customer_email: str | None
+    order_instructions: str | None
+    consent_updates: bool
+    consent_marketing: bool
+    payment: str
+    source: str
+    currency: str
+    subtotal_minor: int
+    tax_minor: int
+    total_minor: int
+    lines: list[PublicOrderLine]
+    timeline: list[StatusEventView]
+
+
+class OrderEstimateSet(BaseModel):
+    """The prep-estimate command body (ruling D7). Null clears it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    estimated_ready_at: AwareDatetime | None = None
+
+
+class PopularItem(BaseModel):
+    """One of today's most-ordered items, from the immutable snapshot."""
+
+    display_name: str
+    quantity: int
+
+
+class OrderMetrics(BaseModel):
+    """Today's operational metrics (ruling D11) — computed, never stored.
+
+    ``sales_minor`` and ``average_order_value_minor`` count orders that
+    still stand (not rejected, not cancelled); the refusal rate is
+    refused-over-placed for the same window; prep seconds average the
+    accepted→ready event distance for orders that reached ready today.
+    """
+
+    day: str
+    timezone: str
+    order_count: int
+    standing_order_count: int
+    sales_minor: int
+    average_order_value_minor: int | None
+    cancelled_count: int
+    rejected_count: int
+    popular_items: list[PopularItem]
+    average_prep_seconds: int | None

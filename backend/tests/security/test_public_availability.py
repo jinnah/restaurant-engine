@@ -187,6 +187,10 @@ class TestProjection:
             # M6B (ADR-026 D12): no pickup means no ordering, whatever
             # the entitlement says.
             "ordering_enabled": False,
+            # M7A (ADR-027 D8): unpaused defaults — the effective facts.
+            "ordering_paused": False,
+            "pause_note": None,
+            "pause_resumes_at": None,
         }
 
     def test_an_around_the_clock_schedule_is_open_now(

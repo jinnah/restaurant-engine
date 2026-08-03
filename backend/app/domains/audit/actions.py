@@ -77,3 +77,16 @@ class AuditAction(StrEnum):
     ORDER_PLACED = "order.placed"
     # M6B: the customer's own cancellation (ruling D11) — also NULL-actor.
     ORDER_CANCELLED_BY_CUSTOMER = "order.cancelled_by_customer"
+    # M7A: the member half of the machine (ADR-027 D1/D4) — one action
+    # per named command, member-actor, details carry the transition and
+    # never customer PII.
+    ORDER_ACCEPTED = "order.accepted"
+    ORDER_REJECTED = "order.rejected"
+    ORDER_PREPARING = "order.preparing"
+    ORDER_READY = "order.ready"
+    ORDER_COMPLETED = "order.completed"
+    ORDER_CANCELLED_BY_MEMBER = "order.cancelled_by_member"
+    # M7A (D7): the kitchen's prep estimate was set or cleared.
+    ORDER_ESTIMATE_SET = "order.estimate_set"
+    # M7A (D8): ordering paused or resumed — hours-owned state.
+    BUSINESS_ORDERING_PAUSE_SET = "business.ordering_pause_set"

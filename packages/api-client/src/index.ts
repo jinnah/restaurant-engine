@@ -100,12 +100,24 @@ export type {
   HoursDeletedResponse,
   HoursInterval,
   HoursSettings,
+  OrderingPauseSet,
   ScheduleExceptionOut,
   ScheduleExceptionSet,
   WeeklyIntervalIn,
   WeeklyIntervalOut,
   WeeklyScheduleSet,
 } from './hours';
+export type {
+  AdminOrderDetail,
+  AdminOrderList,
+  AdminOrderSummary,
+  OrderEstimateSet,
+  OrderListParams,
+  OrderMetrics,
+  OrdersApi,
+  PopularItem,
+  StatusEventView,
+} from './orders';
 export type {
   DesignVariant,
   DraftPut,

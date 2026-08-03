@@ -175,6 +175,9 @@ class TestPlacement:
             "business_timezone",
             "pickup_kind",
             "promised_pickup_at",
+            # M7A (ADR-027 D7): the kitchen's estimate rides the public
+            # projection (null until a member sets it).
+            "estimated_ready_at",
             "currency",
             "subtotal_minor",
             "tax_minor",

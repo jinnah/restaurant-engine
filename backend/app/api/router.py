@@ -26,6 +26,7 @@ from app.domains.identity.router_recovery import (
     recovery_public_router,
 )
 from app.domains.media.router_admin import media_admin_router
+from app.domains.orders.router_admin import orders_admin_router
 from app.domains.orders.router_public import orders_public_router
 from app.domains.storefront.router_admin import storefront_admin_router
 from app.domains.storefront.router_platform import storefront_platform_router
@@ -79,3 +80,6 @@ api_v1_router.include_router(hours_public_router)
 # anonymous, browser-context-checked, idempotent, neutral-404 for every
 # ineligible cause including a missing ordering entitlement (D10).
 api_v1_router.include_router(orders_public_router)
+# Orders (M7A, ADR-027): the business-scoped operational surface —
+# board reads, the named transition commands, the estimate, metrics.
+api_v1_router.include_router(orders_admin_router)

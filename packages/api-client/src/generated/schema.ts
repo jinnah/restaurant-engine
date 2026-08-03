@@ -519,6 +519,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/businesses/{business_id}/hours/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Hours Ordering Pause Set
+         * @description Pause or resume ordering (M7A, ADR-027 D8) — its own command.
+         */
+        put: operations["hours_ordering_pause_set"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/businesses/{business_id}/hours/preview": {
         parameters: {
             query?: never;
@@ -676,6 +696,206 @@ export interface paths {
         get: operations["media_asset_file_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Orders Admin List
+         * @description One newest-first page: filters, search, exclusive id cursor (D6).
+         */
+        get: operations["orders_admin_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/orders/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Orders Admin Metrics
+         * @description Today's operational metrics, computed live (D11).
+         */
+        get: operations["orders_admin_metrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/orders/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Order Admin Get
+         * @description The full operational projection with the status timeline (D6).
+         */
+        get: operations["order_admin_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/orders/{order_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Order Accept
+         * @description Accept a submitted order (D1).
+         */
+        post: operations["order_accept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/orders/{order_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Order Cancel By Member
+         * @description Cancel a submitted order as a member (D4); the slot is released.
+         */
+        post: operations["order_cancel_by_member"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/orders/{order_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Order Complete
+         * @description Complete a ready order at pickup (D1).
+         */
+        post: operations["order_complete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/orders/{order_id}/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Order Estimate Set
+         * @description Set or clear the prep estimate while accepted/preparing (D7).
+         */
+        put: operations["order_estimate_set"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/orders/{order_id}/mark-ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Order Mark Ready
+         * @description Mark a preparing order ready for pickup (D1).
+         */
+        post: operations["order_mark_ready"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/orders/{order_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Order Reject
+         * @description Reject a submitted order; its pickup slot is released (D1/D3/D5).
+         */
+        post: operations["order_reject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/orders/{order_id}/start-preparing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Order Start Preparing
+         * @description Move an accepted order to preparing (D1).
+         */
+        post: operations["order_start_preparing"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1468,11 +1688,124 @@ export interface components {
             categories: components["schemas"]["CategoryWithItems"][];
         };
         /**
+         * AdminOrderDetail
+         * @description The full operational projection (ruling D6).
+         *
+         *     Everything the counter needs — including the customer's contact and
+         *     both instruction fields the public projection deliberately omits.
+         *     ``payment`` and ``source`` are today's display constants ("pay at
+         *     pickup"; "online"): real data arrives with their milestones.
+         */
+        AdminOrderDetail: {
+            /** Business Timezone */
+            business_timezone: string;
+            /** Consent Marketing */
+            consent_marketing: boolean;
+            /** Consent Updates */
+            consent_updates: boolean;
+            /** Currency */
+            currency: string;
+            /** Customer Email */
+            customer_email: string | null;
+            /** Customer Name */
+            customer_name: string;
+            /** Customer Phone */
+            customer_phone: string;
+            /** Estimated Ready At */
+            estimated_ready_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Lines */
+            lines: components["schemas"]["PublicOrderLine"][];
+            /** Order Instructions */
+            order_instructions: string | null;
+            /** Order Number */
+            order_number: number;
+            /** Payment */
+            payment: string;
+            pickup_kind: components["schemas"]["PickupKind"];
+            /**
+             * Placed At
+             * Format: date-time
+             */
+            placed_at: string;
+            /**
+             * Promised Pickup At
+             * Format: date-time
+             */
+            promised_pickup_at: string;
+            /** Source */
+            source: string;
+            status: components["schemas"]["OrderStatus"];
+            /** Subtotal Minor */
+            subtotal_minor: number;
+            /** Tax Minor */
+            tax_minor: number;
+            /** Timeline */
+            timeline: components["schemas"]["StatusEventView"][];
+            /** Total Minor */
+            total_minor: number;
+        };
+        /**
+         * AdminOrderList
+         * @description One newest-first page behind the exclusive order-number cursor.
+         *
+         *     ``next_before_number`` is the cursor for the following page, or None
+         *     at the end (the ADR-014 audit pagination shape over the dense,
+         *     tenant-scoped number).
+         */
+        AdminOrderList: {
+            /** Next Before Number */
+            next_before_number: number | null;
+            /** Orders */
+            orders: components["schemas"]["AdminOrderSummary"][];
+        };
+        /**
+         * AdminOrderSummary
+         * @description One board row (ruling D6).
+         *
+         *     Customer name ON PURPOSE: the operational surface is the counter,
+         *     and its authority is the named ``business.orders.operate``
+         *     capability — never inherited from ``business.view``.
+         */
+        AdminOrderSummary: {
+            /** Currency */
+            currency: string;
+            /** Customer Name */
+            customer_name: string;
+            /** Estimated Ready At */
+            estimated_ready_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Order Number */
+            order_number: number;
+            pickup_kind: components["schemas"]["PickupKind"];
+            /**
+             * Placed At
+             * Format: date-time
+             */
+            placed_at: string;
+            /**
+             * Promised Pickup At
+             * Format: date-time
+             */
+            promised_pickup_at: string;
+            status: components["schemas"]["OrderStatus"];
+            /** Total Minor */
+            total_minor: number;
+        };
+        /**
          * AuditAction
          * @description Machine-readable audit event names (append-only).
          * @enum {string}
          */
-        AuditAction: "auth.login_succeeded" | "auth.login_failed" | "auth.login_throttled" | "auth.logout" | "user.platform_admin_created" | "business.created" | "business.activated" | "business.suspended" | "business.reactivated" | "business.closed" | "business.invitation_issued" | "business.invitation_revoked" | "business.invitation_accepted" | "business.entitlement_granted" | "business.entitlement_revoked" | "auth.password_reset_issued" | "auth.password_reset_completed" | "catalog.category_created" | "catalog.category_updated" | "catalog.category_deleted" | "catalog.categories_reordered" | "catalog.item_created" | "catalog.item_updated" | "catalog.item_deleted" | "catalog.items_reordered" | "catalog.item_availability_changed" | "catalog.modifier_group_created" | "catalog.modifier_group_updated" | "catalog.modifier_group_deleted" | "catalog.modifier_groups_reordered" | "catalog.modifier_option_created" | "catalog.modifier_option_updated" | "catalog.modifier_option_deleted" | "catalog.modifier_options_reordered" | "media.asset_uploaded" | "media.asset_deleted" | "media.asset_expired" | "catalog.item_image_changed" | "storefront.published" | "storefront.version_restored" | "storefront.design_assigned" | "business.hours_updated" | "business.schedule_exception_set" | "business.schedule_exception_removed" | "business.fulfillment_updated" | "business.timezone_changed" | "order.placed" | "order.cancelled_by_customer";
+        AuditAction: "auth.login_succeeded" | "auth.login_failed" | "auth.login_throttled" | "auth.logout" | "user.platform_admin_created" | "business.created" | "business.activated" | "business.suspended" | "business.reactivated" | "business.closed" | "business.invitation_issued" | "business.invitation_revoked" | "business.invitation_accepted" | "business.entitlement_granted" | "business.entitlement_revoked" | "auth.password_reset_issued" | "auth.password_reset_completed" | "catalog.category_created" | "catalog.category_updated" | "catalog.category_deleted" | "catalog.categories_reordered" | "catalog.item_created" | "catalog.item_updated" | "catalog.item_deleted" | "catalog.items_reordered" | "catalog.item_availability_changed" | "catalog.modifier_group_created" | "catalog.modifier_group_updated" | "catalog.modifier_group_deleted" | "catalog.modifier_groups_reordered" | "catalog.modifier_option_created" | "catalog.modifier_option_updated" | "catalog.modifier_option_deleted" | "catalog.modifier_options_reordered" | "media.asset_uploaded" | "media.asset_deleted" | "media.asset_expired" | "catalog.item_image_changed" | "storefront.published" | "storefront.version_restored" | "storefront.design_assigned" | "business.hours_updated" | "business.schedule_exception_set" | "business.schedule_exception_removed" | "business.fulfillment_updated" | "business.timezone_changed" | "order.placed" | "order.cancelled_by_customer" | "order.accepted" | "order.rejected" | "order.preparing" | "order.ready" | "order.completed" | "order.cancelled_by_member" | "order.estimate_set" | "business.ordering_pause_set";
         /**
          * AuditEventPage
          * @description Cursor page (``id DESC``); ``next_before_id`` feeds the next request.
@@ -1899,7 +2232,7 @@ export interface components {
          * @description Machine-readable error code registry (append-only).
          * @enum {string}
          */
-        ErrorCode: "validation_error" | "not_found" | "method_not_allowed" | "http_error" | "internal_error" | "dependency_unavailable" | "authentication_required" | "invalid_credentials" | "csrf_rejected" | "permission_denied" | "conflict" | "invalid_state" | "payload_too_large" | "cart_stale" | "price_changed" | "slot_unavailable" | "idempotency_key_reused";
+        ErrorCode: "validation_error" | "not_found" | "method_not_allowed" | "http_error" | "internal_error" | "dependency_unavailable" | "authentication_required" | "invalid_credentials" | "csrf_rejected" | "permission_denied" | "conflict" | "invalid_state" | "payload_too_large" | "cart_stale" | "price_changed" | "slot_unavailable" | "idempotency_key_reused" | "ordering_paused";
         /** ErrorDetail */
         ErrorDetail: {
             code: components["schemas"]["ErrorCode"];
@@ -1947,6 +2280,9 @@ export interface components {
          *
          *     ``is_configured`` says which, so the UI can present "using defaults"
          *     honestly without comparing values against a copy of the registry.
+         *     The pause facts (M7A, ADR-027 D8) are read here but written only by
+         *     their own command — ``ordering_paused`` is the STORED flag; whether
+         *     it is currently effective is computed against the resume instant.
          */
         FulfillmentOut: {
             /** Asap Enabled */
@@ -1961,6 +2297,12 @@ export interface components {
             max_days_ahead: number;
             /** Max Orders Per Slot */
             max_orders_per_slot: number | null;
+            /** Ordering Paused */
+            ordering_paused: boolean;
+            /** Pause Note */
+            pause_note: string | null;
+            /** Pause Resume At */
+            pause_resume_at: string | null;
             /** Pickup Enabled */
             pickup_enabled: boolean;
             /** Slot Interval Minutes */
@@ -2754,6 +3096,45 @@ export interface components {
             updated_at: string;
         };
         /**
+         * OrderEstimateSet
+         * @description The prep-estimate command body (ruling D7). Null clears it.
+         */
+        OrderEstimateSet: {
+            /** Estimated Ready At */
+            estimated_ready_at?: string | null;
+        };
+        /**
+         * OrderMetrics
+         * @description Today's operational metrics (ruling D11) — computed, never stored.
+         *
+         *     ``sales_minor`` and ``average_order_value_minor`` count orders that
+         *     still stand (not rejected, not cancelled); the refusal rate is
+         *     refused-over-placed for the same window; prep seconds average the
+         *     accepted→ready event distance for orders that reached ready today.
+         */
+        OrderMetrics: {
+            /** Average Order Value Minor */
+            average_order_value_minor: number | null;
+            /** Average Prep Seconds */
+            average_prep_seconds: number | null;
+            /** Cancelled Count */
+            cancelled_count: number;
+            /** Day */
+            day: string;
+            /** Order Count */
+            order_count: number;
+            /** Popular Items */
+            popular_items: components["schemas"]["PopularItem"][];
+            /** Rejected Count */
+            rejected_count: number;
+            /** Sales Minor */
+            sales_minor: number;
+            /** Standing Order Count */
+            standing_order_count: number;
+            /** Timezone */
+            timezone: string;
+        };
+        /**
          * OrderPlace
          * @description The idempotent placement command (blueprint §7.7; rulings D2/D7/D8).
          *
@@ -2807,6 +3188,25 @@ export interface components {
          * @enum {string}
          */
         OrderStatus: "submitted" | "accepted" | "preparing" | "ready" | "completed" | "rejected" | "cancelled";
+        /**
+         * OrderingPauseSet
+         * @description The pause/resume command body (M7A, ADR-027 ruling D8).
+         *
+         *     Its own command, never a fulfillment-document field (the review
+         *     amendment: a full-document save from an older client must not
+         *     silently unpause a business). Resuming clears the note and instant;
+         *     a note or resume instant without ``paused`` is a contradiction and
+         *     is refused. The note is customer-visible bounded plain text, the D6
+         *     exception-note policy applied verbatim.
+         */
+        OrderingPauseSet: {
+            /** Note */
+            note?: string | null;
+            /** Paused */
+            paused: boolean;
+            /** Resume At */
+            resume_at?: string | null;
+        };
         /**
          * PaletteId
          * @description Platform-authored colour schemes (append-only, five permanent values).
@@ -2873,6 +3273,16 @@ export interface components {
          * @enum {string}
          */
         PickupKind: "asap" | "scheduled";
+        /**
+         * PopularItem
+         * @description One of today's most-ordered items, from the immutable snapshot.
+         */
+        PopularItem: {
+            /** Display Name */
+            display_name: string;
+            /** Quantity */
+            quantity: number;
+        };
         /**
          * PublicAvailability
          * @description The structured hours of the host-resolved active Business.
@@ -3220,6 +3630,8 @@ export interface components {
             business_timezone: string;
             /** Currency */
             currency: string;
+            /** Estimated Ready At */
+            estimated_ready_at: string | null;
             /** Lines */
             lines: components["schemas"]["PublicOrderLine"][];
             /** Order Number */
@@ -3264,6 +3676,12 @@ export interface components {
             next_pickup_at: string | null;
             /** Ordering Enabled */
             ordering_enabled: boolean;
+            /** Ordering Paused */
+            ordering_paused: boolean;
+            /** Pause Note */
+            pause_note: string | null;
+            /** Pause Resumes At */
+            pause_resumes_at: string | null;
         };
         /**
          * PublicPickupSlots
@@ -3593,6 +4011,21 @@ export interface components {
             /** Memberships */
             memberships: components["schemas"]["MembershipSummary"][];
             user: components["schemas"]["UserSummary"];
+        };
+        /**
+         * StatusEventView
+         * @description One append-only timeline entry (ruling D7: events only).
+         */
+        StatusEventView: {
+            /** Actor Kind */
+            actor_kind: string;
+            from_status: components["schemas"]["OrderStatus"] | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            to_status: components["schemas"]["OrderStatus"];
         };
         /**
          * StorefrontConfig
@@ -5853,6 +6286,77 @@ export interface operations {
             };
         };
     };
+    hours_ordering_pause_set: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderingPauseSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoursSettings"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     hours_availability_preview: {
         parameters: {
             query?: {
@@ -6478,6 +6982,641 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    orders_admin_list: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["OrderStatus"][] | null;
+                placed_after?: string | null;
+                placed_before?: string | null;
+                q?: string | null;
+                before_number?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOrderList"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    orders_admin_metrics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderMetrics"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    order_admin_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOrderDetail"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    order_accept: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOrderDetail"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    order_cancel_by_member: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOrderDetail"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    order_complete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOrderDetail"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    order_estimate_set: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderEstimateSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOrderDetail"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    order_mark_ready: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOrderDetail"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    order_reject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOrderDetail"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    order_start_preparing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOrderDetail"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

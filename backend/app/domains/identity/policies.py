@@ -70,6 +70,11 @@ class Capability(StrEnum):
     # reads deliberately ride on business.view — the schedule is public
     # information and staff see the hours they work.
     BUSINESS_HOURS_WRITE = "business.hours.write"
+    # M7A (ADR-027 ruling D2): the operational order surface — reads AND
+    # transition commands under one named authority, granted to every
+    # role (§7.1: staff view and advance orders). Named rather than
+    # riding business.view because this surface carries customer PII.
+    BUSINESS_ORDERS_OPERATE = "business.orders.operate"
 
 
 PLATFORM_CAPABILITIES: frozenset[Capability] = frozenset(
@@ -98,6 +103,7 @@ CAPABILITIES_BY_ROLE: dict[Role, frozenset[Capability]] = {
             Capability.BUSINESS_STOREFRONT_WRITE,
             Capability.BUSINESS_STOREFRONT_PUBLISH,
             Capability.BUSINESS_HOURS_WRITE,
+            Capability.BUSINESS_ORDERS_OPERATE,
         }
     ),
     Role.MANAGER: frozenset(
@@ -111,12 +117,14 @@ CAPABILITIES_BY_ROLE: dict[Role, frozenset[Capability]] = {
             Capability.BUSINESS_STOREFRONT_READ,
             Capability.BUSINESS_STOREFRONT_WRITE,
             Capability.BUSINESS_HOURS_WRITE,
+            Capability.BUSINESS_ORDERS_OPERATE,
         }
     ),
     Role.STAFF: frozenset(
         {
             Capability.BUSINESS_VIEW,
             Capability.BUSINESS_CATALOG_AVAILABILITY,
+            Capability.BUSINESS_ORDERS_OPERATE,
         }
     ),
 }

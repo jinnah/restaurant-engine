@@ -508,6 +508,9 @@ class TestFulfillment:
             # M6A (ADR-026 D3): no cap by default — throttling is an
             # explicit operational choice.
             "max_orders_per_slot": None,
+            "ordering_paused": False,
+            "pause_note": None,
+            "pause_resume_at": None,
             "is_configured": False,
         }
         with migrated_engine.connect() as connection:
@@ -538,6 +541,12 @@ class TestFulfillment:
             assert response.json()["fulfillment"] == {
                 **FULFILLMENT,
                 "max_orders_per_slot": None,
+                # M7A (ADR-027 D8): unpaused defaults — the fulfillment
+                # document never carries the pause fields; only the
+                # dedicated pause command writes them.
+                "ordering_paused": False,
+                "pause_note": None,
+                "pause_resume_at": None,
                 "is_configured": True,
             }
         rows = _audit_rows(migrated_engine, business_id, "business.fulfillment_updated")

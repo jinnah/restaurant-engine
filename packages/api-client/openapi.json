@@ -18,6 +18,251 @@
         "title": "AdminMenu",
         "type": "object"
       },
+      "AdminOrderDetail": {
+        "description": "The full operational projection (ruling D6).\n\nEverything the counter needs — including the customer's contact and\nboth instruction fields the public projection deliberately omits.\n``payment`` and ``source`` are today's display constants (\"pay at\npickup\"; \"online\"): real data arrives with their milestones.",
+        "properties": {
+          "business_timezone": {
+            "title": "Business Timezone",
+            "type": "string"
+          },
+          "consent_marketing": {
+            "title": "Consent Marketing",
+            "type": "boolean"
+          },
+          "consent_updates": {
+            "title": "Consent Updates",
+            "type": "boolean"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "customer_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Email"
+          },
+          "customer_name": {
+            "title": "Customer Name",
+            "type": "string"
+          },
+          "customer_phone": {
+            "title": "Customer Phone",
+            "type": "string"
+          },
+          "estimated_ready_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Ready At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PublicOrderLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "order_instructions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Instructions"
+          },
+          "order_number": {
+            "title": "Order Number",
+            "type": "integer"
+          },
+          "payment": {
+            "title": "Payment",
+            "type": "string"
+          },
+          "pickup_kind": {
+            "$ref": "#/components/schemas/PickupKind"
+          },
+          "placed_at": {
+            "format": "date-time",
+            "title": "Placed At",
+            "type": "string"
+          },
+          "promised_pickup_at": {
+            "format": "date-time",
+            "title": "Promised Pickup At",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus"
+          },
+          "subtotal_minor": {
+            "title": "Subtotal Minor",
+            "type": "integer"
+          },
+          "tax_minor": {
+            "title": "Tax Minor",
+            "type": "integer"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/StatusEventView"
+            },
+            "title": "Timeline",
+            "type": "array"
+          },
+          "total_minor": {
+            "title": "Total Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "order_number",
+          "status",
+          "placed_at",
+          "business_timezone",
+          "pickup_kind",
+          "promised_pickup_at",
+          "estimated_ready_at",
+          "customer_name",
+          "customer_phone",
+          "customer_email",
+          "order_instructions",
+          "consent_updates",
+          "consent_marketing",
+          "payment",
+          "source",
+          "currency",
+          "subtotal_minor",
+          "tax_minor",
+          "total_minor",
+          "lines",
+          "timeline"
+        ],
+        "title": "AdminOrderDetail",
+        "type": "object"
+      },
+      "AdminOrderList": {
+        "description": "One newest-first page behind the exclusive order-number cursor.\n\n``next_before_number`` is the cursor for the following page, or None\nat the end (the ADR-014 audit pagination shape over the dense,\ntenant-scoped number).",
+        "properties": {
+          "next_before_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Before Number"
+          },
+          "orders": {
+            "items": {
+              "$ref": "#/components/schemas/AdminOrderSummary"
+            },
+            "title": "Orders",
+            "type": "array"
+          }
+        },
+        "required": [
+          "orders",
+          "next_before_number"
+        ],
+        "title": "AdminOrderList",
+        "type": "object"
+      },
+      "AdminOrderSummary": {
+        "description": "One board row (ruling D6).\n\nCustomer name ON PURPOSE: the operational surface is the counter,\nand its authority is the named ``business.orders.operate``\ncapability — never inherited from ``business.view``.",
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "customer_name": {
+            "title": "Customer Name",
+            "type": "string"
+          },
+          "estimated_ready_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Ready At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "order_number": {
+            "title": "Order Number",
+            "type": "integer"
+          },
+          "pickup_kind": {
+            "$ref": "#/components/schemas/PickupKind"
+          },
+          "placed_at": {
+            "format": "date-time",
+            "title": "Placed At",
+            "type": "string"
+          },
+          "promised_pickup_at": {
+            "format": "date-time",
+            "title": "Promised Pickup At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus"
+          },
+          "total_minor": {
+            "title": "Total Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "order_number",
+          "status",
+          "placed_at",
+          "pickup_kind",
+          "promised_pickup_at",
+          "estimated_ready_at",
+          "customer_name",
+          "total_minor",
+          "currency"
+        ],
+        "title": "AdminOrderSummary",
+        "type": "object"
+      },
       "AuditAction": {
         "description": "Machine-readable audit event names (append-only).",
         "enum": [
@@ -68,7 +313,15 @@
           "business.fulfillment_updated",
           "business.timezone_changed",
           "order.placed",
-          "order.cancelled_by_customer"
+          "order.cancelled_by_customer",
+          "order.accepted",
+          "order.rejected",
+          "order.preparing",
+          "order.ready",
+          "order.completed",
+          "order.cancelled_by_member",
+          "order.estimate_set",
+          "business.ordering_pause_set"
         ],
         "title": "AuditAction",
         "type": "string"
@@ -956,7 +1209,8 @@
           "cart_stale",
           "price_changed",
           "slot_unavailable",
-          "idempotency_key_reused"
+          "idempotency_key_reused",
+          "ordering_paused"
         ],
         "title": "ErrorCode",
         "type": "string"
@@ -1054,7 +1308,7 @@
         "type": "object"
       },
       "FulfillmentOut": {
-        "description": "The effective policy — the stored row, or the documented defaults.\n\n``is_configured`` says which, so the UI can present \"using defaults\"\nhonestly without comparing values against a copy of the registry.",
+        "description": "The effective policy — the stored row, or the documented defaults.\n\n``is_configured`` says which, so the UI can present \"using defaults\"\nhonestly without comparing values against a copy of the registry.\nThe pause facts (M7A, ADR-027 D8) are read here but written only by\ntheir own command — ``ordering_paused`` is the STORED flag; whether\nit is currently effective is computed against the resume instant.",
         "properties": {
           "asap_enabled": {
             "title": "Asap Enabled",
@@ -1087,6 +1341,33 @@
             ],
             "title": "Max Orders Per Slot"
           },
+          "ordering_paused": {
+            "title": "Ordering Paused",
+            "type": "boolean"
+          },
+          "pause_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pause Note"
+          },
+          "pause_resume_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pause Resume At"
+          },
           "pickup_enabled": {
             "title": "Pickup Enabled",
             "type": "boolean"
@@ -1104,6 +1385,9 @@
           "last_order_before_close_minutes",
           "max_days_ahead",
           "max_orders_per_slot",
+          "ordering_paused",
+          "pause_note",
+          "pause_resume_at",
           "is_configured"
         ],
         "title": "FulfillmentOut",
@@ -2682,6 +2966,102 @@
         "title": "ModifierOptionView",
         "type": "object"
       },
+      "OrderEstimateSet": {
+        "additionalProperties": false,
+        "description": "The prep-estimate command body (ruling D7). Null clears it.",
+        "properties": {
+          "estimated_ready_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Ready At"
+          }
+        },
+        "title": "OrderEstimateSet",
+        "type": "object"
+      },
+      "OrderMetrics": {
+        "description": "Today's operational metrics (ruling D11) — computed, never stored.\n\n``sales_minor`` and ``average_order_value_minor`` count orders that\nstill stand (not rejected, not cancelled); the refusal rate is\nrefused-over-placed for the same window; prep seconds average the\naccepted→ready event distance for orders that reached ready today.",
+        "properties": {
+          "average_order_value_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Order Value Minor"
+          },
+          "average_prep_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Prep Seconds"
+          },
+          "cancelled_count": {
+            "title": "Cancelled Count",
+            "type": "integer"
+          },
+          "day": {
+            "title": "Day",
+            "type": "string"
+          },
+          "order_count": {
+            "title": "Order Count",
+            "type": "integer"
+          },
+          "popular_items": {
+            "items": {
+              "$ref": "#/components/schemas/PopularItem"
+            },
+            "title": "Popular Items",
+            "type": "array"
+          },
+          "rejected_count": {
+            "title": "Rejected Count",
+            "type": "integer"
+          },
+          "sales_minor": {
+            "title": "Sales Minor",
+            "type": "integer"
+          },
+          "standing_order_count": {
+            "title": "Standing Order Count",
+            "type": "integer"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "day",
+          "timezone",
+          "order_count",
+          "standing_order_count",
+          "sales_minor",
+          "average_order_value_minor",
+          "cancelled_count",
+          "rejected_count",
+          "popular_items",
+          "average_prep_seconds"
+        ],
+        "title": "OrderMetrics",
+        "type": "object"
+      },
       "OrderPlace": {
         "additionalProperties": false,
         "description": "The idempotent placement command (blueprint §7.7; rulings D2/D7/D8).\n\n``expected_total_minor`` is the client's displayed total — compared,\nnever used in arithmetic. The two consents are independent required\nbooleans (never a blended opt-in). ``requested_pickup_at`` is\nrequired exactly when ``pickup_kind`` is ``scheduled``.",
@@ -2805,6 +3185,45 @@
         "title": "OrderStatus",
         "type": "string"
       },
+      "OrderingPauseSet": {
+        "additionalProperties": false,
+        "description": "The pause/resume command body (M7A, ADR-027 ruling D8).\n\nIts own command, never a fulfillment-document field (the review\namendment: a full-document save from an older client must not\nsilently unpause a business). Resuming clears the note and instant;\na note or resume instant without ``paused`` is a contradiction and\nis refused. The note is customer-visible bounded plain text, the D6\nexception-note policy applied verbatim.",
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 480,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "paused": {
+            "title": "Paused",
+            "type": "boolean"
+          },
+          "resume_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resume At"
+          }
+        },
+        "required": [
+          "paused"
+        ],
+        "title": "OrderingPauseSet",
+        "type": "object"
+      },
       "PaletteId": {
         "description": "Platform-authored colour schemes (append-only, five permanent values).\n\nA palette is a curated set of the existing ``.tenantPage`` custom\nproperties, not tenant input: contrast is a platform guarantee proved by\nbuild-time tests, which is only possible because the set is closed\n(ADR-024 §5). The tenant accent remains the single arbitrary token and\noverrides only the accent — it never participates in these five colours.",
         "enum": [
@@ -2905,6 +3324,25 @@
         ],
         "title": "PickupKind",
         "type": "string"
+      },
+      "PopularItem": {
+        "description": "One of today's most-ordered items, from the immutable snapshot.",
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "display_name",
+          "quantity"
+        ],
+        "title": "PopularItem",
+        "type": "object"
       },
       "PublicAvailability": {
         "description": "The structured hours of the host-resolved active Business.\n\nEvery active business has one — a business with no configured hours\nis honestly closed with nothing upcoming, not a 404, because absence\nof a schedule is a real operational state the storefront must render.\n`exceptions` is the bounded forward window only (today onward in the\ntenant's local calendar); past overrides are history, not display.",
@@ -3643,6 +4081,18 @@
             "title": "Currency",
             "type": "string"
           },
+          "estimated_ready_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Ready At"
+          },
           "lines": {
             "items": {
               "$ref": "#/components/schemas/PublicOrderLine"
@@ -3691,6 +4141,7 @@
           "business_timezone",
           "pickup_kind",
           "promised_pickup_at",
+          "estimated_ready_at",
           "currency",
           "subtotal_minor",
           "tax_minor",
@@ -3726,13 +4177,43 @@
           "ordering_enabled": {
             "title": "Ordering Enabled",
             "type": "boolean"
+          },
+          "ordering_paused": {
+            "title": "Ordering Paused",
+            "type": "boolean"
+          },
+          "pause_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pause Note"
+          },
+          "pause_resumes_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pause Resumes At"
           }
         },
         "required": [
           "enabled",
           "asap_enabled",
           "next_pickup_at",
-          "ordering_enabled"
+          "ordering_enabled",
+          "ordering_paused",
+          "pause_note",
+          "pause_resumes_at"
         ],
         "title": "PublicPickup",
         "type": "object"
@@ -4324,6 +4805,41 @@
           "memberships"
         ],
         "title": "SessionView",
+        "type": "object"
+      },
+      "StatusEventView": {
+        "description": "One append-only timeline entry (ruling D7: events only).",
+        "properties": {
+          "actor_kind": {
+            "title": "Actor Kind",
+            "type": "string"
+          },
+          "from_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrderStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "to_status": {
+            "$ref": "#/components/schemas/OrderStatus"
+          }
+        },
+        "required": [
+          "from_status",
+          "to_status",
+          "actor_kind",
+          "occurred_at"
+        ],
+        "title": "StatusEventView",
         "type": "object"
       },
       "StorefrontConfig": {
@@ -7615,6 +8131,100 @@
         ]
       }
     },
+    "/api/v1/businesses/{business_id}/hours/pause": {
+      "put": {
+        "description": "Pause or resume ordering (M7A, ADR-027 D8) — its own command.",
+        "operationId": "hours_ordering_pause_set",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderingPauseSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HoursSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Hours Ordering Pause Set",
+        "tags": [
+          "hours"
+        ]
+      }
+    },
     "/api/v1/businesses/{business_id}/hours/preview": {
       "get": {
         "description": "The computed availability at ``at`` (default: now) — a member probe.",
@@ -8552,6 +9162,975 @@
         "summary": "Media Asset File Get",
         "tags": [
           "media"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/orders": {
+      "get": {
+        "description": "One newest-first page: filters, search, exclusive id cursor (D6).",
+        "operationId": "orders_admin_list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/OrderStatus"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "placed_after",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Placed After"
+            }
+          },
+          {
+            "in": "query",
+            "name": "placed_before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Placed Before"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 80,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before_number",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before Number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOrderList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Orders Admin List",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/orders/metrics": {
+      "get": {
+        "description": "Today's operational metrics, computed live (D11).",
+        "operationId": "orders_admin_metrics",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderMetrics"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Orders Admin Metrics",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/orders/{order_id}": {
+      "get": {
+        "description": "The full operational projection with the status timeline (D6).",
+        "operationId": "order_admin_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOrderDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Order Admin Get",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/orders/{order_id}/accept": {
+      "post": {
+        "description": "Accept a submitted order (D1).",
+        "operationId": "order_accept",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOrderDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Order Accept",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/orders/{order_id}/cancel": {
+      "post": {
+        "description": "Cancel a submitted order as a member (D4); the slot is released.",
+        "operationId": "order_cancel_by_member",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOrderDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Order Cancel By Member",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/orders/{order_id}/complete": {
+      "post": {
+        "description": "Complete a ready order at pickup (D1).",
+        "operationId": "order_complete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOrderDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Order Complete",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/orders/{order_id}/estimate": {
+      "put": {
+        "description": "Set or clear the prep estimate while accepted/preparing (D7).",
+        "operationId": "order_estimate_set",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderEstimateSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOrderDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Order Estimate Set",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/orders/{order_id}/mark-ready": {
+      "post": {
+        "description": "Mark a preparing order ready for pickup (D1).",
+        "operationId": "order_mark_ready",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOrderDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Order Mark Ready",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/orders/{order_id}/reject": {
+      "post": {
+        "description": "Reject a submitted order; its pickup slot is released (D1/D3/D5).",
+        "operationId": "order_reject",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOrderDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Order Reject",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/businesses/{business_id}/orders/{order_id}/start-preparing": {
+      "post": {
+        "description": "Move an accepted order to preparing (D1).",
+        "operationId": "order_start_preparing",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Business Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOrderDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Order Start Preparing",
+        "tags": [
+          "orders"
         ]
       }
     },

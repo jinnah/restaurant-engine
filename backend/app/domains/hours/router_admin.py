@@ -23,6 +23,7 @@ from app.domains.hours.schemas import (
     FulfillmentSet,
     HoursDeletedResponse,
     HoursSettings,
+    OrderingPauseSet,
     ScheduleExceptionSet,
     WeeklyScheduleSet,
 )
@@ -131,3 +132,18 @@ def hours_fulfillment_set(
 ) -> HoursSettings:
     """Write the complete fulfillment policy (full-document command)."""
     return service.set_fulfillment(db, actor, business_id, payload)
+
+
+@hours_admin_router.put(
+    "/pause",
+    operation_id="hours_ordering_pause_set",
+    responses=_WRITE_ENVELOPES,
+)
+def hours_ordering_pause_set(
+    business_id: uuid.UUID,
+    payload: OrderingPauseSet,
+    db: Annotated[Session, Depends(get_session)],
+    actor: Annotated[ActorContext, Depends(csrf_protected_actor)],
+) -> HoursSettings:
+    """Pause or resume ordering (M7A, ADR-027 D8) — its own command."""
+    return service.set_ordering_pause(db, actor, business_id, payload)

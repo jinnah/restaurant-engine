@@ -40,6 +40,15 @@ IDEMPOTENCY_OPERATION_PLACE = "order.place"
 # checkout's scheduled-slot validation and the listing share it) ---------------
 MAX_PUBLIC_SLOTS = 100
 
+# --- The operational surface (M7A, ADR-027 rulings D6/D11) --------------------
+LIST_DEFAULT_PAGE_SIZE = 50
+LIST_MAX_PAGE_SIZE = 100
+LIST_QUERY_MAX_LENGTH = 80
+METRICS_POPULAR_ITEMS = 5
+# Today's display constants (real data arrives with payments / channels).
+PAYMENT_DISPLAY = "pay_at_pickup"
+SOURCE_DISPLAY = "online"
+
 
 def normalize_line(value: str) -> str:
     """Canonical single-line text: trim, collapse whitespace, Unicode NFC.

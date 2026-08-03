@@ -95,6 +95,12 @@ _NOTE_PRESENCE_CHOICE = _choice(frozenset({"present", "absent"}))
 _ENABLEMENT_CHOICE = _choice(frozenset({"enabled", "disabled"}))
 # M6A (ADR-026): the placement event's closed pickup vocabulary.
 _PICKUP_KIND_CHOICE = _choice(frozenset({"asap", "scheduled"}))
+# M7A (ADR-027): the closed §7.7 status vocabulary and the pause facts.
+_ORDER_STATUS_CHOICE = _choice(
+    frozenset({"submitted", "accepted", "preparing", "ready", "completed", "rejected", "cancelled"})
+)
+_ESTIMATE_CHOICE = _choice(frozenset({"set", "cleared"}))
+_PAUSE_CHOICE = _choice(frozenset({"paused", "resumed"}))
 
 
 def _total_int(value: object) -> int | None:
@@ -329,6 +335,35 @@ _PROJECTIONS: dict[str, dict[str, _Extractor]] = {
     # M6B (ADR-026 D11): the customer's own cancellation.
     AuditAction.ORDER_CANCELLED_BY_CUSTOMER.value: {
         "order_number": _small_int,
+    },
+    # M7A (ADR-027 D1/D4): the member half of the machine — one shared
+    # transition shape per named command; nothing here is customer PII.
+    **{
+        action.value: {
+            "order_number": _small_int,
+            "from_status": _ORDER_STATUS_CHOICE,
+            "to_status": _ORDER_STATUS_CHOICE,
+        }
+        for action in (
+            AuditAction.ORDER_ACCEPTED,
+            AuditAction.ORDER_REJECTED,
+            AuditAction.ORDER_PREPARING,
+            AuditAction.ORDER_READY,
+            AuditAction.ORDER_COMPLETED,
+            AuditAction.ORDER_CANCELLED_BY_MEMBER,
+        )
+    },
+    # M7A (ADR-027 D7): the prep estimate, set or cleared.
+    AuditAction.ORDER_ESTIMATE_SET.value: {
+        "order_number": _small_int,
+        "estimate": _ESTIMATE_CHOICE,
+        "estimated_ready_at": _short_str,
+    },
+    # M7A (ADR-027 D8): pause/resume — note PRESENCE only, never text.
+    AuditAction.BUSINESS_ORDERING_PAUSE_SET.value: {
+        "ordering": _PAUSE_CHOICE,
+        "note": _NOTE_PRESENCE_CHOICE,
+        "resume_at": _short_str,
     },
 }
 

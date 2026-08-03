@@ -80,6 +80,12 @@ class Order(Base):
 
     pickup_kind: Mapped[str] = mapped_column(Text, nullable=False)
     promised_pickup_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # M7A (ADR-027 ruling D7): the kitchen's live prep estimate. The
+    # promise above stays immutable as placed; this is the updatable
+    # answer, shown on the tracker when present.
+    estimated_ready_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
 
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     subtotal_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)

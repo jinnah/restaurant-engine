@@ -35,6 +35,7 @@ from app.domains.audit.actions import AuditAction
 from app.domains.audit.details import (
     BusinessHoursUpdatedDetails,
     FulfillmentUpdatedDetails,
+    OrderingPauseSetDetails,
     ScheduleExceptionRemovedDetails,
     ScheduleExceptionSetDetails,
 )
@@ -54,6 +55,7 @@ from app.domains.hours.schemas import (
     FulfillmentSet,
     HoursInterval,
     HoursSettings,
+    OrderingPauseSet,
     ScheduleExceptionOut,
     ScheduleExceptionSet,
     WeeklyIntervalOut,
@@ -144,6 +146,9 @@ def _fulfillment_out(row: FulfillmentSettings | None) -> FulfillmentOut:
             last_order_before_close_minutes=DEFAULT_POLICY.last_order_before_close_minutes,
             max_days_ahead=DEFAULT_POLICY.max_days_ahead,
             max_orders_per_slot=DEFAULT_POLICY.max_orders_per_slot,
+            ordering_paused=DEFAULT_POLICY.ordering_paused,
+            pause_note=DEFAULT_POLICY.pause_note,
+            pause_resume_at=DEFAULT_POLICY.pause_resume_at,
             is_configured=False,
         )
     return FulfillmentOut(
@@ -154,6 +159,9 @@ def _fulfillment_out(row: FulfillmentSettings | None) -> FulfillmentOut:
         last_order_before_close_minutes=row.last_order_before_close_minutes,
         max_days_ahead=row.max_days_ahead,
         max_orders_per_slot=row.max_orders_per_slot,
+        ordering_paused=row.ordering_paused,
+        pause_note=row.pause_note,
+        pause_resume_at=row.pause_resume_at,
         is_configured=True,
     )
 
@@ -229,6 +237,9 @@ def effective_policy(db: Session, business_id: uuid.UUID) -> FulfillmentPolicy:
         last_order_before_close_minutes=row.last_order_before_close_minutes,
         max_days_ahead=row.max_days_ahead,
         max_orders_per_slot=row.max_orders_per_slot,
+        ordering_paused=row.ordering_paused,
+        pause_note=row.pause_note,
+        pause_resume_at=row.pause_resume_at,
     )
 
 
@@ -442,6 +453,62 @@ def set_fulfillment(
             last_order_before_close_minutes=payload.last_order_before_close_minutes,
             max_days_ahead=payload.max_days_ahead,
             max_orders_per_slot=payload.max_orders_per_slot,
+        ),
+    )
+    db.commit()
+    return _settings_view(db, business)
+
+
+def set_ordering_pause(
+    db: Session, actor: ActorContext, business_id: uuid.UUID, payload: OrderingPauseSet
+) -> HoursSettings:
+    """Pause or resume ordering (M7A, ADR-027 ruling D8).
+
+    Its own command, deliberately outside the fulfillment full document
+    (the review amendment: an older client's fulfillment save must not
+    silently unpause a business). Resuming clears the note and instant;
+    the schema already refuses a note or resume time without ``paused``.
+    Materializes the settings row from the registry defaults on first
+    use, the M4G-A mechanism the other fulfillment write follows.
+    """
+    business = _authorize_write(db, actor, business_id)
+    row = repository.get_fulfillment(db, business_id=business_id)
+    if row is not None and (
+        row.ordering_paused == payload.paused
+        and row.pause_note == payload.note
+        and row.pause_resume_at == payload.resume_at
+    ):
+        return _settings_view(db, business)
+    if row is None:
+        row = FulfillmentSettings(
+            business_id=business_id,
+            pickup_enabled=DEFAULT_POLICY.pickup_enabled,
+            asap_enabled=DEFAULT_POLICY.asap_enabled,
+            lead_time_minutes=DEFAULT_POLICY.lead_time_minutes,
+            slot_interval_minutes=DEFAULT_POLICY.slot_interval_minutes,
+            last_order_before_close_minutes=DEFAULT_POLICY.last_order_before_close_minutes,
+            max_days_ahead=DEFAULT_POLICY.max_days_ahead,
+            max_orders_per_slot=DEFAULT_POLICY.max_orders_per_slot,
+            ordering_paused=payload.paused,
+            pause_note=payload.note,
+            pause_resume_at=payload.resume_at,
+        )
+        repository.add(db, row)
+    else:
+        row.ordering_paused = payload.paused
+        row.pause_note = payload.note
+        row.pause_resume_at = payload.resume_at
+    recorder.record(
+        db,
+        AuditAction.BUSINESS_ORDERING_PAUSE_SET,
+        actor_user_id=actor.user.id,
+        business_id=business_id,
+        target_type="fulfillment_settings",
+        target_id=str(business_id),
+        details=OrderingPauseSetDetails(
+            ordering="paused" if payload.paused else "resumed",
+            note="present" if payload.note is not None else "absent",
+            resume_at=None if payload.resume_at is None else payload.resume_at.isoformat(),
         ),
     )
     db.commit()

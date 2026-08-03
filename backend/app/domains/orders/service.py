@@ -16,7 +16,7 @@ every derived fact (promise, slot validity) is a pure function of it.
 import hashlib
 import secrets
 import uuid
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.exc import IntegrityError
@@ -25,21 +25,42 @@ from sqlalchemy.orm import Session
 from app.core.errors import ApiError, ErrorCode, InvalidStateError, ResourceNotFoundError
 from app.domains.audit import recorder
 from app.domains.audit.actions import AuditAction
-from app.domains.audit.details import OrderCancelledByCustomerDetails, OrderPlacedDetails
+from app.domains.audit.details import (
+    OrderCancelledByCustomerDetails,
+    OrderEstimateSetDetails,
+    OrderPlacedDetails,
+    OrderTransitionDetails,
+)
 from app.domains.businesses import repository as businesses_repository
 from app.domains.businesses.entitlements import business_has_feature
 from app.domains.businesses.features import FeatureKey
 from app.domains.businesses.lifecycle import BusinessStatus
+from app.domains.businesses.models import Business
 from app.domains.businesses.resolution import ResolvedBusiness
 from app.domains.businesses.schemas import PublicSiteSummary
 from app.domains.catalog.checkout_view import checkout_view
 from app.domains.hours import policies as hours_policies
 from app.domains.hours import repository as hours_repository
-from app.domains.hours.availability import ExceptionDay, next_pickup_at, pickup_slots
+from app.domains.hours.availability import (
+    ExceptionDay,
+    next_pickup_at,
+    ordering_effectively_paused,
+    pickup_slots,
+)
 from app.domains.hours.service import effective_policy
 from app.domains.hours.timekeeping import local_date
+from app.domains.identity.actor import ActorContext
+from app.domains.identity.authorization import require_membership_capability
+from app.domains.identity.policies import Capability
 from app.domains.orders import policies, repository
-from app.domains.orders.lifecycle import OrderStatus, PickupKind, StatusActorKind
+from app.domains.orders.lifecycle import (
+    ESTIMATE_LEGAL_STATUSES,
+    MEMBER_TRANSITIONS,
+    SLOT_RELEASING_STATUSES,
+    OrderStatus,
+    PickupKind,
+    StatusActorKind,
+)
 from app.domains.orders.models import (
     IdempotencyKey,
     Order,
@@ -50,12 +71,19 @@ from app.domains.orders.models import (
 )
 from app.domains.orders.pricing import CartInvalidError, PricedCart, PricedOption, price_cart
 from app.domains.orders.schemas import (
+    AdminOrderDetail,
+    AdminOrderList,
+    AdminOrderSummary,
+    OrderEstimateSet,
+    OrderMetrics,
     OrderPlace,
     OrderPlacedResponse,
+    PopularItem,
     PublicOrderLine,
     PublicOrderLineOption,
     PublicOrderView,
     PublicPickupSlots,
+    StatusEventView,
 )
 
 OUTBOX_TOPIC_ORDER_PLACED = "order.placed"
@@ -112,6 +140,7 @@ def _order_view(db: Session, business: ResolvedBusiness, order: Order) -> Public
         business_timezone=order.business_timezone,
         pickup_kind=PickupKind(order.pickup_kind),
         promised_pickup_at=order.promised_pickup_at,
+        estimated_ready_at=order.estimated_ready_at,
         currency=order.currency,
         subtotal_minor=order.subtotal_minor,
         tax_minor=order.tax_minor,
@@ -251,6 +280,25 @@ def place_order(
     )
     if existing is not None:
         return _replay(db, business, existing, digest), False
+
+    # The D8 pause (M7A, ADR-027): a temporary, customer-visible refusal
+    # — typed, never the neutral 404, and AFTER the replay lookup (an
+    # honest retry of an order placed before the pause still reads).
+    pause_policy = effective_policy(db, business.business_id)
+    if ordering_effectively_paused(pause_policy, now):
+        raise ApiError(
+            409,
+            ErrorCode.ORDERING_PAUSED,
+            "Online ordering is temporarily paused.",
+            details={
+                **({} if pause_policy.pause_note is None else {"note": pause_policy.pause_note}),
+                **(
+                    {}
+                    if pause_policy.pause_resume_at is None
+                    else {"resume_at": pause_policy.pause_resume_at.isoformat()}
+                ),
+            },
+        )
 
     view = checkout_view(
         db,
@@ -532,6 +580,321 @@ def list_pickup_slots(db: Session, business: ResolvedBusiness) -> PublicPickupSl
             tz=tz,
             limit=policies.MAX_PUBLIC_SLOTS,
         )
+    )
+
+
+# --- The operational surface (M7A, ADR-027) ----------------------------------
+
+
+def _authorize_operate(db: Session, actor: ActorContext, business_id: uuid.UUID) -> Business:
+    """The D2 authority: reads AND commands under one named capability.
+
+    The operational surface carries customer PII, so its authority is
+    never inherited from ``business.view``; platform administrators hold
+    no membership and get the same 404 as everywhere.
+    """
+    require_membership_capability(
+        db, actor, business_id=business_id, capability=Capability.BUSINESS_ORDERS_OPERATE
+    )
+    business = businesses_repository.get(db, business_id)
+    if business is None:  # pragma: no cover - membership implies existence via FK
+        raise ResourceNotFoundError("Business not found.")
+    return business
+
+
+def _summary(order: Order) -> AdminOrderSummary:
+    return AdminOrderSummary(
+        id=order.id,
+        order_number=order.order_number,
+        status=OrderStatus(order.status),
+        placed_at=order.placed_at,
+        pickup_kind=PickupKind(order.pickup_kind),
+        promised_pickup_at=order.promised_pickup_at,
+        estimated_ready_at=order.estimated_ready_at,
+        customer_name=order.customer_name,
+        total_minor=order.total_minor,
+        currency=order.currency,
+    )
+
+
+def list_orders_admin(
+    db: Session,
+    actor: ActorContext,
+    business_id: uuid.UUID,
+    *,
+    statuses: list[OrderStatus] | None,
+    placed_after: datetime | None,
+    placed_before: datetime | None,
+    q: str | None,
+    before_number: int | None,
+    limit: int,
+) -> AdminOrderList:
+    """One newest-first operational page (ruling D6)."""
+    _authorize_operate(db, actor, business_id)
+    rows = repository.list_orders(
+        db,
+        business_id=business_id,
+        statuses=statuses,
+        placed_after=placed_after,
+        placed_before=placed_before,
+        q=q,
+        before_number=before_number,
+        limit=limit,
+    )
+    return AdminOrderList(
+        orders=[_summary(order) for order in rows],
+        # A full page may end exactly at the last row; the next request
+        # then answers empty — the honest end, the audit-stream shape.
+        next_before_number=rows[-1].order_number if len(rows) == limit else None,
+    )
+
+
+def _detail(db: Session, business_id: uuid.UUID, order: Order) -> AdminOrderDetail:
+    lines = repository.list_lines(db, business_id=business_id, order_id=order.id)
+    options = repository.list_options_for_lines(
+        db, business_id=business_id, line_ids=[line.id for line in lines]
+    )
+    events = repository.list_status_events(db, business_id=business_id, order_id=order.id)
+    return AdminOrderDetail(
+        id=order.id,
+        order_number=order.order_number,
+        status=OrderStatus(order.status),
+        placed_at=order.placed_at,
+        business_timezone=order.business_timezone,
+        pickup_kind=PickupKind(order.pickup_kind),
+        promised_pickup_at=order.promised_pickup_at,
+        estimated_ready_at=order.estimated_ready_at,
+        customer_name=order.customer_name,
+        customer_phone=order.customer_phone,
+        customer_email=order.customer_email,
+        order_instructions=order.order_instructions,
+        consent_updates=order.consent_updates,
+        consent_marketing=order.consent_marketing,
+        payment=policies.PAYMENT_DISPLAY,
+        source=policies.SOURCE_DISPLAY,
+        currency=order.currency,
+        subtotal_minor=order.subtotal_minor,
+        tax_minor=order.tax_minor,
+        total_minor=order.total_minor,
+        lines=[
+            PublicOrderLine(
+                display_name=line.display_name,
+                quantity=line.quantity,
+                base_price_minor=line.base_price_minor,
+                options=[
+                    PublicOrderLineOption(
+                        group_name=option.group_display_name,
+                        option_name=option.option_display_name,
+                        price_delta_minor=option.price_delta_minor,
+                    )
+                    for option in options.get(line.id, [])
+                ],
+                line_total_minor=line.line_total_minor,
+            )
+            for line in lines
+        ],
+        timeline=[
+            StatusEventView(
+                from_status=None if event.from_status is None else OrderStatus(event.from_status),
+                to_status=OrderStatus(event.to_status),
+                actor_kind=event.actor_kind,
+                occurred_at=event.occurred_at,
+            )
+            for event in events
+        ],
+    )
+
+
+def get_order_admin(
+    db: Session, actor: ActorContext, business_id: uuid.UUID, order_id: uuid.UUID
+) -> AdminOrderDetail:
+    """The full operational projection, timeline included (ruling D6)."""
+    _authorize_operate(db, actor, business_id)
+    order = repository.get_order(db, business_id=business_id, order_id=order_id)
+    if order is None:
+        raise ResourceNotFoundError("Order not found.")
+    return _detail(db, business_id, order)
+
+
+_TRANSITION_AUDIT: dict[str, AuditAction] = {
+    "accept": AuditAction.ORDER_ACCEPTED,
+    "reject": AuditAction.ORDER_REJECTED,
+    "start-preparing": AuditAction.ORDER_PREPARING,
+    "mark-ready": AuditAction.ORDER_READY,
+    "complete": AuditAction.ORDER_COMPLETED,
+    "cancel": AuditAction.ORDER_CANCELLED_BY_MEMBER,
+}
+
+
+def transition_order(
+    db: Session,
+    actor: ActorContext,
+    business_id: uuid.UUID,
+    order_id: uuid.UUID,
+    command: str,
+) -> AdminOrderDetail:
+    """One named member command (rulings D1/D3/D4).
+
+    The order row is locked and its state re-read inside the
+    transaction; an illegal current state answers ``409 invalid_state``
+    with the current status in the typed details — the losing device of
+    a race refetches and shows the truth. The slot-releasing commands
+    (reject, cancel) additionally take the Business lock FIRST, the
+    D11-M6 precedent: release serializes with a racing placement's
+    count. Lock order is therefore always Business → order, acyclic
+    with every other orders transaction.
+    """
+    legal_from, target = MEMBER_TRANSITIONS[command]
+    _authorize_operate(db, actor, business_id)
+    if target in SLOT_RELEASING_STATUSES:
+        locked = businesses_repository.get_for_update(db, business_id)
+        if locked is None:  # pragma: no cover - membership implies existence
+            raise ResourceNotFoundError("Business not found.")
+    order = repository.get_order_for_update(db, business_id=business_id, order_id=order_id)
+    if order is None:
+        raise ResourceNotFoundError("Order not found.")
+    if order.status != legal_from.value:
+        raise ApiError(
+            409,
+            ErrorCode.INVALID_STATE,
+            f"This order cannot be {_COMMAND_VERBS[command]} from its current state.",
+            details={"status": order.status},
+        )
+    order.status = target.value
+    repository.add(
+        db,
+        OrderStatusEvent(
+            business_id=business_id,
+            order_id=order.id,
+            from_status=legal_from.value,
+            to_status=target.value,
+            actor_kind=StatusActorKind.MEMBER.value,
+            actor_user_id=actor.user.id,
+        ),
+    )
+    recorder.record(
+        db,
+        _TRANSITION_AUDIT[command],
+        actor_user_id=actor.user.id,
+        business_id=business_id,
+        target_type="order",
+        target_id=str(order.id),
+        details=OrderTransitionDetails(
+            order_number=order.order_number,
+            from_status=legal_from.value,
+            to_status=target.value,
+        ),
+    )
+    db.commit()
+    return _detail(db, business_id, order)
+
+
+_COMMAND_VERBS: dict[str, str] = {
+    "accept": "accepted",
+    "reject": "rejected",
+    "start-preparing": "moved to preparing",
+    "mark-ready": "marked ready",
+    "complete": "completed",
+    "cancel": "cancelled",
+}
+
+
+def set_estimate(
+    db: Session,
+    actor: ActorContext,
+    business_id: uuid.UUID,
+    order_id: uuid.UUID,
+    payload: OrderEstimateSet,
+) -> AdminOrderDetail:
+    """Set or clear the prep estimate (ruling D7).
+
+    Legal only while the kitchen owns the order (accepted/preparing);
+    audited, never evented — the timeline stays the status trail.
+    """
+    _authorize_operate(db, actor, business_id)
+    order = repository.get_order_for_update(db, business_id=business_id, order_id=order_id)
+    if order is None:
+        raise ResourceNotFoundError("Order not found.")
+    if OrderStatus(order.status) not in ESTIMATE_LEGAL_STATUSES:
+        raise ApiError(
+            409,
+            ErrorCode.INVALID_STATE,
+            "An estimate can be set only while the order is accepted or preparing.",
+            details={"status": order.status},
+        )
+    if order.estimated_ready_at == payload.estimated_ready_at:
+        return _detail(db, business_id, order)
+    order.estimated_ready_at = payload.estimated_ready_at
+    recorder.record(
+        db,
+        AuditAction.ORDER_ESTIMATE_SET,
+        actor_user_id=actor.user.id,
+        business_id=business_id,
+        target_type="order",
+        target_id=str(order.id),
+        details=OrderEstimateSetDetails(
+            order_number=order.order_number,
+            estimate="cleared" if payload.estimated_ready_at is None else "set",
+            estimated_ready_at=(
+                None
+                if payload.estimated_ready_at is None
+                else payload.estimated_ready_at.isoformat()
+            ),
+        ),
+    )
+    db.commit()
+    return _detail(db, business_id, order)
+
+
+def order_metrics(db: Session, actor: ActorContext, business_id: uuid.UUID) -> OrderMetrics:
+    """Today's operational metrics (ruling D11) — computed, never stored.
+
+    "Today" is the tenant-local calendar day, converted to a UTC window;
+    every aggregate is arithmetic over that window's orders, their
+    snapshot lines, and their status events.
+    """
+    business = _authorize_operate(db, actor, business_id)
+    now = datetime.now(UTC)
+    tz = ZoneInfo(business.timezone)
+    day = local_date(now, tz)
+    since = datetime.combine(day, time.min, tzinfo=tz).astimezone(UTC)
+    until = since + timedelta(days=1)
+    orders = repository.metrics_orders(db, business_id=business_id, since=since, until=until)
+    standing = [
+        order for order in orders if OrderStatus(order.status) not in SLOT_RELEASING_STATUSES
+    ]
+    sales = sum(order.total_minor for order in standing)
+    order_ids = [order.id for order in orders]
+    quantities: dict[str, int] = {}
+    for line in repository.lines_for_orders(db, business_id=business_id, order_ids=order_ids):
+        quantities[line.display_name] = quantities.get(line.display_name, 0) + line.quantity
+    popular = sorted(quantities.items(), key=lambda item: (-item[1], item[0]))
+    accepted_at: dict[uuid.UUID, datetime] = {}
+    ready_at: dict[uuid.UUID, datetime] = {}
+    for event in repository.events_for_orders(db, business_id=business_id, order_ids=order_ids):
+        if event.to_status == OrderStatus.ACCEPTED.value:
+            accepted_at[event.order_id] = event.occurred_at
+        elif event.to_status == OrderStatus.READY.value:
+            ready_at[event.order_id] = event.occurred_at
+    prep_seconds = [
+        (ready_at[order_id] - accepted_at[order_id]).total_seconds()
+        for order_id in ready_at
+        if order_id in accepted_at
+    ]
+    return OrderMetrics(
+        day=day.isoformat(),
+        timezone=business.timezone,
+        order_count=len(orders),
+        standing_order_count=len(standing),
+        sales_minor=sales,
+        average_order_value_minor=(sales // len(standing)) if standing else None,
+        cancelled_count=sum(1 for order in orders if order.status == OrderStatus.CANCELLED.value),
+        rejected_count=sum(1 for order in orders if order.status == OrderStatus.REJECTED.value),
+        popular_items=[
+            PopularItem(display_name=name, quantity=quantity)
+            for name, quantity in popular[: policies.METRICS_POPULAR_ITEMS]
+        ],
+        average_prep_seconds=(int(sum(prep_seconds) / len(prep_seconds)) if prep_seconds else None),
     )
 
 
