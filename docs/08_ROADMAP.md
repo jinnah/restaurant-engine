@@ -18,18 +18,18 @@ initial architecture-contract commit.
 
 ## Status
 
-| Milestone                                                      | State                                                  |
-| -------------------------------------------------------------- | ------------------------------------------------------ |
-| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                              |
-| M1 — Platform foundation                                       | **Complete** (2026-07-15)                              |
-| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                              |
-| M3 — Catalog and media                                         | **Complete** (2026-07-23)                              |
-| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                              |
-| M4G — Curated storefront design and motion (extension)         | **Complete** (2026-08-01; M4G-A–M4G-D, ADR-024)        |
-| M5 — Hours and pickup readiness                                | **Complete** (2026-08-02; M5A–M5E, ADR-025)            |
-| M6 — Cart and guest pickup ordering                            | **In progress** (M6A–M6C complete 2026-08-02, ADR-026) |
-| M7 – M8 — Order operations, pilot                              | Not started                                            |
-| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23)       |
+| Milestone                                                      | State                                            |
+| -------------------------------------------------------------- | ------------------------------------------------ |
+| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                        |
+| M1 — Platform foundation                                       | **Complete** (2026-07-15)                        |
+| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                        |
+| M3 — Catalog and media                                         | **Complete** (2026-07-23)                        |
+| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                        |
+| M4G — Curated storefront design and motion (extension)         | **Complete** (2026-08-01; M4G-A–M4G-D, ADR-024)  |
+| M5 — Hours and pickup readiness                                | **Complete** (2026-08-02; M5A–M5E, ADR-025)      |
+| M6 — Cart and guest pickup ordering                            | **Complete** (2026-08-02; M6A–M6D, ADR-026)      |
+| M7 – M8 — Order operations, pilot                              | Not started                                      |
+| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23) |
 
 ## Milestone 6 delivery decision (2026-08-02)
 
@@ -43,7 +43,91 @@ M6D depends on all of them.
 | **M6A** — Orders domain foundation     | order/idempotency/outbox tables + migration, pure pricing core over the catalog checkout view, transactional idempotent placement with D3 throttling, `POST /public/orders`, D9 self-origin, contract | **Complete** (2026-08-02, ADR-026) |
 | **M6B** — Public tracking and the gate | tracking GET + customer cancel + pickup-slots endpoint, `ordering_enabled` on the availability projection, `HeroAction.ORDER_ONLINE` + renderer arm, isolation matrix                                 | **Complete** (2026-08-02, ADR-026) |
 | **M6C** — Storefront ordering UI       | cart island + persisted schema, modifier picker, `/order` checkout (consents, slots, honest failure states), confirmation + tracker, dev-forwarder POST, allowlist/budget updates                     | **Complete** (2026-08-02, ADR-026) |
-| **M6D** — E2E and close-out            | the CC fulfillment-throttle field, blueprint journey 4 (order despite a simulated retry) + cancellation and stale-item journeys, responsive/a11y acceptance, exit-criteria verification               | Not started                        |
+| **M6D** — E2E and close-out            | the CC fulfillment-throttle field, blueprint journey 4 (order despite a simulated retry) + cancellation and stale-item journeys, responsive/a11y acceptance, exit-criteria verification               | **Complete** (2026-08-02, ADR-026) |
+
+## Milestone 6 close-out (2026-08-02)
+
+**Milestone 6 is complete** (M6A–M6D, ADR-026, PRs #52–#58). The
+delivery-decision guard "do not declare M6 complete before the exit
+criteria are provable" is discharged here, the M5 pattern: every §19
+exit criterion is now proven, at the layer where proof is honest.
+
+- **Retries do not duplicate.** Server-side: the M6A API matrix proves
+  a concurrent identical replay resolves to the one stored order and a
+  later replay returns its current representation (D2). Browser-side:
+  journey 4 proves a failed submission's retry carries the same
+  idempotency key — the same command, never a new one.
+- **Stale and sold-out items fail gracefully.** The M6A staleness
+  matrix names every problem per line (`cart_stale`); the M6D journey
+  proves the surface renders the refusal honestly and recovers.
+- **Totals are authoritative.** Nothing the client sends enters
+  arithmetic (M6A); `expected_total_minor` refuses surprises (D8,
+  `price_changed` proven at both layers); the tracker renders the
+  stored snapshot's own arithmetic.
+- **Orders survive menu edits.** Snapshots carry no catalog FK (D1);
+  the M6D journey deletes the ordered item outright and the tracker
+  keeps rendering names, options, and totals.
+- **End-to-end checkout passes.** Journey 4 runs customize → place →
+  track in a real browser against the full stack, plus the
+  cancellation and stale-cart journeys and the a11y/responsive
+  acceptance of the ordering surfaces.
+
+The commercial commitments (2026-07-23) land as promised: ordering on
+the restaurant's own branded site, modifier customization, honest
+failure states, idempotent placement, PII-free shareable tracking, and
+customer cancellation. Deferred by design, recorded: the outbox worker
+(D14 — rows accumulate `pending`, operationally visible, until the
+first channel milestone), the order board and staff commands (M7),
+per-IP rate limiting (M8), tax (D6), promotions (M9). Owner-facing UAT
+of the ordering surface is not yet conducted (Jinnah tests at the end,
+with the deferred M4G batches and the hours surface). The four
+retained risks stand unchanged. Milestone 6 hands M7 a proven order
+store with an append-only event trail and a customer tracker already
+polling it.
+
+### M6D close-out (2026-08-02)
+
+M6D delivered **the ordering journeys, the acceptance matrix, and the
+throttle field** — the final Milestone 6 slice. Playwright **25 → 29**;
+control-center **480 → 483**; no schema or contract change.
+
+Blueprint §15.3 journey 4 runs in a real browser: customize with
+modifiers (the required group provably blocks confirmation), place one
+pickup order despite a simulated retry — the first placement dies on
+the wire, the surface makes its honest no-duplicate promise, and the
+retry provably carries the **same idempotency key** — then track the
+order, delete the ordered item as the owner, and watch the snapshot
+survive. The cancellation journey proves the two-step D11 confirmation
+and persistence across reload; the stale-cart journey proves the named
+409 refusal and recovery; the acceptance spec holds the picker,
+checkout, and tracker to the axe A/AA boundary and the
+44px/no-overflow floors at mobile and desktop. (The retry simulation
+is client-side by recorded constraint — Playwright's `route.fetch`
+runs in Node and Windows does not resolve `*.localhost`;
+double-delivery of one command stays proven at the M6A API layer.)
+
+Seeding travels real commands only: the platform entitlement grant,
+the owner's time-robust zero-lead pickup policy over the all-day
+schedule, and modifier fixtures respecting the docs/03 max-vs-options
+rule (the projection rightly dropped a first over-capped fixture). One
+product fix the journeys forced: the add-to-order affordance renders
+disabled until React owns the DOM (`useSyncExternalStore` hydration
+signal) — a control whose handler has not attached is a lie to a fast
+finger on a slow connection. The one CC touch: the D3 per-slot
+throttle on the fulfillment panel (nullable, empty = no cap, 1–100
+mirroring the CHECK, explicit in the full document, staff read-only),
+with the stale pickup hint corrected.
+
+Merge evidence (PR #58): reviewed head
+`b5f0a950a9b301c58b56c819c281c6082eaa478a`, merged to `main` as
+`2af655549c37974230630abc1d4f949063101b3b` (ordered parents `8a2c9fc1`
+then the reviewed head; merge tree `0bc82b65` equal to the reviewed
+head tree). Exact-head CI run `30774854370` and exact-merge push CI
+run `30775059838` both completed successfully — five jobs green, zero
+artifacts, attempt 1. Full local gate green: e2e 29 with disposable
+cleanup, every unit suite, ruff/mypy, typecheck/lint/format, builds,
+budget (the menu island +76 B for the hydration gate, reported),
+contract byte-current, built-server verification.
 
 ### M6C close-out (2026-08-02)
 
