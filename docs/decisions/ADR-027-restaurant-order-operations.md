@@ -1,6 +1,6 @@
 # ADR-027: Restaurant order operations (Milestone 7)
 
-- **Status:** Accepted — M7A delivered (2026-08-02); M7B–M7D not started
+- **Status:** Accepted — M7A–M7B delivered (2026-08-02/03); M7C–M7D not started
 - **Date:** 2026-08-02
 - **Deciders:** Jinnah (product owner / principal architect), Claude (senior engineer)
 
@@ -236,3 +236,39 @@ tree); exact-head CI run `30779327478` and exact-merge push CI run
 Deliberately not delivered (their own slices): the storefront pause
 presentation and the tracker estimate line (M7B); the order board
 (M7C); the operations e2e journeys and close-out (M7D).
+
+### M7B — The storefront pause state and the tracker estimate: delivered, 2026-08-03
+
+Delivered exactly the §4 M7B scope — the customer half of what M7A
+stored, all presentation, no contract or backend change.
+
+The paused `/order` page (D8) renders the honest explanation instead
+of the checkout form when the availability projection says ordering is
+effectively paused: the owner's customer-visible note, the optional
+"back around {instant}" formatted in the tenant zone, and the promise
+that the saved cart survives — which it structurally does, because
+localStorage is never touched. The notice is a **server component**
+(nothing to hydrate), so the `'use client'` allowlist is unchanged.
+The D10 gate is untouched: pause is a different state from
+nonexistence. A pause that begins mid-checkout renders through the
+island's new `ordering_paused` state, which deliberately **keeps** the
+held idempotency key — retrying the same command after the resume is
+an honest replay, never a duplicate. The tracker renders "Estimated
+ready: {instant}" whenever the kitchen has set one (D7), arriving
+through the polling it already does.
+
+Verification: storefront **146** (from 143 — the paused page with note
+and resume and no checkout island; the mid-checkout 409 keeping the
+cart; the tracker estimate line); every other suite unchanged and
+green; the built-server availability fixture gains the pause fields;
+budget green (the checkout island grew 463 B, reported); `pnpm e2e`
+29 green.
+Merge evidence: PR #62, reviewed head
+`31cef9eb7e653d19f82f7e903a025b8e50b1ffb1`, SHA-bound merge
+`900dd186a1aac8a52a77ddc5a4b0d5f55493a1b5` (parents `05c50de1` then
+the reviewed head; merge tree `b8e4a7f0` equal to the reviewed head
+tree); exact-head CI run `30780730281` and exact-merge push CI run
+`30780976212` both green — five jobs, zero artifacts, attempt 1.
+
+Deliberately not delivered (their own slices): the order board (M7C);
+the operations e2e journeys and close-out (M7D).
