@@ -161,10 +161,15 @@
 
 /* --- The new-order alert (ruling D10) ------------------------------------- */
 
-/* Always in the DOM so an arrival is an announced update, never a region
-   materializing; empty it collapses to nothing. */
-.alertRegion:empty {
-  display: none;
+/* The live region is mounted in every state, and — corrected in M7D —
+   stays in the ACCESSIBILITY tree while it is empty. `display: none` kept
+   it out of that tree entirely, so the first arrival would have been a
+   region appearing rather than a region updating, which assistive
+   technology is not obliged to announce and which is the one thing the
+   ruling asks this not to be. Visually hidden instead; out of flow, so an
+   idle board still carries no stray gap. */
+.alertRegionIdle {
+  composes: visuallyHidden from '../components/controls.module.css';
 }
 
 .newOrderAlert {

@@ -105,7 +105,8 @@ async function inviteOwner(
 
 async function acceptAsNewUser(
   token: string,
-  ns: SpecNamespace,
+  who: { displayName: string; password: string },
+  what: string,
 ): Promise<void> {
   // Public acceptance from a fresh anonymous context, exactly as a new
   // user's browser would send it (no session, Origin-validated).
@@ -114,13 +115,60 @@ async function acceptAsNewUser(
     const response = await anonymous.post('/api/v1/invitations/accept', {
       data: {
         token,
-        display_name: ns.ownerName,
-        password: ns.ownerPassword,
+        display_name: who.displayName,
+        password: who.password,
       },
     });
-    await expectOk(response, `accept invitation for ${ns.slug}`);
+    await expectOk(response, `accept invitation for ${what}`);
   } finally {
     await anonymous.dispose();
+  }
+}
+
+/** A colleague the owner brings into the business (never the owner). */
+export interface TeamMember {
+  email: string;
+  displayName: string;
+  password: string;
+  role: 'manager' | 'staff';
+}
+
+/**
+ * A second real member of the business (M7D): the **owner** issues the
+ * business-scoped invitation (M2D, ADR-014 — bounded by the role ceiling,
+ * which is why this cannot mint another owner) and the colleague accepts
+ * it from a fresh anonymous context exactly as their own browser would.
+ *
+ * Journey 5 is about staff operating orders, so the staff member has to
+ * be a genuine `staff` membership rather than the owner wearing a label:
+ * only that proves ADR-027's ruling D2 — `business.orders.operate` is
+ * granted to owner, manager, AND staff — from the browser. The member's
+ * names come from the calling spec, which owns them the same way it owns
+ * its namespace (ADR-019 D6).
+ */
+export async function seedTeamMember(
+  ns: SpecNamespace,
+  businessId: string,
+  member: TeamMember,
+): Promise<void> {
+  const owner = await ownerApi(ns);
+  try {
+    const invitation = await owner.api.post(
+      `/api/v1/businesses/${businessId}/invitations`,
+      {
+        data: { email: member.email, role: member.role },
+        headers: { 'X-CSRF-Token': owner.csrf },
+      },
+    );
+    await expectOk(invitation, `invite a ${member.role} for ${ns.slug}`);
+    const { token } = (await invitation.json()) as { token: string };
+    await acceptAsNewUser(
+      token,
+      { displayName: member.displayName, password: member.password },
+      `the ${member.role} of ${ns.slug}`,
+    );
+  } finally {
+    await owner.dispose();
   }
 }
 
@@ -135,7 +183,11 @@ export async function provisionBusinessWithOwner(
   try {
     const businessId = await createBusiness(admin, ns);
     const token = await inviteOwner(admin, businessId, ns);
-    await acceptAsNewUser(token, ns);
+    await acceptAsNewUser(
+      token,
+      { displayName: ns.ownerName, password: ns.ownerPassword },
+      ns.slug,
+    );
     return { businessId };
   } finally {
     await admin.dispose();
@@ -736,7 +788,11 @@ export async function provisionActiveBusinessWithOwner(
   try {
     const businessId = await createBusiness(admin, ns);
     const token = await inviteOwner(admin, businessId, ns);
-    await acceptAsNewUser(token, ns);
+    await acceptAsNewUser(
+      token,
+      { displayName: ns.ownerName, password: ns.ownerPassword },
+      ns.slug,
+    );
     const activate = await admin.api.post(
       `/api/v1/platform/businesses/${businessId}/activate`,
       { data: {}, headers: { 'X-CSRF-Token': admin.csrf } },
