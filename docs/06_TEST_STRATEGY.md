@@ -2,7 +2,50 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M7B — delivered 2026-08-03)
+## Current state (M7C — delivered 2026-08-03)
+
+M7C adds the order board's coverage (ADR-027) at the component layer,
+plus the two backend tests its contract additions required. The
+control-center suite grows from **483** to **513** and the backend from
+**1,317** to **1,319**; every other suite is unchanged.
+
+- **The board (11 tests).** Every role reaches it (D2); the default
+  view asks for the active statuses and a chip narrows it; search
+  debounces into `q` and deliberately drops the status filter; the day
+  filter asks for one tenant calendar day and says so; a full page
+  offers the D6 cursor instead of truncating silently; the overdue mark
+  appears only where work is still owed; the metrics strip prints the
+  currency the metrics carry; a watch answer revealing an unseen order
+  raises the alert **while a different filter is on screen**, with the
+  chime off until enabled and persisted per device; empty views say
+  what is absent; and the pause control is owner/manager only, sending
+  a note and a duration.
+- **The drawer (10 tests).** The projection with its PII, options, both
+  instruction fields and the timeline; exactly the legal commands per
+  status (submitted offers accept/decline/cancel, ready only complete);
+  accept sends the named command with the CSRF token; declining takes a
+  second step inside the same dialog, with focus on the destructive
+  control and its consequence attached — and exactly one dialog on the
+  page; a `409 invalid_state` toasts the truth and refetches; the
+  estimate is a duration in the legal states only, clearable, and
+  absent before acceptance; the print ticket carries number, customer,
+  lines, and both instruction fields, and the control calls `print`.
+- **The format helpers (9 tests).** Instants and the business day
+  render in the _business_ zone at frozen times; age reads the way a
+  counter says it and never goes negative on clock skew; the overdue
+  rule covers every status and prefers the kitchen's estimate to the
+  promise; every status has operational language.
+- **The backend (2 tests).** The `day` filter is the tenant calendar
+  day across the spring-forward Sunday — the row 30 minutes past the
+  local midnight of the _next_ day is excluded, which a naive
+  24-hour window would have swallowed — and it narrows an explicit
+  instant window rather than replacing it.
+
+Deliberate limits: journey 5, the API-level concurrency race proof, and
+the board's responsive/a11y acceptance are M7D. The four retained risks
+stand unchanged.
+
+## Earlier state (M7B — delivered 2026-08-03)
 
 M7B adds the customer-side pause and estimate coverage (ADR-027) at
 the component layer. The storefront suite grows from **143** to

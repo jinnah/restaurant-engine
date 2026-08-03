@@ -1,6 +1,6 @@
 # ADR-027: Restaurant order operations (Milestone 7)
 
-- **Status:** Accepted — M7A–M7B delivered (2026-08-02/03); M7C–M7D not started
+- **Status:** Accepted — M7A–M7C delivered (2026-08-02/03); M7D not started
 - **Date:** 2026-08-02
 - **Deciders:** Jinnah (product owner / principal architect), Claude (senior engineer)
 
@@ -272,3 +272,89 @@ tree); exact-head CI run `30780730281` and exact-merge push CI run
 
 Deliberately not delivered (their own slices): the order board (M7C);
 the operations e2e journeys and close-out (M7D).
+
+### M7C — The live order board: delivered, 2026-08-03
+
+Delivered the §4 M7C scope — the control center's operational surface —
+with three contract additions recorded below as delivery notes.
+
+**The board (D6/D9/D11).** Status chips carry the docs/08 operational
+vocabulary and never a wire value; the type of the label map is the
+generated `OrderStatus` union, so a status added to the machine fails
+the build here rather than showing "submitted" to a counter. The board
+is deliberately undated by default — an order placed before midnight
+and still preparing is still this shift's work — and polls at the D9
+cadence, the §14.3 doctrine's first consumer. Search is bounded, sends
+no status filter (an order somebody asks about by name is rarely still
+"New") and says so on screen; that same query is D6's customer-linked
+order history. The date filter is a tenant calendar day. A full page
+offers "Load older orders" behind the D6 exclusive cursor, so history
+is never a silently truncated first page. Tickets show number,
+customer, age, the promise — or the kitchen's own estimate, labelled as
+such — an overdue mark while work is still owed, and the total.
+Metrics (D11) print in the currency the metrics carry.
+
+**New orders (D10).** The alert rides a watch query that is
+independent of every filter: an order arriving while staff read the
+Ready column or yesterday's history still shouts, and the same query is
+the honest source of the New count. The alert lives in a live region
+that is always mounted (an arrival is an announced update, not a region
+materializing), and its action takes the reader to the new orders. The
+chime stays an explicit per-device opt-in, off by default, played
+through the Web Audio API on the gesture that enabled it.
+
+**The drawer (D6/D1/D4/D7/D12).** The full counter projection — the
+PII this surface exists for, both instruction fields, consents, the
+display constants, the snapshot lines — and the append-only timeline.
+It offers exactly the legal commands for the current status and
+nothing else; a raced `409 invalid_state` says the order changed on
+another device and refetches rather than guessing. A consequential
+refusal confirms **inside** the drawer: the control center keeps one
+dialog open at a time, and nesting would have put two focus traps and
+two elements carrying the same title id on the page. The estimate is a
+duration ("20 min"), never a wall-clock picker — the device's timezone
+is not necessarily the restaurant's — and the D12 ticket is print CSS.
+
+**Pause/resume (D8)** sits on the board for owner and manager, with a
+customer-visible note and a duration rather than an instant; the hours
+panel displays the state read-only and points at the board.
+
+**Three delivery notes — contract additions the board's real work
+required, each additive and backward compatible:**
+
+1. **`AdminOrderLine.item_instructions`.** The counter must read what
+   the shareable public projection deliberately omits, so the admin
+   detail's lines are their own schema extending the public line.
+2. **`OrderMetrics.currency`.** Money needs its unit (blueprint
+   §10.4). Without it the strip had to infer the currency from the
+   first row — and a quiet morning has no row.
+3. **The list `day` filter.** A tenant-local calendar date resolved
+   server-side against the business timezone, because zone boundaries
+   and DST transitions are the server's arithmetic (blueprint §7.6),
+   not a browser's. It narrows an explicit instant window rather than
+   replacing it. Metrics now share the same window helper, which
+   retires a "midnight plus 24 hours" that would have leaked an hour
+   across a transition.
+
+Verification: backend **1,319** (from 1,317 — the zone-day filter
+including the spring-forward boundary, and its intersection with an
+explicit window); control-center **513** (from 483 — the board's
+filters, search, day, cursor, overdue, metrics, alert and chime, empty
+copy and pause control; the drawer's projection, legal-command matrix,
+raced 409, estimate durations and print ticket; and the pure format
+helpers at frozen times); api-client 115, renderer 165, storefront 146
+unchanged and green; contract byte-current at 89 operations; ruff,
+format, mypy, typecheck, lint, prettier, builds, budget (unchanged —
+the storefront is untouched), CSS, and built-server verification green;
+`pnpm e2e` 29 green.
+
+Retained risk 1 recurred on the exact-head run's first attempt — the
+M4E-era `storefront-dialogs-a11y` dirty-navigation test, the same
+assertion as run `30652179044` — and passed on the re-run. It is not
+M7C's: that test navigates programmatically, so the workspace's new
+Orders link cannot reach it. The register keeps the risk open with a
+second data point.
+
+Deliberately not delivered (M7D): blueprint journey 5, the API-level
+concurrency race proof, the board's responsive/a11y acceptance, and
+the §19 exit-criteria close-out.
