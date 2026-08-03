@@ -2,7 +2,27 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M7A — delivered 2026-08-02)
+## Current state (M7B — delivered 2026-08-03)
+
+M7B adds the customer-side pause and estimate coverage (ADR-027) at
+the component layer. The storefront suite grows from **143** to
+**146**; every other suite is unchanged — M7B is presentation only.
+
+- **The paused `/order` page (D8).** Renders the owner's note and the
+  resume instant in the tenant zone, no checkout island at all, and
+  the truthful cart-survival promise; the D10 gate stays structurally
+  separate (ordering-disabled is still the neutral 404, proven
+  unchanged).
+- **The mid-checkout pause.** The placement 409 `ordering_paused`
+  renders honestly with the note and resume instant — and the cart
+  provably survives, because the refusal writes nothing.
+- **The tracker estimate line (D7).** `estimated_ready_at` renders in
+  the business timezone when present and not at all when null.
+
+Deliberate limits: the board is M7C; the journeys are M7D. The four
+retained risks stand unchanged.
+
+## Earlier state (M7A — delivered 2026-08-02)
 
 M7A adds the order-operations coverage (ADR-027) at the API, security,
 and isolation layers. The backend suite grows from **1,301** to

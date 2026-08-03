@@ -18,19 +18,19 @@ initial architecture-contract commit.
 
 ## Status
 
-| Milestone                                                      | State                                              |
-| -------------------------------------------------------------- | -------------------------------------------------- |
-| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                          |
-| M1 — Platform foundation                                       | **Complete** (2026-07-15)                          |
-| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                          |
-| M3 — Catalog and media                                         | **Complete** (2026-07-23)                          |
-| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                          |
-| M4G — Curated storefront design and motion (extension)         | **Complete** (2026-08-01; M4G-A–M4G-D, ADR-024)    |
-| M5 — Hours and pickup readiness                                | **Complete** (2026-08-02; M5A–M5E, ADR-025)        |
-| M6 — Cart and guest pickup ordering                            | **Complete** (2026-08-02; M6A–M6D, ADR-026)        |
-| M7 — Restaurant order operations                               | **In progress** (M7A complete 2026-08-02, ADR-027) |
-| M8 — Production hardening and pilot                            | Not started                                        |
-| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23)   |
+| Milestone                                                      | State                                            |
+| -------------------------------------------------------------- | ------------------------------------------------ |
+| M0 — Architecture and repository contract                      | **Complete** (2026-07-14)                        |
+| M1 — Platform foundation                                       | **Complete** (2026-07-15)                        |
+| M2 — Identity, tenancy, and onboarding                         | **Complete** (2026-07-19)                        |
+| M3 — Catalog and media                                         | **Complete** (2026-07-23)                        |
+| M4 — Storefront composition and publication                    | **Complete** (2026-07-30)                        |
+| M4G — Curated storefront design and motion (extension)         | **Complete** (2026-08-01; M4G-A–M4G-D, ADR-024)  |
+| M5 — Hours and pickup readiness                                | **Complete** (2026-08-02; M5A–M5E, ADR-025)      |
+| M6 — Cart and guest pickup ordering                            | **Complete** (2026-08-02; M6A–M6D, ADR-026)      |
+| M7 — Restaurant order operations                               | **In progress** (M7A–M7B complete, ADR-027)      |
+| M8 — Production hardening and pilot                            | Not started                                      |
+| M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23) |
 
 ## Milestone 7 delivery decision (2026-08-02)
 
@@ -42,9 +42,28 @@ M7D depends on all of them.
 | Slice                              | Scope                                                                                                                                                                                                            | State                              |
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 | **M7A** — Order operations backend | migration (estimate + pause), `business.orders.operate`, the six named member commands, order-number-cursor list + detail/timeline + metrics, slot release on refusal, the pause command + enforcement, contract | **Complete** (2026-08-02, ADR-027) |
-| **M7B** — Storefront pause state   | the paused `/order` presentation, availability-projection consumption, the tracker estimate line                                                                                                                 | Not started                        |
+| **M7B** — Storefront pause state   | the paused `/order` presentation, availability-projection consumption, the tracker estimate line                                                                                                                 | **Complete** (2026-08-03, ADR-027) |
 | **M7C** — The order board          | board, drawer, timeline, guarded actions, estimate control, search/filters, metrics strip, chime + toggle, print ticket, pause control + hours-page display                                                      | Not started                        |
 | **M7D** — E2E and close-out        | journey 5 (staff accept → prepare → ready; the tracker reflects each transition), the API-level concurrency race proof, board responsive/a11y acceptance, §19 exit-criteria verification                         | Not started                        |
+
+### M7B close-out (2026-08-03)
+
+M7B delivered **the storefront pause state and the tracker estimate**
+— the customer half of what M7A stored; presentation only, no contract
+or backend change. The paused `/order` page renders the owner's note
+and the "back around" instant in the tenant zone instead of the
+checkout form, promises (truthfully — localStorage is untouched) that
+the saved cart survives, and ships as a server component, so the
+`'use client'` allowlist is unchanged; a pause beginning mid-checkout
+renders through the island's honest `ordering_paused` state, which
+keeps the held idempotency key so the post-resume retry is a replay,
+never a duplicate; the tracker shows "Estimated ready" whenever the
+kitchen sets one. Storefront **143 → 146**; e2e 29 green.
+
+Merge evidence (PR #62): reviewed head `31cef9eb` → merge `900dd186`
+(parents `05c50de1` then the reviewed head; tree `b8e4a7f0` equal);
+exact-head run `30780730281` and exact-merge run `30780976212` both
+green — five jobs, zero artifacts, attempt 1.
 
 ### M7A close-out (2026-08-02)
 
