@@ -33,6 +33,7 @@ function orderView(status: string) {
     business_timezone: 'America/New_York',
     pickup_kind: 'asap',
     promised_pickup_at: '2026-08-07T15:30:00Z',
+    estimated_ready_at: null,
     currency: 'USD',
     subtotal_minor: 2500,
     tax_minor: 0,
@@ -85,6 +86,22 @@ describe('the order tracker', () => {
     expect(screen.getByText(/11:30 AM/)).toBeInTheDocument();
     expect(screen.getByText(/2 × House roast chicken/)).toBeInTheDocument();
     expect(screen.getByText('Full')).toBeInTheDocument();
+  });
+
+  test('renders the kitchen estimate when one is set (D7)', async () => {
+    const withEstimate = {
+      ...orderView('accepted'),
+      // 15:45 UTC is 11:45 AM in America/New_York.
+      estimated_ready_at: '2026-08-07T15:45:00Z',
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(jsonResponse(200, withEstimate))),
+    );
+    render(<OrderTracker token={TOKEN} />);
+    expect(await screen.findByText(/estimated ready/i)).toHaveTextContent(
+      '11:45 AM',
+    );
   });
 
   test('polls the tracking GET and stops once the status is terminal', async () => {

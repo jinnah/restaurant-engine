@@ -294,6 +294,29 @@ describe('the checkout surface', () => {
     expect(slotGets.length).toBe(2);
   });
 
+  test('a mid-checkout pause is honest and keeps the order (D8)', async () => {
+    stubFetch([
+      () =>
+        jsonResponse(
+          409,
+          envelope('ordering_paused', {
+            note: 'Back after the dinner rush',
+            resume_at: '2026-08-07T23:00:00Z',
+          }),
+        ),
+    ]);
+    seededCart();
+    renderForm();
+    await screen.findByText('House roast chicken');
+    fillContact();
+    fireEvent.click(screen.getByRole('button', { name: /place order/i }));
+    const notice = await screen.findByText(/ordering was just paused/i);
+    expect(notice).toHaveTextContent('Back after the dinner rush');
+    expect(notice).toHaveTextContent(/back around/i);
+    // The cart is untouched: resuming finds the order where it was.
+    expect(loadCart().lines).toHaveLength(1);
+  });
+
   test('a 404 is the honest "ordering is gone" state', async () => {
     stubFetch([() => jsonResponse(404, envelope('not_found'))]);
     seededCart();

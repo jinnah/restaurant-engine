@@ -62,6 +62,7 @@ type SubmitState =
   | { kind: 'price-changed'; totalMinor: number; expectedMinor: number }
   | { kind: 'slot-unavailable' }
   | { kind: 'key-reused' }
+  | { kind: 'paused'; note: string | null; resumeAt: string | null }
   | { kind: 'gone' }
   | { kind: 'failed' };
 
@@ -238,6 +239,19 @@ export function CheckoutForm({
       const refreshed = await getPickupSlots();
       setSlots(refreshed.ok ? refreshed.data.slots : []);
       setSubmit({ kind: 'slot-unavailable' });
+      return;
+    }
+    if (result.status === 409 && result.code === 'ordering_paused') {
+      // M7B (ADR-027 D8): a pause can begin mid-checkout. The held key
+      // is deliberately KEPT — retrying the same command after the
+      // resume is an honest replay, never a duplicate.
+      const note = result.details?.['note'];
+      const resume = result.details?.['resume_at'];
+      setSubmit({
+        kind: 'paused',
+        note: typeof note === 'string' ? note : null,
+        resumeAt: typeof resume === 'string' ? resume : null,
+      });
       return;
     }
     if (result.status === 409 && result.code === 'idempotency_key_reused') {
@@ -515,6 +529,16 @@ export function CheckoutForm({
       {submit.kind === 'key-reused' ? (
         <p className={styles.problem}>
           Something went out of sync — review your order and place it again.
+        </p>
+      ) : null}
+      {submit.kind === 'paused' ? (
+        <p className={styles.problem}>
+          Ordering was just paused
+          {submit.resumeAt === null
+            ? '.'
+            : ` — back around ${formatInstant(submit.resumeAt, timezone)}.`}
+          {submit.note === null ? '' : ` “${submit.note}”`} Your order is saved;
+          try again once ordering resumes.
         </p>
       ) : null}
       {submit.kind === 'gone' ? (
