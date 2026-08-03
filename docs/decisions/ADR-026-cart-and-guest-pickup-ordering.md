@@ -1,6 +1,6 @@
 # ADR-026: Cart and guest pickup ordering (Milestone 6)
 
-- **Status:** Accepted — M6A–M6C delivered (2026-08-02); M6D not started
+- **Status:** Accepted — delivered in full (M6A–M6D, 2026-08-02); Milestone 6 complete
 - **Date:** 2026-08-02
 - **Deciders:** Jinnah (product owner / principal architect), Claude (senior engineer)
 
@@ -709,3 +709,71 @@ Deliberately not delivered (its own slice): the CC fulfillment-throttle
 field, the ordering e2e journeys, and the responsive/a11y acceptance
 for the ordering surfaces (M6D); the outbox worker (D14). Milestone 6
 is not complete until the §19 exit criteria are proven at M6D.
+
+### M6D — E2E, acceptance, and the throttle field: delivered, 2026-08-02
+
+The final slice; **Milestone 6 is complete** (the exit-criteria
+verification is recorded in docs/08's Milestone 6 close-out).
+
+Delivered exactly the §13 M6D scope. Blueprint §15.3 journey 4 runs in
+a real browser: the visitor customizes the seeded item in the picker
+(the required single-choice group provably blocks confirmation until
+satisfied), places one pickup order despite a simulated retry — the
+first placement dies on the wire after the click, the surface shows
+its honest no-duplicate promise, and the second click provably carries
+the **same idempotency key** (D2) — then follows the order on the
+tracker, where the snapshot renders the authoritative totals; the
+owner deletes the ordered item outright and the order keeps rendering
+its snapshot. The cancellation journey proves the two-step D11
+confirmation and that the cancellation is a stored fact across a
+reload; the stale-cart journey proves the 409 refusal names the
+offending line and recovers to the honest empty state; the acceptance
+spec holds the picker, checkout, and tracker to the axe A/AA boundary
+and the 44px/no-overflow floors at mobile and desktop viewports.
+Playwright **25 → 29**.
+
+The retry simulation is client-side by recorded constraint:
+Playwright's `route.fetch` executes in Node, and Windows does not
+resolve `*.localhost` (the ADR-016 resolution note), so
+double-_delivery_ of one command stays proven by the M6A API matrix —
+the browser proves the same command is retried unchanged.
+
+E2E seeding gained the ordering fixture through real commands only:
+the platform entitlement grant (the registry holds exactly
+`online_ordering`, so the PUT's set semantics cannot revoke anything
+else), the owner's time-robust pickup policy (zero lead time over the
+all-day schedule — ASAP is valid whenever the suite runs), and
+modifier fixtures respecting the docs/03 rule that a finite
+`max_select` never exceeds the option count (the projection rightly
+dropped a first over-capped fixture — the domain rule catching the
+test author).
+
+One product fix the journeys forced: the add-to-order affordance
+renders **disabled until React owns the DOM** (a `useSyncExternalStore`
+hydration signal — no effect, no state). A control whose click handler
+has not attached yet is a lie to a fast finger on a slow connection;
+the journeys found it by clicking before hydration completed.
+
+The one control-center touch: the fulfillment panel gains the D3
+per-slot throttle — nullable (empty is "no cap"), bounds 1–100
+mirroring the CHECK, always explicit in the full-document save,
+presented read-only to staff, with the stale pickup hint copy
+corrected now that ordering exists.
+
+Verification: `pnpm e2e` **29 passed** with full disposable cleanup;
+control-center **483** (from 480); storefront 143, renderer 165,
+api-client 115, backend 1,301, contract 78 — all unchanged and green;
+budget green under the unchanged ceiling method (the menu island grew
+76 B for the hydration gate, reported); built-server verification
+green.
+Merge evidence: PR #58, reviewed head
+`b5f0a950a9b301c58b56c819c281c6082eaa478a`, SHA-bound merge
+`2af655549c37974230630abc1d4f949063101b3b` (parents `8a2c9fc1` then
+the reviewed head; merge tree `0bc82b65` equal to the reviewed head
+tree); exact-head CI run `30774854370` and exact-merge push CI run
+`30775059838` both green — five jobs, zero artifacts, attempt 1.
+
+Deliberately not delivered (later milestones by design): the outbox
+worker (D14 — the first channel milestone), the order board and staff
+status commands (M7), per-IP rate limiting (M8), tax (D6), promotions
+(M9 — the snapshot columns wait, CHECK-frozen).

@@ -489,16 +489,26 @@ stores item/option/price/tax/display-name snapshots; totals are integer minor
 units; an idempotency key prevents duplicates; order creation and outbox
 notification commit together; public tracking uses a high-entropy token.
 
-**Implemented in M6A (ADR-026):** orders owns `orders`, `order_lines`,
-`order_line_options`, `order_status_events`, `idempotency_keys`, and the
-platform-global `outbox_messages` (documented as such; a future worker
-claims across tenants). Placement is the one public unsafe route —
+**Implemented in M6A–M6D (ADR-026; Milestone 6 complete):** orders owns
+`orders`, `order_lines`, `order_line_options`, `order_status_events`,
+`idempotency_keys`, and the platform-global `outbox_messages`
+(documented as such; a future worker claims across tenants). Placement
+and customer cancellation are the two public unsafe routes —
 host-resolved, browser-context-checked (ADR-010 extended by D9:
-self-origin evidence for tenant hosts), and gated on the
-`online_ordering` entitlement **and** `pickup_enabled`, with every
-ineligible cause the one neutral 404 (D10 — the gate applies to
-placement and slot listing only; tracking and cancellation, M6B, are
-authorized by token possession plus Host). The pure pricing core
+self-origin evidence for tenant hosts). Placement and the public slot
+listing are gated on the `online_ordering` entitlement **and**
+`pickup_enabled`, with every ineligible cause the one neutral 404
+(D10); tracking and cancellation are deliberately not
+entitlement-gated (D10 as amended) — an order already placed stays
+trackable and cancellable by token possession plus Host after the
+platform revokes ordering. Cancellation (D11) is legal only from
+`submitted`, idempotent on cancelled, `409 invalid_state` past it. The
+customer surface (M6C) is the storefront's island set: the versioned
+localStorage cart (D13), the modifier picker, the D10-gated `/order`
+checkout with the two independent consents (D7) and the required
+expected total (D8), and the polling `/order/track/{token}` page —
+noindex, robots-disallowed, never in the sitemap. The D3 per-slot
+throttle is owner-editable on the hours workspace (M6D). The pure pricing core
 revalidates the projection's own orderability formula authoritatively
 and reprices everything from the current catalog through the explicit
 `catalog.checkout_view` interface; a required `expected_total_minor`

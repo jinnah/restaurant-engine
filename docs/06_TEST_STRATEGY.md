@@ -2,7 +2,50 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M6C — delivered 2026-08-02)
+## Current state (M6D — delivered 2026-08-02; Milestone 6 complete)
+
+M6D adds the browser-level closure for Milestone 6 (ADR-026): the
+Playwright suite grows from **25** to **29** and the control-center
+suite from **480** to **483**; every other suite is unchanged.
+
+- **Journey 4, through the real product.** Customize in the picker
+  (the required group provably blocks confirmation until satisfied,
+  radios replace, the running total composes), place one pickup order
+  despite a simulated retry — the first placement dies on the wire,
+  the surface makes its honest no-duplicate promise, and the retry
+  provably carries the **same idempotency key** (D2) — then track the
+  order and watch the snapshot survive the ordered item's outright
+  deletion (§19). The retry simulation is client-side by recorded
+  constraint (Playwright's `route.fetch` runs in Node; Windows does
+  not resolve `*.localhost`): double-delivery of one command stays
+  proven by the M6A API matrix, and the browser proves the same
+  command is retried unchanged.
+- **The cancellation journey (D11).** Two-step, explicit — the first
+  click sends nothing — and the cancellation is a stored fact across a
+  reload, with the affordance gone.
+- **The stale-cart journey.** The item sells out at checkout; the 409
+  refusal names the line honestly; removing it recovers to the honest
+  empty state. The deliberate 409 is hygiene-scoped at a stated point.
+- **The acceptance matrix.** The picker (open), the checkout form with
+  content, and the tracker pass the axe A/AA boundary; the 44px target
+  and no-horizontal-overflow floors hold at mobile and desktop
+  viewports; both consents provably render unchecked (D7).
+- **The throttle field (D3).** The full-document fulfillment save now
+  always says which — a number within the mirrored 1–100 bounds or the
+  explicit no-cap null; empty is a valid choice, not an error; staff
+  read "No cap" or the number.
+- **Seeding stays honest.** The ordering fixture travels real commands
+  only — the platform entitlement grant, the owner's zero-lead pickup
+  policy, catalog modifiers respecting the max-vs-options rule — and
+  the whole-suite invariants (fresh disposable database, spec-owned
+  namespaces, no SQL) are untouched.
+
+Deliberate limits: the outbox still accumulates `pending` rows with no
+worker (D14 — the first channel milestone); the order board and staff
+commands are M7; owner-facing UAT of the ordering surface has not been
+conducted. The four retained risks stand unchanged.
+
+## Earlier state (M6C — delivered 2026-08-02)
 
 M6C adds the ordering surface's coverage (ADR-026) at the component,
 utility, transport, and built-server layers. The storefront suite grows
