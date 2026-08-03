@@ -64,6 +64,14 @@ class PublicPickup(BaseModel):
     asap_enabled: bool
     next_pickup_at: datetime | None
     ordering_enabled: bool
+    # M7A (ADR-027 D8): the EFFECTIVE pause facts — computed against the
+    # wall clock, so an expired pause reads as resumed. Deliberately
+    # customer-visible (the commitment): when paused, the note and the
+    # optional resume instant explain instead of the surface vanishing.
+    # `ordering_enabled` above is unchanged — the surface still exists.
+    ordering_paused: bool
+    pause_note: str | None
+    pause_resumes_at: datetime | None
 
 
 class PublicAvailability(BaseModel):

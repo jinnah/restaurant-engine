@@ -64,6 +64,25 @@ class FulfillmentPolicy:
     # on the effective policy so checkout reads one object, but never used
     # by the pure availability computations in this module.
     max_orders_per_slot: int | None = None
+    # M7A (ADR-027 D8): the stored pause facts. Whether the pause is
+    # currently EFFECTIVE is ``ordering_effectively_paused`` — computed
+    # against the wall clock, never scheduled.
+    ordering_paused: bool = False
+    pause_note: str | None = None
+    pause_resume_at: datetime | None = None
+
+
+def ordering_effectively_paused(policy: FulfillmentPolicy, now: datetime) -> bool:
+    """The D8 rule, pure: paused AND (no resume instant OR before it).
+
+    A pause whose resume instant has passed reads as resumed —
+    auto-resume is arithmetic, never a scheduled job; the stored flag
+    stays until the owner clears it, and the workspace shows the
+    expired state honestly.
+    """
+    if not policy.ordering_paused:
+        return False
+    return policy.pause_resume_at is None or now < policy.pause_resume_at
 
 
 @dataclass(frozen=True)

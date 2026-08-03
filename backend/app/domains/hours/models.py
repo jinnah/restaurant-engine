@@ -168,6 +168,18 @@ class FulfillmentSettings(Base):
     last_order_before_close_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     max_days_ahead: Mapped[int] = mapped_column(Integer, nullable=False)
     max_orders_per_slot: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
+    # M7A (ADR-027 ruling D8): the temporary, customer-visible ordering
+    # pause. Hours owns the state; its OWN command writes it (never the
+    # fulfillment full-document PUT — review amendment); the orders
+    # placement enforces it. Effectiveness is computed, never scheduled:
+    # paused AND (resume_at IS NULL OR now < resume_at).
+    ordering_paused: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    pause_note: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    pause_resume_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

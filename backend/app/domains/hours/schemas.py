@@ -196,6 +196,9 @@ class FulfillmentOut(BaseModel):
 
     ``is_configured`` says which, so the UI can present "using defaults"
     honestly without comparing values against a copy of the registry.
+    The pause facts (M7A, ADR-027 D8) are read here but written only by
+    their own command — ``ordering_paused`` is the STORED flag; whether
+    it is currently effective is computed against the resume instant.
     """
 
     pickup_enabled: bool
@@ -205,7 +208,51 @@ class FulfillmentOut(BaseModel):
     last_order_before_close_minutes: int
     max_days_ahead: int
     max_orders_per_slot: int | None
+    ordering_paused: bool
+    pause_note: str | None
+    pause_resume_at: datetime | None
     is_configured: bool
+
+
+class OrderingPauseSet(BaseModel):
+    """The pause/resume command body (M7A, ADR-027 ruling D8).
+
+    Its own command, never a fulfillment-document field (the review
+    amendment: a full-document save from an older client must not
+    silently unpause a business). Resuming clears the note and instant;
+    a note or resume instant without ``paused`` is a contradiction and
+    is refused. The note is customer-visible bounded plain text, the D6
+    exception-note policy applied verbatim.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    paused: bool
+    note: str | None = Field(default=None, max_length=policies.MAX_NOTE_LENGTH * 4)
+    resume_at: datetime | None = None
+
+    @field_validator("note")
+    @classmethod
+    def _normalized_note(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if policies.has_control_characters(value):
+            msg = "must not contain control characters"
+            raise ValueError(msg)
+        normalized = policies.normalize_note(value)
+        if not normalized:
+            return None
+        if len(normalized) > policies.MAX_NOTE_LENGTH:
+            msg = f"must be at most {policies.MAX_NOTE_LENGTH} characters"
+            raise ValueError(msg)
+        return normalized
+
+    @model_validator(mode="after")
+    def _coherent(self) -> Self:
+        if not self.paused and (self.note is not None or self.resume_at is not None):
+            msg = "a note or resume time requires paused to be true"
+            raise ValueError(msg)
+        return self
 
 
 class HoursSettings(BaseModel):

@@ -22,7 +22,12 @@ from app.domains.businesses.features import FeatureKey
 from app.domains.businesses.resolution import ResolvedBusiness
 from app.domains.businesses.schemas import PublicSiteSummary
 from app.domains.hours import policies, repository
-from app.domains.hours.availability import ExceptionDay, availability_at
+from app.domains.hours.availability import (
+    ExceptionDay,
+    FulfillmentPolicy,
+    availability_at,
+    ordering_effectively_paused,
+)
 from app.domains.hours.public_schemas import (
     PublicAvailability,
     PublicHoursInterval,
@@ -108,18 +113,33 @@ def assemble_availability(
             for day in sorted(exceptions)
             if today <= day <= today + timedelta(days=PUBLIC_EXCEPTION_WINDOW_DAYS)
         ],
-        pickup=PublicPickup(
-            enabled=policy.pickup_enabled,
-            asap_enabled=policy.asap_enabled,
-            next_pickup_at=facts.next_pickup_at,
-            # The D12 gate (M6B, ADR-026): a live fact computed per
-            # request — entitlement AND pickup — so the storefront's
-            # whole ordering surface follows platform state instantly,
-            # at zero request cost (the home render already reads this
-            # projection since M5D).
-            ordering_enabled=policy.pickup_enabled
-            and business_has_feature(db, business.business_id, FeatureKey.ONLINE_ORDERING),
-        ),
+        pickup=_public_pickup(db, business, policy, facts.next_pickup_at, now),
+    )
+
+
+def _public_pickup(
+    db: Session,
+    business: ResolvedBusiness,
+    policy: FulfillmentPolicy,
+    next_pickup_at: datetime | None,
+    now: datetime,
+) -> PublicPickup:
+    # The D12 gate (M6B, ADR-026): a live fact computed per request —
+    # entitlement AND pickup — so the storefront's whole ordering
+    # surface follows platform state instantly, at zero request cost
+    # (the home render already reads this projection since M5D).
+    # The D8 pause facts (M7A, ADR-027) are the EFFECTIVE state: an
+    # expired pause reads as resumed with no note, no scheduled job.
+    paused = ordering_effectively_paused(policy, now)
+    return PublicPickup(
+        enabled=policy.pickup_enabled,
+        asap_enabled=policy.asap_enabled,
+        next_pickup_at=next_pickup_at,
+        ordering_enabled=policy.pickup_enabled
+        and business_has_feature(db, business.business_id, FeatureKey.ONLINE_ORDERING),
+        ordering_paused=paused,
+        pause_note=policy.pause_note if paused else None,
+        pause_resumes_at=policy.pause_resume_at if paused else None,
     )
 
 

@@ -11,6 +11,7 @@ import { createHealthMethods, type HealthMethods } from './health';
 import { createHoursApi, type HoursApi } from './hours';
 import { createInvitationsApi, type InvitationsApi } from './invitations';
 import { createMediaApi, type MediaApi } from './media';
+import { createOrdersApi, type OrdersApi } from './orders';
 import {
   createPasswordResetsApi,
   type PasswordResetsApi,
@@ -27,6 +28,7 @@ export interface ApiClient extends HealthMethods {
   media: MediaApi;
   storefront: StorefrontApi;
   hours: HoursApi;
+  orders: OrdersApi;
   public: PublicApi;
   invitations: InvitationsApi;
   passwordResets: PasswordResetsApi;
@@ -43,6 +45,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     media: createMediaApi(client, options),
     storefront: createStorefrontApi(client),
     hours: createHoursApi(client),
+    orders: createOrdersApi(client),
     public: createPublicApi(client),
     invitations: createInvitationsApi(client),
     passwordResets: createPasswordResetsApi(client),

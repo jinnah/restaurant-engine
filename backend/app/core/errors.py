@@ -60,6 +60,10 @@ class ErrorCode(StrEnum):
     PRICE_CHANGED = "price_changed"
     SLOT_UNAVAILABLE = "slot_unavailable"
     IDEMPOTENCY_KEY_REUSED = "idempotency_key_reused"
+    # M7A (ADR-027 ruling D8): a temporary, customer-visible pause is
+    # deliberately NOT the neutral 404 — the capability exists and is
+    # honestly off; the storefront explains instead of vanishing.
+    ORDERING_PAUSED = "ordering_paused"
 
 
 _STATUS_CODES: dict[int, ErrorCode] = {

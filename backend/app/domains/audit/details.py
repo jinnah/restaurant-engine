@@ -396,3 +396,42 @@ class OrderCancelledByCustomerDetails(AuditDetails):
     """The customer cancelled their submitted order (M6B, ruling D11)."""
 
     order_number: int
+
+
+_ORDER_STATUS = Literal[
+    "submitted", "accepted", "preparing", "ready", "completed", "rejected", "cancelled"
+]
+
+
+class OrderTransitionDetails(AuditDetails):
+    """One member transition (M7A, ADR-027 D1/D4).
+
+    The transition itself and the order number — never the customer's
+    name, contact, or instructions. One shared shape for every named
+    command; the action tells which command ran.
+    """
+
+    order_number: int
+    from_status: _ORDER_STATUS
+    to_status: _ORDER_STATUS
+
+
+class OrderEstimateSetDetails(AuditDetails):
+    """The kitchen's prep estimate was set or cleared (M7A, ruling D7)."""
+
+    order_number: int
+    estimate: Literal["set", "cleared"]
+    estimated_ready_at: str | None = None
+
+
+class OrderingPauseSetDetails(AuditDetails):
+    """Ordering was paused or resumed (M7A, ruling D8).
+
+    The note's presence is recorded, never its customer-visible text —
+    the note lives on the settings row and the public projection, not in
+    the audit trail.
+    """
+
+    ordering: Literal["paused", "resumed"]
+    note: Literal["present", "absent"]
+    resume_at: str | None = None
