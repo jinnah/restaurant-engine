@@ -150,6 +150,13 @@ export function OrderTracker({ token }: { token: string }) {
         {formatInstant(order.promised_pickup_at, order.business_timezone)}
         {order.pickup_kind === 'asap' ? ' (as soon as possible)' : ''}
       </p>
+      {order.estimated_ready_at === null ? null : (
+        // M7B (ADR-027 D7): the kitchen's live estimate, when set.
+        <p className={styles.trackerSection}>
+          Estimated ready:{' '}
+          {formatInstant(order.estimated_ready_at, order.business_timezone)}
+        </p>
+      )}
       <ul className={styles.cartLines}>
         {order.lines.map((line, index) => (
           <li

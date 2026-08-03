@@ -103,6 +103,11 @@ const AVAILABILITY_PAYLOAD = {
     asap_enabled: true,
     next_pickup_at: null,
     ordering_enabled: true,
+    // M7B (ADR-027 D8): unpaused — the checkout renders; the paused
+    // presentation is unit-covered.
+    ordering_paused: false,
+    pause_note: null,
+    pause_resumes_at: null,
   },
 };
 

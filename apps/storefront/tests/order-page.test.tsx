@@ -47,6 +47,11 @@ const mockAvailability = vi.mocked(getPublicAvailability);
 function availabilityFixture(
   orderingEnabled: boolean,
   asapEnabled = true,
+  pause: {
+    paused: boolean;
+    note?: string | null;
+    resumesAt?: string | null;
+  } = { paused: false },
 ): PublicAvailability {
   const data = hoursDataFixture();
   return {
@@ -66,9 +71,9 @@ function availabilityFixture(
       asap_enabled: asapEnabled,
       next_pickup_at: null,
       ordering_enabled: orderingEnabled,
-      ordering_paused: false,
-      pause_note: null,
-      pause_resumes_at: null,
+      ordering_paused: pause.paused,
+      pause_note: pause.note ?? null,
+      pause_resumes_at: pause.resumesAt ?? null,
     },
   };
 }
@@ -110,6 +115,28 @@ describe('the /order page', () => {
   test('an unavailable backend throws to the error boundary', async () => {
     mockAvailability.mockResolvedValue({ kind: 'unavailable' });
     await expect(OrderPage()).rejects.toThrow(/unavailable/);
+  });
+
+  test('a pause renders the explanation instead of checkout (D8)', async () => {
+    mockAvailability.mockResolvedValue({
+      kind: 'ok',
+      data: availabilityFixture(true, true, {
+        paused: true,
+        note: 'Back after the dinner rush',
+        resumesAt: '2026-08-07T23:00:00Z',
+      }),
+    });
+    render(await OrderPage());
+    // The surface exists and is honestly, temporarily off: no checkout
+    // island, the owner's note, the resume instant in the tenant zone,
+    // and the promise that the saved cart survives.
+    expect(screen.queryByTestId('checkout-island')).toBeNull();
+    expect(
+      screen.getByRole('heading', { name: /ordering is paused/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Back after the dinner rush')).toBeInTheDocument();
+    expect(screen.getByText(/back around/i)).toHaveTextContent('7:00 PM');
+    expect(screen.getByText(/saved/i)).toBeInTheDocument();
   });
 
   test('asap disabled reaches the island as a fact, not a default', async () => {

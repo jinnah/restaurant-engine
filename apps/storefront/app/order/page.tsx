@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { VariantLayout } from '@restaurant-engine/storefront-renderer';
 
 import { CheckoutForm } from '../../components/ordering/CheckoutForm';
+import { OrderingPausedNotice } from '../../components/ordering/OrderingPausedNotice';
 import {
   requirePublicAvailability,
   requirePublishedStorefront,
@@ -19,6 +20,12 @@ import { storefrontMetadata } from '../../lib/server/page-metadata';
 // request, never frozen into published content. Non-indexable by
 // policy (see page-metadata): the surface is transactional and its
 // existence is a live entitlement fact.
+//
+// M7B (ADR-027 D8): a temporary pause is a DIFFERENT state from the
+// gate — the surface exists and is honestly, temporarily off. The
+// server renders the customer-visible explanation instead of the
+// checkout form; the cart survives untouched in the visitor's browser,
+// so resuming finds their order exactly where they left it.
 export const dynamic = 'force-dynamic';
 
 export function generateMetadata(): Promise<Metadata> {
@@ -30,6 +37,17 @@ export default async function OrderPage() {
   const availability = await requirePublicAvailability();
   if (!availability.pickup.ordering_enabled) {
     notFound();
+  }
+  if (availability.pickup.ordering_paused) {
+    return (
+      <VariantLayout storefront={storefront}>
+        <OrderingPausedNotice
+          note={availability.pickup.pause_note}
+          resumesAt={availability.pickup.pause_resumes_at}
+          timezone={availability.business.timezone}
+        />
+      </VariantLayout>
+    );
   }
   return (
     <VariantLayout storefront={storefront}>
