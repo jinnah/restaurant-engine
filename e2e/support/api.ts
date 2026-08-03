@@ -464,7 +464,12 @@ export async function seedPublishedStorefront(
     logo?: boolean;
     hours?: 'open-all-day' | 'unscheduled';
   },
-): Promise<{ businessId: string; mediaId: string; logoMediaId?: string }> {
+): Promise<{
+  businessId: string;
+  mediaId: string;
+  itemId: string;
+  logoMediaId?: string;
+}> {
   const { businessId } = await provisionActiveBusinessWithOwner(ns);
   const { itemId, mediaId } = await seedPhotographedItem(ns, businessId, {
     category: content.category,
@@ -533,11 +538,194 @@ export async function seedPublishedStorefront(
     return {
       businessId,
       mediaId,
+      itemId,
       ...(logoMediaId === undefined ? {} : { logoMediaId }),
     };
   } finally {
     await owner.dispose();
   }
+}
+
+/**
+ * Grant the `online_ordering` entitlement through the real platform
+ * command (M6D, ADR-026 D12). The feature registry holds exactly this
+ * one key, so the set-semantics PUT cannot revoke anything else. A real
+ * platform-administrator session, no SQL — the same authority the
+ * Control Center exercises.
+ */
+export async function grantOnlineOrdering(businessId: string): Promise<void> {
+  const admin = await adminApi();
+  try {
+    const response = await admin.api.put(
+      `/api/v1/platform/businesses/${businessId}/entitlements`,
+      {
+        data: { features: ['online_ordering'] },
+        headers: { 'X-CSRF-Token': admin.csrf },
+      },
+    );
+    await expectOk(response, `grant online_ordering to ${businessId}`);
+  } finally {
+    await admin.dispose();
+  }
+}
+
+/**
+ * Enable pickup through the owner's own fulfillment command (M6D): the
+ * deliberately time-robust policy — zero lead time and zero last-order
+ * cut-off over the all-day schedule, so ASAP and same-day slots exist
+ * whenever the suite runs, in any timezone. The D12 gate needs the
+ * entitlement AND this.
+ */
+export async function enablePickupOrdering(
+  ns: SpecNamespace,
+  businessId: string,
+): Promise<void> {
+  const owner = await ownerApi(ns);
+  try {
+    const response = await owner.api.put(
+      `/api/v1/businesses/${businessId}/hours/fulfillment`,
+      {
+        data: {
+          pickup_enabled: true,
+          asap_enabled: true,
+          lead_time_minutes: 0,
+          slot_interval_minutes: 15,
+          last_order_before_close_minutes: 0,
+          max_days_ahead: 0,
+          max_orders_per_slot: null,
+        },
+        headers: { 'X-CSRF-Token': owner.csrf },
+      },
+    );
+    await expectOk(response, `enable pickup ordering for ${ns.slug}`);
+  } finally {
+    await owner.dispose();
+  }
+}
+
+/**
+ * Add a customization to a seeded item through the owner's catalog API
+ * (M6D): one required single-choice group and one optional group — the
+ * smallest shape that exercises the picker's radio and checkbox rules.
+ * The options POST returns the parent GROUP view: `id` is the group's,
+ * and the created option sits inside `options`.
+ */
+export async function seedModifiers(
+  ns: SpecNamespace,
+  businessId: string,
+  itemId: string,
+): Promise<void> {
+  const owner = await ownerApi(ns);
+  try {
+    const base = `/api/v1/businesses/${businessId}/catalog`;
+    const headers = { 'X-CSRF-Token': owner.csrf };
+
+    const size = await owner.api.post(
+      `${base}/items/${itemId}/modifier-groups`,
+      { data: { name: 'Size', min_select: 1, max_select: 1 }, headers },
+    );
+    await expectOk(size, `create Size group for ${ns.slug}`);
+    const sizeId = ((await size.json()) as { id: string }).id;
+    for (const option of [
+      { name: 'Half', price_delta_minor: 0 },
+      { name: 'Full', price_delta_minor: 400 },
+    ]) {
+      const created = await owner.api.post(
+        `${base}/modifier-groups/${sizeId}/options`,
+        { data: option, headers },
+      );
+      await expectOk(created, `create ${option.name} option for ${ns.slug}`);
+    }
+
+    // A finite max may not exceed the selectable option count (docs/03;
+    // an over-capped group is unsatisfiable and rightly leaves the
+    // public projection), so the two-cap group carries two options.
+    const extras = await owner.api.post(
+      `${base}/items/${itemId}/modifier-groups`,
+      { data: { name: 'Extras', min_select: 0, max_select: 2 }, headers },
+    );
+    await expectOk(extras, `create Extras group for ${ns.slug}`);
+    const extrasId = ((await extras.json()) as { id: string }).id;
+    for (const option of [
+      { name: 'Naan', price_delta_minor: 250 },
+      { name: 'Raita', price_delta_minor: 150 },
+    ]) {
+      const created = await owner.api.post(
+        `${base}/modifier-groups/${extrasId}/options`,
+        { data: option, headers },
+      );
+      await expectOk(created, `create ${option.name} option for ${ns.slug}`);
+    }
+  } finally {
+    await owner.dispose();
+  }
+}
+
+/** Delete a catalog item as the owner (M6D: snapshots must survive). */
+export async function deleteItem(
+  ns: SpecNamespace,
+  businessId: string,
+  itemId: string,
+): Promise<void> {
+  const owner = await ownerApi(ns);
+  try {
+    const response = await owner.api.delete(
+      `/api/v1/businesses/${businessId}/catalog/items/${itemId}`,
+      { headers: { 'X-CSRF-Token': owner.csrf } },
+    );
+    await expectOk(response, `delete item for ${ns.slug}`);
+  } finally {
+    await owner.dispose();
+  }
+}
+
+/** The staff-reachable "sold out today" toggle, as the owner (M6D). */
+export async function setItemAvailability(
+  ns: SpecNamespace,
+  businessId: string,
+  itemId: string,
+  isAvailable: boolean,
+): Promise<void> {
+  const owner = await ownerApi(ns);
+  try {
+    const response = await owner.api.post(
+      `/api/v1/businesses/${businessId}/catalog/items/${itemId}/availability`,
+      {
+        data: { is_available: isAvailable },
+        headers: { 'X-CSRF-Token': owner.csrf },
+      },
+    );
+    await expectOk(response, `set availability for ${ns.slug}`);
+  } finally {
+    await owner.dispose();
+  }
+}
+
+/**
+ * A published storefront whose D12 ordering gate is ON (M6D, ADR-026):
+ * the M5E all-day schedule, the owner's pickup policy, the platform's
+ * `online_ordering` grant, and one photographed 950-minor-unit item
+ * carrying the picker's two modifier groups. The composed fixture every
+ * ordering journey starts from.
+ */
+export async function seedOrderingStorefront(
+  ns: SpecNamespace,
+  content: {
+    category: string;
+    item: string;
+    imageAlt: string;
+    heroHeading: string;
+    heroSubheading: string;
+    storyBody: string;
+  },
+): Promise<{ businessId: string; itemId: string }> {
+  const { businessId, itemId } = await seedPublishedStorefront(ns, content, {
+    hours: 'open-all-day',
+  });
+  await seedModifiers(ns, businessId, itemId);
+  await enablePickupOrdering(ns, businessId);
+  await grantOnlineOrdering(businessId);
+  return { businessId, itemId };
 }
 
 /** An ACTIVE business with an accepted owner (lifecycle prerequisite). */

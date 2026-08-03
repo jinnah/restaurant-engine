@@ -747,6 +747,9 @@ describe('fulfillment', () => {
           slot_interval_minutes: 15,
           last_order_before_close_minutes: 30,
           max_days_ahead: 0,
+          // M6D (ADR-026 D3): the full document always says which —
+          // an untouched empty throttle is an explicit "no cap".
+          max_orders_per_slot: null,
         },
         CSRF,
       );
@@ -798,5 +801,110 @@ describe('fulfillment', () => {
     expect(
       screen.getByRole('button', { name: 'Save fulfillment settings' }),
     ).toBeDisabled();
+  });
+
+  // M6D (ADR-026 D3): the per-slot throttle — the one control-center
+  // touch Milestone 6 makes.
+  test('setting the throttle sends the number in the full document', async () => {
+    const setFulfillment = vi.fn(async () =>
+      ok(
+        hoursSettings({
+          fulfillment: fulfillmentOut({
+            max_orders_per_slot: 4,
+            is_configured: true,
+          }),
+        }),
+      ),
+    );
+    renderApp(
+      HOURS,
+      authedClient('owner', {
+        hours: { get: vi.fn(async () => ok(hoursSettings())), setFulfillment },
+      }),
+    );
+    const throttle = await screen.findByLabelText('Orders per slot');
+    expect(throttle).toHaveAttribute('min', '1');
+    expect(throttle).toHaveAttribute('max', '100');
+    // The registry default is unlimited, shown as an empty field.
+    expect(throttle).toHaveValue(null);
+    fireEvent.change(throttle, { target: { value: '4' } });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Save fulfillment settings' }),
+    );
+    await waitFor(() => {
+      expect(setFulfillment).toHaveBeenCalledWith(
+        BUSINESS,
+        expect.objectContaining({ max_orders_per_slot: 4 }),
+        CSRF,
+      );
+    });
+    expect(
+      await screen.findByText('Fulfillment settings saved.'),
+    ).toBeInTheDocument();
+  });
+
+  test('clearing the throttle sends the explicit no-cap null', async () => {
+    const setFulfillment = vi.fn(async () =>
+      ok(
+        hoursSettings({
+          fulfillment: fulfillmentOut({ is_configured: true }),
+        }),
+      ),
+    );
+    renderApp(
+      HOURS,
+      authedClient('owner', {
+        hours: {
+          get: vi.fn(async () =>
+            ok(
+              hoursSettings({
+                fulfillment: fulfillmentOut({
+                  max_orders_per_slot: 6,
+                  is_configured: true,
+                }),
+              }),
+            ),
+          ),
+          setFulfillment,
+        },
+      }),
+    );
+    const throttle = await screen.findByLabelText('Orders per slot');
+    expect(throttle).toHaveValue(6);
+    fireEvent.change(throttle, { target: { value: '' } });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Save fulfillment settings' }),
+    );
+    await waitFor(() => {
+      expect(setFulfillment).toHaveBeenCalledWith(
+        BUSINESS,
+        expect.objectContaining({ max_orders_per_slot: null }),
+        CSRF,
+      );
+    });
+  });
+
+  test('an out-of-bounds throttle blocks Save with the honest rule', async () => {
+    renderApp(
+      HOURS,
+      authedClient('owner', {
+        hours: { get: vi.fn(async () => ok(hoursSettings())) },
+      }),
+    );
+    const throttle = await screen.findByLabelText('Orders per slot');
+    fireEvent.change(throttle, { target: { value: '0' } });
+    expect(
+      screen.getByText(
+        'Use a whole number between 1 and 100, or leave it empty for no cap.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Save fulfillment settings' }),
+    ).toBeDisabled();
+    // Emptying it again is a valid choice, not an error.
+    fireEvent.change(throttle, { target: { value: '' } });
+    expect(
+      screen.queryByText(/leave it empty for no cap/),
+    ).not.toBeInTheDocument();
   });
 });

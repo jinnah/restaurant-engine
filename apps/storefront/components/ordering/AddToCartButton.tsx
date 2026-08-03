@@ -5,7 +5,7 @@
 // server decides both facts, so this island never gates anything itself.
 // Confirming the picker persists the composed line to the cart.
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 
 import type { PublicMenuItem } from '@restaurant-engine/api-client';
 
@@ -14,6 +14,23 @@ import { loadCart, saveCart } from '../../lib/cart-storage';
 import { ModifierPickerDialog } from './ModifierPickerDialog';
 import styles from './ordering.module.css';
 
+const subscribeNever = () => () => {};
+
+/**
+ * True once React owns the DOM. The server document renders this button
+ * disabled: a control whose click handler has not attached yet is a lie
+ * to a fast finger on a slow connection (and to a browser driver), so
+ * the affordance is honest about readiness instead of silently inert —
+ * found by the M6D journey clicking before hydration completed.
+ */
+function useHydrated(): boolean {
+  return useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
+}
+
 export function AddToCartButton({
   item,
   currency,
@@ -21,6 +38,7 @@ export function AddToCartButton({
   item: PublicMenuItem;
   currency: string;
 }) {
+  const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
@@ -39,6 +57,7 @@ export function AddToCartButton({
       <button
         type="button"
         className={styles.addButton}
+        disabled={!hydrated}
         onClick={() => {
           setNote(null);
           setOpen(true);
