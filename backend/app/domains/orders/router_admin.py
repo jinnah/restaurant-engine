@@ -9,7 +9,7 @@ Operation IDs are permanent client contracts (ADR-009).
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, status
@@ -51,6 +51,7 @@ def orders_admin_list(
     db: Annotated[Session, Depends(get_session)],
     actor: Annotated[ActorContext, Depends(current_actor)],
     order_status: Annotated[list[OrderStatus] | None, Query(alias="status")] = None,
+    day: Annotated[date | None, Query()] = None,
     placed_after: Annotated[datetime | None, Query()] = None,
     placed_before: Annotated[datetime | None, Query()] = None,
     q: Annotated[str | None, Query(max_length=policies.LIST_QUERY_MAX_LENGTH)] = None,
@@ -59,12 +60,18 @@ def orders_admin_list(
         int, Query(ge=1, le=policies.LIST_MAX_PAGE_SIZE)
     ] = policies.LIST_DEFAULT_PAGE_SIZE,
 ) -> AdminOrderList:
-    """One newest-first page: filters, search, exclusive id cursor (D6)."""
+    """One newest-first page: filters, search, exclusive id cursor (D6).
+
+    ``day`` is a tenant-local calendar date (M7C): the service resolves
+    it against the business timezone, so the operational date filter
+    means the same day the restaurant means.
+    """
     return service.list_orders_admin(
         db,
         actor,
         business_id,
         statuses=order_status,
+        day=day,
         placed_after=placed_after,
         placed_before=placed_before,
         q=q,

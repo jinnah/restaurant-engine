@@ -712,6 +712,10 @@ export interface paths {
         /**
          * Orders Admin List
          * @description One newest-first page: filters, search, exclusive id cursor (D6).
+         *
+         *     ``day`` is a tenant-local calendar date (M7C): the service resolves
+         *     it against the business timezone, so the operational date filter
+         *     means the same day the restaurant means.
          */
         get: operations["orders_admin_list"];
         put?: never;
@@ -1719,7 +1723,7 @@ export interface components {
              */
             id: string;
             /** Lines */
-            lines: components["schemas"]["PublicOrderLine"][];
+            lines: components["schemas"]["AdminOrderLine"][];
             /** Order Instructions */
             order_instructions: string | null;
             /** Order Number */
@@ -1748,6 +1752,28 @@ export interface components {
             timeline: components["schemas"]["StatusEventView"][];
             /** Total Minor */
             total_minor: number;
+        };
+        /**
+         * AdminOrderLine
+         * @description One snapshot line for the counter (ruling D6).
+         *
+         *     Extends the public line with the item-level instructions the kitchen
+         *     must see — the field the shareable public projection deliberately
+         *     omits (a tracking URL carries no customer text).
+         */
+        AdminOrderLine: {
+            /** Base Price Minor */
+            base_price_minor: number;
+            /** Display Name */
+            display_name: string;
+            /** Item Instructions */
+            item_instructions: string | null;
+            /** Line Total Minor */
+            line_total_minor: number;
+            /** Options */
+            options: components["schemas"]["PublicOrderLineOption"][];
+            /** Quantity */
+            quantity: number;
         };
         /**
          * AdminOrderList
@@ -3119,6 +3145,8 @@ export interface components {
             average_prep_seconds: number | null;
             /** Cancelled Count */
             cancelled_count: number;
+            /** Currency */
+            currency: string;
             /** Day */
             day: string;
             /** Order Count */
@@ -7004,6 +7032,7 @@ export interface operations {
         parameters: {
             query?: {
                 status?: components["schemas"]["OrderStatus"][] | null;
+                day?: string | null;
                 placed_after?: string | null;
                 placed_before?: string | null;
                 q?: string | null;

@@ -4,6 +4,8 @@
 import { vi } from 'vitest';
 import type {
   AdminMenu,
+  AdminOrderDetail,
+  AdminOrderSummary,
   ApiClient,
   ApiResult,
   BusinessSummary,
@@ -12,6 +14,7 @@ import type {
   ErrorEnvelope,
   FulfillmentOut,
   HoursSettings,
+  OrderMetrics,
   ItemSummary,
   MediaAssetView,
   MembershipSummary,
@@ -151,6 +154,110 @@ export function fulfillmentOut(
     pause_note: null,
     pause_resume_at: null,
     is_configured: false,
+    ...overrides,
+  };
+}
+
+// --- Order fixtures (M7C, ADR-027) ----------------------------------------
+
+/**
+ * An instant relative to the moment the fixture is built. The board's age
+ * and overdue indicators are clock-relative, so a literal date would
+ * quietly change what a fixture *means* as the calendar moves past it.
+ */
+export function minutesFromNow(minutes: number): string {
+  return new Date(Date.now() + minutes * 60_000).toISOString();
+}
+
+/** One board row: a fresh submitted order, promised soon, not overdue. */
+export function adminOrderSummary(
+  overrides: Partial<AdminOrderSummary> = {},
+): AdminOrderSummary {
+  return {
+    id: '7d9e2b1c-0f34-4e6a-9b1d-2c3e4f5a6b7c',
+    order_number: 1,
+    status: 'submitted',
+    placed_at: minutesFromNow(-5),
+    pickup_kind: 'asap',
+    promised_pickup_at: minutesFromNow(25),
+    estimated_ready_at: null,
+    customer_name: 'Amina Rahman',
+    total_minor: 2500,
+    currency: 'USD',
+    ...overrides,
+  };
+}
+
+export function adminOrderList(
+  orders: AdminOrderSummary[],
+  nextBeforeNumber: number | null = null,
+): { orders: AdminOrderSummary[]; next_before_number: number | null } {
+  return { orders, next_before_number: nextBeforeNumber };
+}
+
+/** The full counter projection with a creation-event timeline. */
+export function adminOrderDetail(
+  overrides: Partial<AdminOrderDetail> = {},
+): AdminOrderDetail {
+  return {
+    id: '7d9e2b1c-0f34-4e6a-9b1d-2c3e4f5a6b7c',
+    order_number: 1,
+    status: 'submitted',
+    placed_at: '2026-08-07T15:00:00Z',
+    business_timezone: 'America/New_York',
+    pickup_kind: 'asap',
+    promised_pickup_at: '2026-08-07T15:30:00Z',
+    estimated_ready_at: null,
+    customer_name: 'Amina Rahman',
+    customer_phone: '(716) 555-0142',
+    customer_email: null,
+    order_instructions: null,
+    consent_updates: true,
+    consent_marketing: false,
+    payment: 'pay_at_pickup',
+    source: 'online',
+    currency: 'USD',
+    subtotal_minor: 2500,
+    tax_minor: 0,
+    total_minor: 2500,
+    lines: [
+      {
+        display_name: 'Clay-oven lamb',
+        quantity: 2,
+        base_price_minor: 1250,
+        item_instructions: null,
+        options: [],
+        line_total_minor: 2500,
+      },
+    ],
+    timeline: [
+      {
+        from_status: null,
+        to_status: 'submitted',
+        actor_kind: 'customer',
+        occurred_at: '2026-08-07T15:00:00Z',
+      },
+    ],
+    ...overrides,
+  };
+}
+
+/** Today's computed metrics (ruling D11). */
+export function orderMetrics(
+  overrides: Partial<OrderMetrics> = {},
+): OrderMetrics {
+  return {
+    day: '2026-08-07',
+    timezone: 'America/New_York',
+    currency: 'USD',
+    order_count: 3,
+    standing_order_count: 2,
+    sales_minor: 5000,
+    average_order_value_minor: 2500,
+    cancelled_count: 0,
+    rejected_count: 1,
+    popular_items: [{ display_name: 'Clay-oven lamb', quantity: 6 }],
+    average_prep_seconds: 540,
     ...overrides,
   };
 }

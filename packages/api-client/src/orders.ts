@@ -26,6 +26,8 @@ const CSRF_HEADER = 'X-CSRF-Token';
 
 export interface OrderListParams {
   status?: OrderStatus[];
+  /** A tenant-local calendar date (`YYYY-MM-DD`), resolved server-side. */
+  day?: string;
   placed_after?: string;
   placed_before?: string;
   q?: string;

@@ -72,6 +72,7 @@ from app.domains.orders.models import (
 from app.domains.orders.pricing import CartInvalidError, PricedCart, PricedOption, price_cart
 from app.domains.orders.schemas import (
     AdminOrderDetail,
+    AdminOrderLine,
     AdminOrderList,
     AdminOrderSummary,
     OrderEstimateSet,
@@ -617,20 +618,46 @@ def _summary(order: Order) -> AdminOrderSummary:
     )
 
 
+def _tenant_day_window(business: Business, day: date) -> tuple[datetime, datetime]:
+    """One tenant-local calendar day as its UTC ``[since, until)`` window.
+
+    The same conversion D11's metrics make: the zone — and every DST
+    transition inside it — is the server's arithmetic, never a browser's
+    (blueprint §7.6). A day that a transition shortens or lengthens is
+    exactly as long as the zone says it is.
+    """
+    tz = ZoneInfo(business.timezone)
+    since = datetime.combine(day, time.min, tzinfo=tz).astimezone(UTC)
+    until = datetime.combine(day + timedelta(days=1), time.min, tzinfo=tz).astimezone(UTC)
+    return since, until
+
+
 def list_orders_admin(
     db: Session,
     actor: ActorContext,
     business_id: uuid.UUID,
     *,
     statuses: list[OrderStatus] | None,
+    day: date | None,
     placed_after: datetime | None,
     placed_before: datetime | None,
     q: str | None,
     before_number: int | None,
     limit: int,
 ) -> AdminOrderList:
-    """One newest-first operational page (ruling D6)."""
-    _authorize_operate(db, actor, business_id)
+    """One newest-first operational page (ruling D6).
+
+    ``day`` is the operational date filter (M7C): a tenant-local calendar
+    date, resolved here against the business timezone. It narrows rather
+    than replaces an explicit instant window — passing both keeps the
+    tighter bound on each side, so no filter the caller sent is silently
+    dropped.
+    """
+    business = _authorize_operate(db, actor, business_id)
+    if day is not None:
+        since, until = _tenant_day_window(business, day)
+        placed_after = since if placed_after is None else max(placed_after, since)
+        placed_before = until if placed_before is None else min(placed_before, until)
     rows = repository.list_orders(
         db,
         business_id=business_id,
@@ -677,10 +704,11 @@ def _detail(db: Session, business_id: uuid.UUID, order: Order) -> AdminOrderDeta
         tax_minor=order.tax_minor,
         total_minor=order.total_minor,
         lines=[
-            PublicOrderLine(
+            AdminOrderLine(
                 display_name=line.display_name,
                 quantity=line.quantity,
                 base_price_minor=line.base_price_minor,
+                item_instructions=line.item_instructions,
                 options=[
                     PublicOrderLineOption(
                         group_name=option.group_display_name,
@@ -855,10 +883,10 @@ def order_metrics(db: Session, actor: ActorContext, business_id: uuid.UUID) -> O
     """
     business = _authorize_operate(db, actor, business_id)
     now = datetime.now(UTC)
-    tz = ZoneInfo(business.timezone)
-    day = local_date(now, tz)
-    since = datetime.combine(day, time.min, tzinfo=tz).astimezone(UTC)
-    until = since + timedelta(days=1)
+    day = local_date(now, ZoneInfo(business.timezone))
+    # Midnight to midnight *in the zone* — never "since + 24 h", which
+    # would leak an hour across a daylight-saving transition.
+    since, until = _tenant_day_window(business, day)
     orders = repository.metrics_orders(db, business_id=business_id, since=since, until=until)
     standing = [
         order for order in orders if OrderStatus(order.status) not in SLOT_RELEASING_STATUSES
@@ -884,6 +912,7 @@ def order_metrics(db: Session, actor: ActorContext, business_id: uuid.UUID) -> O
     return OrderMetrics(
         day=day.isoformat(),
         timezone=business.timezone,
+        currency=business.currency,
         order_count=len(orders),
         standing_order_count=len(standing),
         sales_minor=sales,

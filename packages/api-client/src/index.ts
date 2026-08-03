@@ -115,6 +115,7 @@ export type {
   OrderListParams,
   OrderMetrics,
   OrdersApi,
+  OrderStatus,
   PopularItem,
   StatusEventView,
 } from './orders';
