@@ -2,7 +2,59 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M6D — delivered 2026-08-02; Milestone 6 complete)
+## Current state (M7A — delivered 2026-08-02)
+
+M7A adds the order-operations coverage (ADR-027) at the API, security,
+and isolation layers. The backend suite grows from **1,301** to
+**1,317**; every other suite is unchanged — M7A ships no UI, so the
+browser evidence stays with its slices (M7B–M7D).
+
+- **The transition matrix (D1/D4).** The full forward path
+  accept → start-preparing → mark-ready → complete, each step returning
+  the new status, growing the append-only timeline with a
+  member-attributed event, and writing exactly one audit row per named
+  action; the race shape — a second device's duplicate accept — answers
+  `409 invalid_state` carrying the current status, with the timeline
+  provably uncorrupted; member cancellation refuses everything past
+  `submitted`.
+- **Slot release against a real racing placement (D3).** A one-order
+  slot fills, a second placement refuses `slot_unavailable`, rejection
+  frees the capacity, and the same placement then succeeds — the
+  amendment (rejected releases, like cancelled) proven at the layer
+  that matters.
+- **The authority matrix (D2).** Owner, manager, and staff all read
+  and command; a platform administrator holds no membership and gets
+  the neutral 404 on reads and commands alike; a foreign business's
+  list is empty, its order ids resolve to nothing under another
+  tenant, and a membership grants nothing across the boundary.
+- **The read surface (D6 as amended).** Newest-first pages behind the
+  exclusive order-number cursor with the honest end; status and search
+  filters narrow truthfully (number exact, contact prefix — the same
+  filter that is customer order history); the detail carries the full
+  counter projection (PII on purpose, under the named capability) plus
+  the timeline.
+- **The estimate lifecycle (D7).** Refused before acceptance, set and
+  cleared with distinct audit records and exact no-op suppression —
+  and proven on the customer tracker: the public projection carries
+  the instant the member set.
+- **The pause vertical (D8).** Placement refuses with the typed
+  customer-visible `409 ordering_paused` (note and resume instant in
+  the details); the public projection carries the effective facts; an
+  expired pause reads as resumed with placement succeeding; a
+  pre-pause order's replay still reads (the check sits after the
+  idempotency lookup); the schema refuses a note without `paused`; and
+  staff hold no pause authority.
+- **Metrics (D11).** Today-in-tenant-zone counts, standing sales,
+  average order value, refusal counts, snapshot-derived popular items,
+  and a real accepted→ready prep average — computed from a seeded
+  three-order day with one rejection and one full prep cycle.
+
+Deliberate limits: no board or storefront surface exists yet
+(M7B/M7C own the browser evidence, M7D the journeys); the outbox still
+accumulates `pending` rows with no worker. The four retained risks
+stand unchanged.
+
+## Earlier state (M6D — delivered 2026-08-02; Milestone 6 complete)
 
 M6D adds the browser-level closure for Milestone 6 (ADR-026): the
 Playwright suite grows from **25** to **29** and the control-center

@@ -1,6 +1,6 @@
 # ADR-027: Restaurant order operations (Milestone 7)
 
-- **Status:** Accepted — M7A in delivery; M7B–M7D not started
+- **Status:** Accepted — M7A delivered (2026-08-02); M7B–M7D not started
 - **Date:** 2026-08-02
 - **Deciders:** Jinnah (product owner / principal architect), Claude (senior engineer)
 
@@ -165,3 +165,74 @@ storefront dependency or budget change.
   amendment (D4's recorded boundary).
 - Multi-station kitchens → the ticket view grows into a real KDS
   decision.
+
+---
+
+## Delivery record
+
+### M7A — The order operations backend: delivered, 2026-08-02
+
+Delivered exactly the §4 M7A scope, with two delivery corrections
+recorded as amendments:
+
+- **D6 as amended in delivery — the cursor is the order number.** The
+  ADR (and the discovery it came from) assumed UUIDv7 order ids from
+  ADR-026 §3's data model; the delivered placement generates **random
+  UUID4** ids, so an id cursor would not be a time cursor. The list
+  pages newest-first behind an exclusive cursor on the dense,
+  tenant-scoped `order_number` — monotonic by construction (allocated
+  under the Business lock) and served by the existing
+  `(business_id, order_number)` unique, so the planned `(business_id,
+id)` index was dropped from the migration before it shipped.
+- **D3's lock discipline proven end-to-end:** the slot count excludes
+  `rejected` alongside `cancelled`; reject and member-cancel take the
+  Business lock before the order-row lock; a test fills a
+  one-order slot, watches a second placement refuse, rejects the
+  first, and watches the same placement succeed.
+
+The six named member commands (D1/D4) validate the current state under
+the locked order row, append the member-actor status event, and audit —
+`409 invalid_state` carries the current status in typed details. The
+D2 capability `business.orders.operate` gates reads and commands for
+owner, manager, and staff; platform admins hold no membership and 404.
+The estimate (D7) is its own PUT, legal in accepted/preparing, audited
+set/cleared with exact no-op suppression, and rides `PublicOrderView`
+(the tracker round-trip is proven by test). Pause/resume (D8) is its
+own command on hours-write authority; effective pause is computed;
+placement refuses with the typed `409 ordering_paused` carrying the
+customer-visible note and resume instant, checked **after** the
+idempotency replay lookup so a pre-pause order's honest retry still
+reads; the public availability projection carries the effective facts
+and an expired pause reads as resumed. Metrics (D11) are computed
+today-in-tenant-zone reads.
+
+One additive migration (`b3e1f0a7c254`): `orders.estimated_ready_at`
+plus the three pause fields, server-defaulted unpaused. Nine new audit
+actions with typed details and read-time projections (the six
+transitions share one transition shape; the pause detail records note
+PRESENCE, never its text). Contract **78 → 89**; the api-client gains
+the `orders` facade group and `hours.setOrderingPause`; the CC mock
+client and fulfillment fixtures grow the same seams so the M7C board
+finds them ready.
+
+Verification: backend **1,317** (from 1,301 — the transition matrix
+including the race-shaped duplicate command; slot release against a
+real racing placement; the authority matrix across all three roles,
+the platform-admin 404, and cross-tenant nonexistence; cursor paging,
+filters, and search; the estimate lifecycle including the tracker
+round-trip; the pause vertical including expired auto-resume,
+replay-during-pause, schema coherence, and staff refusal); api-client
+115, renderer 165, storefront 143, control-center 483 unchanged and
+green (fixture seams only); contract byte-current; builds, budget,
+CSS, and built-server verification green; `pnpm e2e` 29 green with
+full disposable cleanup.
+Merge evidence: PR #60, reviewed head
+`03c1d8135d143db5f26b271341c9e4a97ee5ab2f`, SHA-bound merge
+`5f1c9a94244072485796ba96e8acb208da4d1d04` (parents `c662d8e4` then
+the reviewed head; merge tree `f685a763` equal to the reviewed head
+tree); exact-head CI run `30779327478` and exact-merge push CI run
+`30779525969` both green — five jobs, zero artifacts, attempt 1.
+
+Deliberately not delivered (their own slices): the storefront pause
+presentation and the tracker estimate line (M7B); the order board
+(M7C); the operations e2e journeys and close-out (M7D).

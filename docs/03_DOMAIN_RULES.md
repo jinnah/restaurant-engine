@@ -534,6 +534,28 @@ key reuse with a different payload is `409 idempotency_key_reused`. No
 outbox worker exists (D14): rows accumulate `pending` until the first
 channel milestone.
 
+**Implemented in M7A (ADR-027):** the member half of the machine as six
+named commands — accept/reject from `submitted`, start-preparing,
+mark-ready, complete, and the member cancellation (from `submitted`
+only, D4) — each validating the current state under the locked order
+row, appending the member-actor status event, and auditing in one
+transaction; illegal commands answer `409 invalid_state` with the
+current status. Rejection and member cancellation release the pickup
+slot (D3 as amended: the throttle count excludes rejected alongside
+cancelled) and take the Business lock so release serializes with a
+racing placement. One capability, `business.orders.operate`
+(owner/manager/staff), gates the PII-bearing operational reads — the
+order-number-cursor list with filters and contact search, the full
+detail with the timeline, computed daily metrics — and the commands
+alike. The kitchen's prep estimate (`estimated_ready_at`, D7) is its
+own audited command, legal while accepted/preparing, and rides the
+public tracking projection. Ordering pause/resume (D8) is hours-owned
+state written only by its own command: effective pause is computed
+(`paused AND (resume_at IS NULL OR now < resume_at)`), placement
+refuses with the typed customer-visible `409 ordering_paused` after
+the idempotency replay lookup, and the public availability projection
+carries the effective facts.
+
 ## Audit
 
 Append-only events capturing actor, tenant, action, target, timestamp,
