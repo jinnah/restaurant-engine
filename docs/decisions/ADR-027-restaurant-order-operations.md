@@ -1,6 +1,6 @@
 # ADR-027: Restaurant order operations (Milestone 7)
 
-- **Status:** Accepted — M7A–M7C delivered (2026-08-02/03); M7D not started
+- **Status:** Accepted — delivered in full (M7A–M7D, 2026-08-02/03); Milestone 7 complete
 - **Date:** 2026-08-02
 - **Deciders:** Jinnah (product owner / principal architect), Claude (senior engineer)
 
@@ -358,3 +358,77 @@ second data point.
 Deliberately not delivered (M7D): blueprint journey 5, the API-level
 concurrency race proof, the board's responsive/a11y acceptance, and
 the §19 exit-criteria close-out.
+
+### M7D — The operations journeys and the acceptance: delivered, 2026-08-03
+
+Delivered the §4 M7D scope — the proof, at the layer where each proof
+is honest, that Milestone 7 does what §19 requires — plus two
+accessibility corrections the acceptance work itself found in the
+delivered board.
+
+**The concurrency proof (§19: "two staff actions cannot corrupt
+state").** Deterministic, not a sleep. Transaction A takes the order
+row the D1 commands take and accepts the order itself; the production
+accept command then runs in a second session and is observed **waiting
+on that lock** in `pg_stat_activity` before A commits, so the overlap
+is real rather than assumed. When A releases, B re-reads the row it now
+owns, finds a state its transition is illegal from, and refuses with
+`409 invalid_state` carrying `{"status": "accepted"}` — the truth the
+losing device renders. The order keeps exactly one status event (the
+customer's placement), gains no member event, and writes no transition
+audit.
+
+**Blueprint §15.3 journey 5.** Staff accept → prepare → ready in a real
+browser while an anonymous visitor watches the tracker. The operator is
+a genuine `staff` membership invited by the business's own owner
+through the M2D business-scoped invitation, so ruling D2 is exercised
+through a browser for the first time — and the same session is shown
+holding no storefront section at all (ADR-020 §7), which is the other
+half of that boundary. The visitor's page is **never reloaded**: each
+transition is asserted by waiting for the poll the tracker already
+does, because "the customer tracker reflects transitions" is a claim
+about the customer's live page, not about the read endpoint. The D7
+estimate crosses the same way — a duration on the board, an instant on
+the tracker — and the drawer's timeline is checked for one member-actor
+event per staff action, the arm ADR-026 left unwritten.
+
+**The board's responsive and accessibility acceptance.** axe A/AA at
+the ADR-023 rule boundary (zero violations, no exclusions) over the
+board, the open drawer, its in-drawer confirmation, the estimate
+control and the pause dialog; the 44px target and
+no-horizontal-overflow floors at a phone and a desktop width. It also
+pins the M7C choices a scan cannot see on its own: `aria-pressed` chips
+inside a named group, exactly one dialog **and one `dialog-title`** on
+the page at a time, and a print ticket that is in the document but out
+of the accessibility tree.
+
+**Two corrections the acceptance found in the M7C board.**
+
+1. **The drawer could be dismissed only with Escape.** The board is a
+   counter-top tablet surface and every other dialog in the control
+   center offers a visible way out; a device with no keyboard could not
+   put an order down again. It now carries a `Close` control in every
+   state — including the one where the detail failed to load, which
+   previously offered no control at all.
+2. **The new-order live region was `display: none` while empty**, which
+   takes it out of the accessibility tree entirely — so the first
+   arrival would have been a region _appearing_ rather than a region
+   _updating_, exactly what ruling D10 asks it not to be. It is
+   visually hidden instead, and the acceptance spec now finds it **by
+   role**, in a real browser with the real stylesheet, before anything
+   arrives.
+
+Verification: Playwright **31** (from 29), control-center **515** (from
+513 — the drawer's two dismissal tests), backend **1,320** (from 1,319
+— the race proof); api-client 115, renderer 165, storefront 146,
+contract 89 operations, and the storefront budget all unchanged, the
+storefront being untouched. Ruff, format, mypy, typecheck, lint,
+prettier, builds, budget, CSS, contract and built-server verification
+green.
+Merge evidence: PR #67, reviewed head
+`ff6244f30814bea78f83b275ef2cbd42bdcad169`, SHA-bound merge
+`bacde45710fa4c3a39898a0245220596eccb3564` (parents `ec329071` then the
+reviewed head; merge tree `aadc4e12` equal to the reviewed head tree);
+exact-head CI run `30857565174` and exact-merge push CI run
+`30857933978` both green — five jobs, zero artifacts, attempt 1,
+**including the `frontend` job that carries retained risk 1**.

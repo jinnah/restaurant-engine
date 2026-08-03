@@ -2,7 +2,47 @@
 
 Summarizes blueprint §15. The blueprint is authoritative.
 
-## Current state (M7C — delivered 2026-08-03)
+## Current state (M7D — delivered 2026-08-03; Milestone 7 complete)
+
+M7D adds the end-to-end and security coverage that closes Milestone 7
+(ADR-027), plus the two control-center tests its accessibility
+corrections required. Playwright grows from **29** to **31**, the
+control-center suite from **513** to **515**, and the backend from
+**1,319** to **1,320**; every other suite is unchanged.
+
+- **The concurrency proof (1 backend test).** The §19 criterion "two
+  staff actions cannot corrupt state", proven deterministically rather
+  than with a sleep: transaction A holds the order row the D1 commands
+  take, the production command is observed **waiting on that lock** in
+  `pg_stat_activity` before A commits, and when A releases, B re-reads
+  the row it now owns and refuses with `409 invalid_state` carrying the
+  current status — appending no event and auditing nothing.
+- **Journey 5 (1 Playwright test).** Staff accept → prepare → ready on
+  the board while an anonymous visitor's tracker is **never reloaded**:
+  each transition, and the kitchen's D7 estimate, arrives through the
+  15-second poll the tracker already does. The operator is a genuine
+  `staff` membership invited by the business's own owner, so ruling D2
+  is exercised through a browser — and that same session is shown with
+  no storefront section at all. The drawer's timeline is checked for
+  one member-actor event per staff action.
+- **The board's acceptance (1 Playwright test).** axe A/AA at the
+  ADR-023 boundary over the board, the open drawer, its in-drawer
+  confirmation, the estimate control and the pause dialog; the 44px
+  target and no-horizontal-overflow floors at 375px and 1280px; and the
+  M7C choices a scan cannot see — `aria-pressed` chips in a named
+  group, exactly one dialog and one `dialog-title` at a time, a print
+  ticket in the document but out of the accessibility tree, and the
+  new-order live region found **by role** before anything arrives.
+- **The drawer's dismissal (2 control-center tests).** The drawer
+  closes from a control rather than only from the keyboard, and a
+  drawer whose detail failed to load can still be closed.
+
+Deliberate limits: the accessibility evidence is the automated A/AA
+boundary plus the geometric floors, not a conformance claim — no
+assistive-technology testing is performed and none is implied. The four
+retained risks stand unchanged.
+
+## Earlier state (M7C — delivered 2026-08-03)
 
 M7C adds the order board's coverage (ADR-027) at the component layer,
 plus the two backend tests its contract additions required. The
@@ -41,9 +81,9 @@ control-center suite grows from **483** to **513** and the backend from
   24-hour window would have swallowed — and it narrows an explicit
   instant window rather than replacing it.
 
-Deliberate limits: journey 5, the API-level concurrency race proof, and
-the board's responsive/a11y acceptance are M7D. The four retained risks
-stand unchanged.
+Deliberate limits (at the time): journey 5, the API-level concurrency
+race proof, and the board's responsive/a11y acceptance were M7D. The
+four retained risks stand unchanged.
 
 ## Earlier state (M7B — delivered 2026-08-03)
 
