@@ -1,4 +1,10 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
 import { renderApp } from './support/render';
 import {
@@ -327,11 +333,24 @@ describe('dirty-navigation protection', () => {
     });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
     await screen.findByText(/You have unsaved changes/);
+    // The banner and the guard read the same dirty flag, but the guard
+    // reaches the router through an effect: react-router re-registers the
+    // blocker function *after* the commit that painted the banner. Give
+    // React that turn before navigating — on a loaded CI runner the
+    // navigation could otherwise outrun the registration and slip through
+    // unblocked, which is what made this test intermittent (twice
+    // observed: runs 30652179044 and 30810894048).
+    await act(async () => {});
 
     void router.navigate(`/businesses/${BUSINESS}/menu`);
     expect(
       await screen.findByText('Your storefront draft has unsaved changes.'),
     ).toBeInTheDocument();
+    // Blocked means blocked: the route has not moved while the question
+    // is on screen.
+    expect(router.state.location.pathname).toBe(
+      `/businesses/${BUSINESS}/storefront`,
+    );
     // Staying keeps the route and the values.
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     await waitFor(() => {
