@@ -7,7 +7,7 @@
  * geometric only — no screenshot baseline and no pixel gate (ADR-023).
  */
 
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 /** The document itself must not scroll sideways (ADR-019 D3 rationale). */
 export async function expectNoPageOverflow(
@@ -146,22 +146,36 @@ export async function expectReadableText(
 }
 
 /**
- * ADR-024 §11: the 44px interactive-target floor, pinned per variant in a
- * real browser rather than from a stylesheet declaration.
+ * ADR-024 §11: the 44px interactive-target floor, measured on an already
+ * located control in a real browser rather than read from a stylesheet
+ * declaration. M7D added this arm so the control center's own targets —
+ * which are found by role, not by a hashed CSS-module class — are held to
+ * the identical floor rather than a re-typed approximation of it.
  */
+export async function expectTargetSize(
+  target: Locator,
+  what: string,
+): Promise<void> {
+  const box = await target.boundingBox();
+  expect(box, `no box for ${what}`).not.toBeNull();
+  expect(
+    box!.height,
+    `${what} is below the 44px target floor`,
+  ).toBeGreaterThanOrEqual(44);
+  expect(
+    box!.width,
+    `${what} is below the 44px target floor`,
+  ).toBeGreaterThanOrEqual(44);
+}
+
+/** The same floor, for a control named by CSS selector. */
 export async function expectTargetGeometry(
   page: Page,
   selector: string,
   where: string,
 ): Promise<void> {
-  const box = await page.locator(selector).first().boundingBox();
-  expect(box, `no box for ${selector} at ${where}`).not.toBeNull();
-  expect(
-    box!.height,
-    `${selector} is below the 44px target floor at ${where}`,
-  ).toBeGreaterThanOrEqual(44);
-  expect(
-    box!.width,
-    `${selector} is below the 44px target floor at ${where}`,
-  ).toBeGreaterThanOrEqual(44);
+  await expectTargetSize(
+    page.locator(selector).first(),
+    `${selector} at ${where}`,
+  );
 }

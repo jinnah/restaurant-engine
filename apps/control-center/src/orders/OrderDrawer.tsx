@@ -420,6 +420,25 @@ export function OrderDrawer({
           </section>
         </>
       )}
+
+      {/* A visible way out, rendered in every state — including while the
+          detail is loading or has failed. The Dialog shell's Escape is a
+          *keyboard* exit, and this board is a counter-top tablet surface
+          (§19: "mobile/tablet usability verified"): a device with no
+          keyboard would otherwise have no way to close an order it
+          opened. Every other dialog in the control center offers one.
+          Disabled while a command is in flight, for the same reason the
+          shell makes Escape inert then — dismissing would strand it. */}
+      <div className={styles.actionsRow}>
+        <button
+          type="button"
+          className={styles.secondary}
+          disabled={anyPending}
+          onClick={onClose}
+        >
+          Close
+        </button>
+      </div>
     </Dialog>
   );
 }

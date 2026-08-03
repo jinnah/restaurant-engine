@@ -11,13 +11,19 @@ placement (D3); the estimate (D7) and the pause vertical (D8) complete
 the slice. Seeding reuses the M6A ordering fixture.
 """
 
+import threading
+import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
+from sqlalchemy.orm import sessionmaker
 
+from app.core.errors import ApiError
+from app.domains.identity.actor import ActorContext, AuthenticatedUser
+from app.domains.orders import service as orders_service
 from tests.security.conftest import (
     CreateBusiness,
     CreateMembership,
@@ -723,3 +729,120 @@ class TestPause:
             ).status_code
             == 403
         )
+
+
+class TestConcurrentStaffActions:
+    """Two staff devices on one order cannot corrupt it (blueprint §19).
+
+    The proof is deterministic, not a sleep: transaction A takes the
+    order-row lock the D1 commands take and moves the order itself;
+    the production command then runs in a second session and must be
+    seen *waiting on that lock* in ``pg_stat_activity`` before A
+    commits. When A releases, B re-reads the row it now owns, finds a
+    state its transition is illegal from, and refuses — appending
+    nothing, auditing nothing.
+    """
+
+    def test_a_racing_second_accept_loses_honestly_and_changes_nothing(
+        self,
+        client: TestClient,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business_id, _, _, order_id = _seed_with_order(
+            client, migrated_engine, create_user, create_business, create_membership
+        )
+        # The seed already made this owner; reuse the row rather than
+        # colliding with the email uniqueness constraint.
+        with migrated_engine.connect() as connection:
+            owner_id = connection.execute(
+                text("SELECT id FROM users WHERE email = :email"), {"email": OWNER}
+            ).scalar_one()
+        actor = ActorContext(
+            user=AuthenticatedUser(
+                id=owner_id,
+                email=OWNER,
+                display_name="Test User",
+                is_platform_admin=False,
+            ),
+            session_id=uuid.uuid4(),
+            csrf_token="test-csrf",
+        )
+        session_factory = sessionmaker(bind=migrated_engine)
+        session_a = session_factory()
+        outcome: dict[str, Any] = {}
+        b_started = threading.Event()
+
+        def run_b() -> None:
+            session_b = session_factory()
+            try:
+                b_started.set()
+                orders_service.transition_order(
+                    session_b, actor, business_id, uuid.UUID(order_id), "accept"
+                )
+                outcome["result"] = "accepted"
+            except ApiError as exc:
+                outcome["result"] = (exc.status_code, exc.code.value, exc.details)
+            except Exception as exc:  # pragma: no cover - diagnostic only
+                outcome["result"] = ("unexpected", type(exc).__name__)
+            finally:
+                session_b.rollback()
+                session_b.close()
+
+        thread = threading.Thread(target=run_b)
+        try:
+            # A: the first device takes the order row and accepts it.
+            locked = session_a.execute(
+                text("SELECT status FROM orders WHERE id = :oid FOR UPDATE"),
+                {"oid": order_id},
+            ).scalar_one()
+            assert locked == "submitted"
+            session_a.execute(
+                text("UPDATE orders SET status = 'accepted' WHERE id = :oid"),
+                {"oid": order_id},
+            )
+            thread.start()
+            assert b_started.wait(timeout=5), "worker thread must start"
+
+            deadline = time.monotonic() + 10
+            observed_lock_wait = False
+            while time.monotonic() < deadline:
+                with migrated_engine.connect() as probe:
+                    waiting = probe.execute(
+                        text(
+                            "SELECT count(*) FROM pg_stat_activity"
+                            " WHERE datname = current_database()"
+                            " AND wait_event_type = 'Lock'"
+                            " AND query LIKE '%FOR UPDATE%'"
+                        )
+                    ).scalar_one()
+                if waiting:
+                    observed_lock_wait = True
+                    break
+                time.sleep(0.05)
+            assert observed_lock_wait, "the second command must block on the order row"
+            assert "result" not in outcome, "B must not resolve while A holds the row"
+
+            session_a.commit()  # releases the row; B proceeds
+        finally:
+            session_a.close()
+            thread.join(timeout=15)
+            assert not thread.is_alive(), "the blocked command must finish"
+
+        # The loser is refused honestly, with the truth it must render.
+        assert outcome["result"] == (409, "invalid_state", {"status": "accepted"})
+
+        # And nothing of the order moved: one status event (the customer's
+        # placement), no member event, no transition audit.
+        with migrated_engine.connect() as connection:
+            events = connection.execute(
+                text(
+                    "SELECT to_status, actor_kind FROM order_status_events"
+                    " WHERE order_id = :oid ORDER BY occurred_at"
+                ),
+                {"oid": order_id},
+            ).all()
+        assert [(row[0], row[1]) for row in events] == [("submitted", "customer")]
+        assert _audit_rows(migrated_engine, business_id, "order.accepted") == []

@@ -292,4 +292,35 @@ describe('the drawer', () => {
       vi.unstubAllGlobals();
     }
   });
+
+  // M7D: the drawer's dismissal used to be Escape alone, which is a
+  // keyboard exit on a surface built for a counter-top tablet.
+  test('closes from a control, not only from the keyboard', async () => {
+    await openDrawer(adminOrderDetail());
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+  });
+
+  test('a drawer whose detail failed to load can still be closed', async () => {
+    renderApp(
+      ORDERS,
+      drawerClient(adminOrderDetail(), {
+        get: vi.fn(async () =>
+          apiError(500, envelope('internal_error', 'Something broke.')),
+        ),
+      }),
+    );
+    fireEvent.click(await screen.findByRole('button', { name: /#1/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Order #1' });
+    expect(
+      await within(dialog).findByText('The order could not be loaded.'),
+    ).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+  });
 });

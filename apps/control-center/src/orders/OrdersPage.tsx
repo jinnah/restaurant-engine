@@ -429,11 +429,17 @@ export function OrdersPage() {
         </p>
       )}
 
-      {/* The live region is always mounted, so an arrival is an update to
+      {/* The live region is always mounted — and always in the
+          accessibility tree, empty or not — so an arrival is an update to
           announce rather than a region appearing (ruling D10). */}
-      <div role="status" className={styles.alertRegion}>
+      <div
+        role="status"
+        className={
+          newArrivals > 0 ? styles.newOrderAlert : styles.alertRegionIdle
+        }
+      >
         {newArrivals > 0 ? (
-          <span className={styles.newOrderAlert}>
+          <>
             <strong>
               {newArrivals === 1
                 ? '1 new order'
@@ -450,7 +456,7 @@ export function OrdersPage() {
             >
               Show new orders
             </button>
-          </span>
+          </>
         ) : null}
       </div>
 
