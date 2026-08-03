@@ -556,6 +556,18 @@ refuses with the typed customer-visible `409 ordering_paused` after
 the idempotency replay lookup, and the public availability projection
 carries the effective facts.
 
+**Implemented in M7C (ADR-027):** the operational read surface gains a
+`day` filter — a **tenant-local calendar date** the service resolves
+against the business timezone, so an operational date means the day the
+restaurant means; it narrows an explicit instant window rather than
+replacing it, and the daily metrics share the same midnight-to-midnight
+window (never "midnight plus 24 hours", which a daylight-saving
+transition makes wrong). The admin detail's lines carry
+`item_instructions`, the field the shareable public projection
+deliberately omits, and the metrics carry the business `currency`
+alongside their minor-unit money (blueprint §10.4). No rule of the
+§7.7 machine changed: the board is the member half's presentation.
+
 ## Audit
 
 Append-only events capturing actor, tenant, action, target, timestamp,

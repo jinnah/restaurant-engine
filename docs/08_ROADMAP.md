@@ -28,7 +28,7 @@ initial architecture-contract commit.
 | M4G — Curated storefront design and motion (extension)         | **Complete** (2026-08-01; M4G-A–M4G-D, ADR-024)  |
 | M5 — Hours and pickup readiness                                | **Complete** (2026-08-02; M5A–M5E, ADR-025)      |
 | M6 — Cart and guest pickup ordering                            | **Complete** (2026-08-02; M6A–M6D, ADR-026)      |
-| M7 — Restaurant order operations                               | **In progress** (M7A–M7B complete, ADR-027)      |
+| M7 — Restaurant order operations                               | **In progress** (M7A–M7C complete, ADR-027)      |
 | M8 — Production hardening and pilot                            | Not started                                      |
 | M9 – M11 — Commercial growth (promotions, campaigns, Facebook) | Not started (planned; reconciliation 2026-07-23) |
 
@@ -43,8 +43,71 @@ M7D depends on all of them.
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 | **M7A** — Order operations backend | migration (estimate + pause), `business.orders.operate`, the six named member commands, order-number-cursor list + detail/timeline + metrics, slot release on refusal, the pause command + enforcement, contract | **Complete** (2026-08-02, ADR-027) |
 | **M7B** — Storefront pause state   | the paused `/order` presentation, availability-projection consumption, the tracker estimate line                                                                                                                 | **Complete** (2026-08-03, ADR-027) |
-| **M7C** — The order board          | board, drawer, timeline, guarded actions, estimate control, search/filters, metrics strip, chime + toggle, print ticket, pause control + hours-page display                                                      | Not started                        |
+| **M7C** — The order board          | board, drawer, timeline, guarded actions, estimate control, search/filters, metrics strip, chime + toggle, print ticket, pause control + hours-page display                                                      | **Complete** (2026-08-03, ADR-027) |
 | **M7D** — E2E and close-out        | journey 5 (staff accept → prepare → ready; the tracker reflects each transition), the API-level concurrency race proof, board responsive/a11y acceptance, §19 exit-criteria verification                         | Not started                        |
+
+### M7C close-out (2026-08-03)
+
+M7C delivered **the live order board** — the control center's surface
+for a running service. Control-center **483 → 513**; backend **1,317 →
+1,319**; contract **89 operations, unchanged in count** with three
+additive schema/parameter changes.
+
+**The board.** Status chips in operational language (typed by the
+generated status union, so a new status fails the build rather than
+showing a wire value at a counter), undated by default because an order
+placed before midnight and still preparing is still this shift's work,
+polling at the D9 cadence. Search is bounded, deliberately sends no
+status filter — an order somebody asks about by name is rarely still
+"New" — and says so on screen; that same query is D6's customer-linked
+order history. A tenant calendar-day filter reads history. A full page
+offers "Load older orders" behind the D6 cursor, so nothing is silently
+truncated. Tickets carry number, customer, age, the promise or the
+kitchen's own estimate (labelled as such), an overdue mark while work is
+still owed, and the total. Metrics (D11) print in the currency the
+metrics themselves carry.
+
+**New orders (D10).** The alert rides a watch query independent of every
+filter — an arrival during a read of the Ready column still shouts — in
+a live region that is always mounted, with the chime an explicit
+per-device opt-in, off by default.
+
+**The drawer.** The full counter projection with its PII, both
+instruction fields, and the append-only timeline; exactly the legal
+commands per status; a raced `409 invalid_state` says the order changed
+on another device and refetches. Consequential refusals confirm inside
+the drawer — one dialog at a time, no doubled focus trap, no duplicated
+title id. The estimate is a **duration**, never a wall-clock picker,
+because the device's timezone is not necessarily the restaurant's. The
+ticket is print CSS (D12). Pause/resume (D8) is on the board for owner
+and manager; the hours panel shows the state read-only and points here.
+
+**Three contract additions the work required:** `AdminOrderLine`'s
+`item_instructions` (the kitchen reads what the shareable public
+projection omits); `OrderMetrics.currency` (money needs its unit, and a
+quiet morning has no row to infer it from); and the list `day` filter, a
+tenant-local calendar date resolved server-side — zone boundaries and
+DST are the server's arithmetic, not a browser's — which also retired a
+"midnight plus 24 hours" metrics window that would have leaked an hour
+across a transition.
+
+Merge evidence (PR #64): reviewed head `0edff72f39daaa9c0de89cecb6b60080ab581050` → merge
+`c836fe30500b96f89063b807dabc0b958b0bb4f8` (parents `50fffa6c` then the reviewed head; tree
+`731a272c` equal); exact-head run `30810894048` and exact-merge run
+`30811393932` both green — five jobs, zero artifacts.
+
+**Retained risk 1 recurred and is now twice-observed.** The exact-head
+run's first attempt failed in `storefront-dialogs-a11y.test.tsx` —
+"leaving the editor with unsaved changes asks first" — the same test
+and the same assertion as run `30652179044`, and it passed on the
+re-run (attempt 2). The failure is not M7C's: that test navigates
+**programmatically** (`router.navigate`), so the workspace's new Orders
+link cannot reach it, the file has not changed since M4E, and the whole
+control-center suite is repeatedly green locally, including three
+consecutive isolated runs of that file. The register now records a
+second data point — CI-only, intermittent, in the `useBlocker`
+registration window — and the standing instruction stands: the test is
+not to be modified without separate authorization.
 
 ### M7B close-out (2026-08-03)
 
