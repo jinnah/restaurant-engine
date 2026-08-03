@@ -5,6 +5,7 @@ import { BusinessWorkspaceLayout } from './business/BusinessWorkspaceLayout';
 import { RequireBusinessMembership } from './business/RequireBusinessMembership';
 import { HoursPage } from './hours/HoursPage';
 import { ItemCreatePage } from './menu/ItemCreatePage';
+import { OrdersPage } from './orders/OrdersPage';
 import { ItemEditorPage } from './menu/ItemEditorPage';
 import { MenuOverviewPage } from './menu/MenuOverviewPage';
 import { AuditPage } from './platform/AuditPage';
@@ -83,6 +84,9 @@ export const routes: RouteObject[] = [
                       // The hours workspace (ADR-025 §M5C): one page for
                       // the weekly schedule, exceptions, and fulfillment.
                       { path: 'hours', element: <HoursPage /> },
+                      // The order board (ADR-027 §M7C): every role
+                      // operates it (the D2 capability).
+                      { path: 'orders', element: <OrdersPage /> },
                       // Unknown workspace children fall through to the root
                       // catch-all not-found route.
                     ],

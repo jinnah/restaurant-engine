@@ -140,6 +140,14 @@ export function FulfillmentPanel({
               ? 'No cap'
               : fulfillment.max_orders_per_slot}
           </dd>
+          {/* M7C (ADR-027 D8): pause state is DISPLAYED here; the
+              control lives on the order board. */}
+          <dt>Online ordering</dt>
+          <dd>
+            {fulfillment.ordering_paused
+              ? `Paused${fulfillment.pause_note === null ? '' : ` — “${fulfillment.pause_note}”`}`
+              : 'Active'}
+          </dd>
         </dl>
       </section>
     );
@@ -216,6 +224,17 @@ export function FulfillmentPanel({
         <p className={styles.mutedText}>
           These are the platform defaults — nothing has been saved for this
           business yet. Saving stores these values as your own.
+        </p>
+      )}
+      {/* M7C (ADR-027 D8): pause state is displayed here read-only; the
+          pause/resume control lives on the order board. */}
+      {settings.fulfillment.ordering_paused && (
+        <p className={styles.mutedText} role="status">
+          Online ordering is currently paused
+          {settings.fulfillment.pause_note === null
+            ? '.'
+            : ` — “${settings.fulfillment.pause_note}”.`}{' '}
+          Resume it from the Orders page.
         </p>
       )}
       <CheckboxField

@@ -85,6 +85,17 @@ export function BusinessWorkspaceLayout() {
         >
           Hours
         </NavLink>
+        {/* Orders is likewise offered to EVERY role (ADR-027 ruling D2:
+            `business.orders.operate` is owner/manager/staff — the board
+            is the operational surface staff exist to run). */}
+        <NavLink
+          to={`/businesses/${membership.business_id}/orders`}
+          className={({ isActive }) =>
+            isActive ? styles.linkActive : styles.link
+          }
+        >
+          Orders
+        </NavLink>
       </nav>
       {note !== null && (
         <p className={styles.note}>

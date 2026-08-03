@@ -67,6 +67,18 @@ def _seed_with_order(
     return business_id, item_id, csrf, _newest_order_id(client, business_id)
 
 
+def _set_placed_at(engine: Engine, business_id: uuid.UUID, order_number: int, instant: str) -> None:
+    """Move one placed order in time, so a date filter has dates to find."""
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE orders SET placed_at = :instant"
+                " WHERE business_id = :bid AND order_number = :number"
+            ),
+            {"instant": instant, "bid": str(business_id), "number": order_number},
+        )
+
+
 def _audit_rows(engine: Engine, business_id: uuid.UUID, action: str) -> list[dict[str, Any]]:
     with engine.connect() as connection:
         rows = connection.execute(
@@ -370,6 +382,60 @@ class TestReads:
         nothing = client.get(_base(business_id), params={"q": "zz-nobody"}).json()
         assert nothing["orders"] == []
 
+    def test_the_day_filter_is_the_tenant_calendar_day(
+        self,
+        client: TestClient,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        """A day means the restaurant's day, DST transition included (M7C).
+
+        The chosen date is 2026-03-08, the US spring-forward Sunday: the
+        local day is 23 hours long, so its window ends at 04:00Z on the
+        9th. The second order sits at 04:30Z on the 9th — 00:30 local on
+        the *next* day, and exactly the row a naive "midnight plus 24
+        hours" window would have wrongly included.
+        """
+        business_id, item_id, _, _ = _seed_with_order(
+            client, migrated_engine, create_user, create_business, create_membership
+        )
+        assert _place(client, _payload(item_id)).status_code == 201
+        _set_placed_at(migrated_engine, business_id, 1, "2026-03-08T06:00:00+00:00")
+        _set_placed_at(migrated_engine, business_id, 2, "2026-03-09T04:30:00+00:00")
+
+        listed = client.get(_base(business_id), params={"day": "2026-03-08"}).json()
+        assert [o["order_number"] for o in listed["orders"]] == [1]
+        # The evening before, in local terms, belongs to the 7th.
+        _set_placed_at(migrated_engine, business_id, 1, "2026-03-08T04:30:00+00:00")
+        assert client.get(_base(business_id), params={"day": "2026-03-08"}).json()["orders"] == []
+        seventh = client.get(_base(business_id), params={"day": "2026-03-07"}).json()
+        assert [o["order_number"] for o in seventh["orders"]] == [1]
+
+    def test_the_day_filter_narrows_an_explicit_window_rather_than_replacing_it(
+        self,
+        client: TestClient,
+        migrated_engine: Engine,
+        create_user: CreateUser,
+        create_business: CreateBusiness,
+        create_membership: CreateMembership,
+    ) -> None:
+        business_id, item_id, _, _ = _seed_with_order(
+            client, migrated_engine, create_user, create_business, create_membership
+        )
+        assert _place(client, _payload(item_id)).status_code == 201
+        _set_placed_at(migrated_engine, business_id, 1, "2026-03-08T14:00:00+00:00")
+        _set_placed_at(migrated_engine, business_id, 2, "2026-03-08T20:00:00+00:00")
+        both = client.get(_base(business_id), params={"day": "2026-03-08"}).json()
+        assert [o["order_number"] for o in both["orders"]] == [2, 1]
+        # Neither filter is dropped: the tighter bound on each side wins.
+        narrowed = client.get(
+            _base(business_id),
+            params={"day": "2026-03-08", "placed_after": "2026-03-08T18:00:00+00:00"},
+        ).json()
+        assert [o["order_number"] for o in narrowed["orders"]] == [2]
+
 
 class TestEstimate:
     def test_set_show_clear_and_the_legal_states(
@@ -502,6 +568,9 @@ class TestMetrics:
         assert metrics.status_code == 200
         body = metrics.json()
         assert body["timezone"] == "America/New_York"
+        # Money carries its unit (M7C): the strip never infers a currency
+        # from a row, because on a quiet morning there is no row.
+        assert body["currency"] == "USD"
         assert body["order_count"] == 3
         assert body["standing_order_count"] == 2
         assert body["sales_minor"] == 5000  # two standing x 2500

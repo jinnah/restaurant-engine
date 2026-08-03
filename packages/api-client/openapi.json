@@ -75,7 +75,7 @@
           },
           "lines": {
             "items": {
-              "$ref": "#/components/schemas/PublicOrderLine"
+              "$ref": "#/components/schemas/AdminOrderLine"
             },
             "title": "Lines",
             "type": "array"
@@ -164,6 +164,55 @@
           "timeline"
         ],
         "title": "AdminOrderDetail",
+        "type": "object"
+      },
+      "AdminOrderLine": {
+        "description": "One snapshot line for the counter (ruling D6).\n\nExtends the public line with the item-level instructions the kitchen\nmust see — the field the shareable public projection deliberately\nomits (a tracking URL carries no customer text).",
+        "properties": {
+          "base_price_minor": {
+            "title": "Base Price Minor",
+            "type": "integer"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "item_instructions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Instructions"
+          },
+          "line_total_minor": {
+            "title": "Line Total Minor",
+            "type": "integer"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/PublicOrderLineOption"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "display_name",
+          "quantity",
+          "base_price_minor",
+          "options",
+          "line_total_minor",
+          "item_instructions"
+        ],
+        "title": "AdminOrderLine",
         "type": "object"
       },
       "AdminOrderList": {
@@ -3015,6 +3064,10 @@
             "title": "Cancelled Count",
             "type": "integer"
           },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
           "day": {
             "title": "Day",
             "type": "string"
@@ -3050,6 +3103,7 @@
         "required": [
           "day",
           "timezone",
+          "currency",
           "order_count",
           "standing_order_count",
           "sales_minor",
@@ -9167,7 +9221,7 @@
     },
     "/api/v1/businesses/{business_id}/orders": {
       "get": {
-        "description": "One newest-first page: filters, search, exclusive id cursor (D6).",
+        "description": "One newest-first page: filters, search, exclusive id cursor (D6).\n\n``day`` is a tenant-local calendar date (M7C): the service resolves\nit against the business timezone, so the operational date filter\nmeans the same day the restaurant means.",
         "operationId": "orders_admin_list",
         "parameters": [
           {
@@ -9197,6 +9251,23 @@
                 }
               ],
               "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "day",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Day"
             }
           },
           {

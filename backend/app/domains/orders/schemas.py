@@ -243,6 +243,17 @@ class AdminOrderList(BaseModel):
     next_before_number: int | None
 
 
+class AdminOrderLine(PublicOrderLine):
+    """One snapshot line for the counter (ruling D6).
+
+    Extends the public line with the item-level instructions the kitchen
+    must see — the field the shareable public projection deliberately
+    omits (a tracking URL carries no customer text).
+    """
+
+    item_instructions: str | None
+
+
 class StatusEventView(BaseModel):
     """One append-only timeline entry (ruling D7: events only)."""
 
@@ -281,7 +292,7 @@ class AdminOrderDetail(BaseModel):
     subtotal_minor: int
     tax_minor: int
     total_minor: int
-    lines: list[PublicOrderLine]
+    lines: list[AdminOrderLine]
     timeline: list[StatusEventView]
 
 
@@ -311,6 +322,10 @@ class OrderMetrics(BaseModel):
 
     day: str
     timezone: str
+    # Money needs its unit (blueprint §10.4): the totals below are minor
+    # units of exactly this currency, so a reader never has to infer it
+    # from a row that may not exist on a quiet morning.
+    currency: str
     order_count: int
     standing_order_count: int
     sales_minor: int

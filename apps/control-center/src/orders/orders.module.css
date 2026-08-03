@@ -1,0 +1,385 @@
+/* The order board (M7C, ADR-027): an active-service surface, not a
+   generic table. Shared primitives are composed from the control
+   vocabulary (M3E) rather than restated, so the 44px target contract and
+   the danger/focus treatments cannot drift. The print block at the end is
+   the D12 ticket — print CSS, no document pipeline. */
+
+.loading {
+  composes: loading from '../components/controls.module.css';
+}
+
+.empty {
+  composes: empty from '../components/controls.module.css';
+}
+
+.errorPanel {
+  composes: errorPanel from '../components/controls.module.css';
+}
+
+.primary {
+  composes: submit from '../components/controls.module.css';
+}
+
+.secondary {
+  composes: secondary from '../components/controls.module.css';
+}
+
+.danger {
+  composes: danger from '../components/controls.module.css';
+}
+
+.quiet {
+  composes: quiet from '../components/controls.module.css';
+}
+
+.actionsRow {
+  composes: actions from '../components/controls.module.css';
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.mutedText {
+  color: var(--color-muted);
+  margin: 0 0 var(--space-1);
+}
+
+.viewNote {
+  color: var(--color-muted);
+  margin: 0;
+}
+
+/* --- Today's metrics (ruling D11) ---------------------------------------- */
+
+.metricsPanel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-2);
+}
+
+.metricsHeading {
+  margin: 0 0 var(--space-1);
+  font-size: 1rem;
+}
+
+.metricsStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+}
+
+.metric dt {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.metric dd {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+/* --- Pause (ruling D8) ---------------------------------------------------- */
+
+.pauseBanner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius);
+}
+
+.pauseText {
+  margin: 0;
+  flex: 1 1 16rem;
+}
+
+/* --- Controls ------------------------------------------------------------- */
+
+.controlsRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-1) var(--space-2);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.filterChip {
+  composes: button from '../components/controls.module.css';
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.filterChipOn {
+  color: #ffffff;
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+/* The field shell owns a 30rem max width for forms; these sit in a row. */
+.searchField,
+.dayField,
+.chimeField {
+  min-width: 12rem;
+}
+
+.searchField > div,
+.dayField > div,
+.chimeField > div {
+  margin-bottom: 0;
+}
+
+.newBadge {
+  margin-left: 0.4rem;
+  padding: 0 0.5rem;
+  color: #ffffff;
+  background: var(--color-danger);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+/* --- The new-order alert (ruling D10) ------------------------------------- */
+
+/* Always in the DOM so an arrival is an announced update, never a region
+   materializing; empty it collapses to nothing. */
+.alertRegion:empty {
+  display: none;
+}
+
+.newOrderAlert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-success);
+  background: var(--color-success-bg);
+  border: 1px solid var(--color-success);
+  border-radius: var(--radius);
+  font-size: 1.05rem;
+}
+
+/* --- Tickets -------------------------------------------------------------- */
+
+.tickets {
+  display: grid;
+  gap: var(--space-1);
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ticket {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  min-height: var(--target-min);
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.ticketHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1);
+}
+
+.ticketNumber {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.statusBadge {
+  padding: 0 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.statusNew {
+  color: var(--color-danger);
+  background: var(--color-danger-bg);
+  border-color: var(--color-danger);
+}
+
+.ticketMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem var(--space-1);
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.95rem;
+}
+
+.overdue {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+/* --- Drawer --------------------------------------------------------------- */
+
+/* The counter reads this on a tablet at arm's length: wider than the
+   form dialogs, still inside the shared shell's max-height. */
+.drawer {
+  max-width: 40rem;
+}
+
+.drawerSection {
+  margin: var(--space-2) 0;
+}
+
+.drawerHeading {
+  margin: 0 0 var(--space-1);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.drawerStatus {
+  margin: 0 0 var(--space-1);
+}
+
+.detailList {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.2rem var(--space-2);
+  margin: 0;
+}
+
+.detailList dt {
+  color: var(--color-muted);
+}
+
+.detailList dd {
+  margin: 0;
+}
+
+.instructions {
+  margin: var(--space-1) 0 0;
+  padding: var(--space-1);
+  background: var(--color-warning-bg);
+  border-radius: var(--radius);
+}
+
+.lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.line {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.lineHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-1);
+  margin: 0;
+  font-weight: 600;
+}
+
+.lineMeta {
+  margin: 0.15rem 0 0;
+  color: var(--color-muted);
+  font-size: 0.95rem;
+}
+
+.totalRow {
+  display: flex;
+  justify-content: space-between;
+  margin: var(--space-1) 0 0;
+  font-weight: 700;
+}
+
+.timeline {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.confirmPanel {
+  margin-top: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-danger-bg);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius);
+}
+
+.confirmPanel p {
+  margin: 0;
+}
+
+/* --- The D12 print ticket: print CSS, not a document pipeline ------------- */
+
+.printTicket {
+  display: none;
+}
+
+@media print {
+  /* Everything except the ticket steps aside for the printer. */
+  body * {
+    visibility: hidden;
+  }
+
+  .printTicket,
+  .printTicket * {
+    visibility: visible;
+  }
+
+  .printTicket {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 100%;
+    color: #000000;
+    font-size: 14pt;
+  }
+
+  .printTicket h2 {
+    margin: 0 0 8pt;
+    font-size: 24pt;
+  }
+
+  .printTicket ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .printTicket li {
+    padding: 4pt 0;
+    border-bottom: 1pt solid #000000;
+  }
+}
